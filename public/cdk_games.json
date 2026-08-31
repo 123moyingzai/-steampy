@@ -1,0 +1,152 @@
+{
+  "preSaleItems": [
+    {
+      "name": "生化危机:安魂曲",
+      "price": "¥309",
+      "originalPrice": "¥348",
+      "discount": "-11%",
+      "image": "../picture/安魂曲.jpg",
+      "link": "三级项目安魂曲详情.html",
+      "description": "一款史诗级的动作冒险游戏，带你进入一个充满神秘和危险的世界。玩家将扮演主角在末日世界中生存，解开各种谜题，与丧尸战斗。719cjx",
+      "releaseDate": "2024-12-20",
+      "developer": "Epic Games",
+      "isPresale": true,
+      "stock": 99
+    },
+    {
+      "name": "生化危机:安魂曲 豪华版",
+      "price": "¥354",
+      "originalPrice": "¥398",
+      "discount": "-11%",
+      "image": "../picture/安魂曲.jpg",
+      "link": "三级项目安魂曲豪华版详情.html",
+      "description": "豪华版包含游戏本体、季票、独家皮肤包和数字原声带。最完整的安魂曲游戏体验。719cjx",
+      "releaseDate": "2024-12-20",
+      "developer": "Epic Games",
+      "isPresale": true,
+      "stock": 50
+    }
+  ],
+  "gameItems": [
+    {
+      "name": "Fullbright Pres",
+      "price": "¥6",
+      "originalPrice": "¥26",
+      "discount": "-77%",
+      "image": "../picture/Fullbright Pres.jpg",
+      "description": "一款独特的探索冒险游戏，玩家需要在神秘的空间站中探索，解开隐藏在环境中的故事。719cjx",
+      "releaseDate": "2023-08-15",
+      "developer": "Fullbright",
+      "isPresale": false,
+      "stock": 200
+    },
+    {
+      "name": "你的另一个老婆",
+      "price": "¥14.7",
+      "originalPrice": "¥18",
+      "discount": "-18%",
+      "image": "../picture/你的另一个老婆.jpg",
+      "description": "轻松有趣的恋爱模拟游戏，体验与众不同的恋爱故事。719cjx",
+      "releaseDate": "2023-11-20",
+      "developer": "独立游戏工作室",
+      "isPresale": false,
+      "stock": 150
+    },
+    {
+      "name": "东方奇缘记",
+      "price": "¥2.5",
+      "originalPrice": "¥18",
+      "discount": "-86%",
+      "image": "../picture/东方奇缘记.jpg",
+      "description": "东方Project同人游戏，结合了弹幕射击和RPG元素。719cjx",
+      "releaseDate": "2023-05-10",
+      "developer": "东方同人社团",
+      "isPresale": false,
+      "stock": 300
+    },
+    {
+      "name": "银河守卫战",
+      "price": "¥18.9",
+      "originalPrice": "¥41",
+      "discount": "-54%",
+      "image": "../picture/银河守卫战.jpg",
+      "description": "太空策略射击游戏，保卫银河系免受外星入侵。719cjx",
+      "releaseDate": "2023-09-01",
+      "developer": "Galaxy Studio",
+      "isPresale": false,
+      "stock": 120
+    },
+    {
+      "name": "我与她们的大学画像",
+      "price": "¥16.55",
+      "originalPrice": "¥20",
+      "discount": "-17%",
+      "image": "../picture/我与她们的大学画像.jpg",
+      "description": "校园恋爱视觉小说，体验大学生活中的甜蜜与感动。719cjx",
+      "releaseDate": "2023-12-01",
+      "developer": "校园游戏社",
+      "isPresale": false,
+      "stock": 180
+    },
+    {
+      "name": "三更",
+      "price": "¥4.38",
+      "originalPrice": "¥6",
+      "discount": "-27%",
+      "image": "../picture/三更.jpg",
+      "description": "恐怖解谜游戏，在深夜探索诡异的老宅，揭开尘封的秘密。719cjx",
+      "releaseDate": "2023-10-31",
+      "developer": "Night Studio",
+      "isPresale": false,
+      "stock": 250
+    },
+    {
+      "name": "神经鹅",
+      "price": "¥22.98",
+      "originalPrice": "¥28",
+      "discount": "-18%",
+      "image": "../picture/神经鹅.jpg",
+      "description": "搞怪模拟游戏，扮演一只制造混乱的大鹅。719cjx",
+      "releaseDate": "2023-06-15",
+      "developer": "House House",
+      "isPresale": false,
+      "stock": 100
+    },
+    {
+      "name": "RollBot",
+      "price": "¥18",
+      "originalPrice": "¥33",
+      "discount": "-45%",
+      "image": "../picture/RollBot.jpg",
+      "description": "机器人滚球益智游戏，控制机器人通过各种复杂关卡。719cjx",
+      "releaseDate": "2023-07-20",
+      "developer": "Indie Dev",
+      "isPresale": false,
+      "stock": 160
+    },
+    {
+      "name": "剑与魔法的女主角们2",
+      "price": "¥34",
+      "originalPrice": "¥42",
+      "discount": "-19%",
+      "image": "../picture/剑与魔法的女主角们2.jpg",
+      "description": "日系RPG游戏，与众多女主角一起展开冒险。719cjx",
+      "releaseDate": "2023-04-10",
+      "developer": "JRPG Studio",
+      "isPresale": false,
+      "stock": 140
+    },
+    {
+      "name": "高球王者",
+      "price": "¥12.9",
+      "originalPrice": "¥39",
+      "discount": "-67%",
+      "image": "../picture/高球王者.jpg",
+      "description": "高尔夫模拟游戏，体验真实的高尔夫球场和竞技。719cjx",
+      "releaseDate": "2023-08-30",
+      "developer": "Sports Games Inc",
+      "isPresale": false,
+      "stock": 220
+    }
+  ]
+}

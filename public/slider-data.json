@@ -1,0 +1,16 @@
+{
+  "slides": [
+    {
+      "imageUrl": "./picture/gun3.png",
+      "altText": "开发者支持计划"
+    },
+    {
+      "imageUrl": "./picture/gun2.png",
+      "altText": "热门游戏推荐"
+    },
+    {
+      "imageUrl": "./picture/gun1.png",
+      "altText": "限时特惠"
+    }
+  ]
+}
