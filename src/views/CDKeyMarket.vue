@@ -1,16 +1,6 @@
 <template>
   <Layout>
     <div class="cjx-cdkey-page">
-      <!-- 标签页导航 -->
-      <div class="cjx-tabs-nav">
-        <ul class="cjx-tabs-list">
-          <li class="cjx-tab-item" @click="$router.push('/')">首页</li>
-          <li class="cjx-tab-item" @click="$router.push('/gift')">礼物代购</li>
-          <li class="cjx-tab-item active" @click="$router.push('/cdkey')">CDKey 719cjx</li>
-          <li class="cjx-tab-item" @click="$router.push('/balance')">余额购</li>
-        </ul>
-      </div>
-
       <!-- 预售专区 -->
       <section class="cjx-section">
         <h2 class="cjx-section-title">
@@ -226,40 +216,6 @@ onMounted(() => {
   background: #fff;
   border-radius: 8px;
   padding: 20px;
-}
-
-.cjx-tabs-nav {
-  background-color: #f1f3f5;
-  padding: 0 1.5rem;
-  border-bottom: 1px solid #e9ecef;
-  margin: -20px -20px 20px -20px;
-  border-radius: 8px 8px 0 0;
-}
-
-.cjx-tabs-list {
-  display: flex;
-  gap: 0.5rem;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.cjx-tab-item {
-  padding: 1rem 1.5rem;
-  cursor: pointer;
-  border-bottom: 3px solid transparent;
-  transition: all 0.2s;
-  font-size: 0.9rem;
-}
-
-.cjx-tab-item.active {
-  border-bottom-color: #3498db;
-  color: #3498db;
-  font-weight: 500;
-}
-
-.cjx-tab-item:hover:not(.active) {
-  background-color: #e9ecef;
 }
 
 .cjx-section {

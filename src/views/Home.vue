@@ -1,16 +1,5 @@
 <template>
   <Layout>
-    <!-- 标签页导航 -->
-      <div class="cjx-tabs-nav">
-        <ul class="cjx-tabs-list">
-          <li class="cjx-tab-item active" @click="$router.push('/')">首页 719cjx</li>
-          <li class="cjx-tab-item" @click="$router.push('/buyer')">买家中心</li>
-          <li class="cjx-tab-item" @click="$router.push('/seller')">卖家中心</li>
-          <li class="cjx-tab-item" @click="$router.push('/balance')">余额购-国区</li>
-          <li class="cjx-tab-item" @click="$router.push('/cdkey')">CDKey市场</li>
-        </ul>
-      </div>
-
       <!-- 横幅轮播区 -->
       <div class="cjx-banner">
         <div class="cjx-banner-left">
@@ -272,39 +261,6 @@ onUnmounted(() => {
 
 <style scoped>
 /* Home 特有样式 */
-
-/* 标签页导航 */
-.cjx-tabs-nav {
-  background-color: #f1f3f5;
-  padding: 0 2rem;
-  border-bottom: 1px solid #e9ecef;
-}
-
-.cjx-tabs-list {
-  display: flex;
-  gap: 0.5rem;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.cjx-tab-item {
-  padding: 1rem 1.5rem;
-  cursor: pointer;
-  border-bottom: 3px solid transparent;
-  transition: all 0.2s;
-  font-size: 0.9rem;
-}
-
-.cjx-tab-item.active {
-  border-bottom-color: #3498db;
-  color: #3498db;
-  font-weight: 500;
-}
-
-.cjx-tab-item:hover:not(.active) {
-  background-color: #e9ecef;
-}
 
 /* 横幅轮播区 */
 .cjx-banner {
@@ -662,15 +618,6 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
-  .cjx-tabs-nav {
-    padding: 0 1rem;
-    overflow-x: auto;
-  }
-  
-  .cjx-tabs-list {
-    min-width: max-content;
-  }
-  
   .cjx-banner,
   .cjx-content-wrapper {
     padding: 1rem;

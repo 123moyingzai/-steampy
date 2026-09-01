@@ -1,16 +1,6 @@
 <template>
   <Layout>
     <div class="cjx-page-container">
-      <!-- 标签页导航 -->
-      <div class="cjx-tabs-nav">
-        <ul class="cjx-tabs-list">
-          <li class="cjx-tab-item" @click="$router.push('/')">首页</li>
-          <li class="cjx-tab-item" @click="$router.push('/gift')">礼物代购</li>
-          <li class="cjx-tab-item" @click="$router.push('/cdkey')">CDKey 719cjx</li>
-          <li class="cjx-tab-item active" @click="$router.push('/balance')">余额购</li>
-        </ul>
-      </div>
-
       <!-- 返回按钮 -->
       <div class="cjx-back-bar">
         <button class="cjx-back-btn" @click="goBack">
@@ -242,38 +232,6 @@ onMounted(() => {
 <style scoped>
 .cjx-page-container {
   padding: 0;
-}
-
-/* 标签页导航 */
-.cjx-tabs-nav {
-  background: #fff;
-  border-bottom: 1px solid #eee;
-  padding: 0 20px;
-}
-
-.cjx-tabs-list {
-  display: flex;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  gap: 30px;
-}
-
-.cjx-tab-item {
-  padding: 15px 0;
-  cursor: pointer;
-  color: #666;
-  border-bottom: 2px solid transparent;
-  transition: all 0.3s;
-}
-
-.cjx-tab-item:hover {
-  color: #e74c3c;
-}
-
-.cjx-tab-item.active {
-  color: #e74c3c;
-  border-bottom-color: #e74c3c;
 }
 
 /* 返回按钮 */
