@@ -63,6 +63,11 @@ const routes: RouteRecordRaw[] = [
     name: 'BalancePurchaseDetail',
     component: () => import('../views/BalancePurchaseDetail.vue')
   },
+  {
+    path: '/help',
+    name: 'HelpCenter',
+    component: () => import('../views/HelpCenter.vue')
+  },
 
   // ========== 管理员路由 ==========
   {
