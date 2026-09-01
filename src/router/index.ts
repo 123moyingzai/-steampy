@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import Home from '../views/Home.vue'
+import { adminAuthAPI } from '../config/admin-api'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -61,12 +62,67 @@ const routes: RouteRecordRaw[] = [
     path: '/balance/detail/:game',
     name: 'BalancePurchaseDetail',
     component: () => import('../views/BalancePurchaseDetail.vue')
+  },
+
+  // ========== 管理员路由 ==========
+  {
+    path: '/admin',
+    component: () => import('../views/admin/AdminLayout.vue'),
+    meta: { requiresAdmin: true },
+    children: [
+      {
+        path: '',
+        redirect: '/admin/dashboard'
+      },
+      {
+        path: 'dashboard',
+        name: 'AdminDashboard',
+        component: () => import('../views/admin/AdminDashboard.vue')
+      },
+      {
+        path: 'users',
+        name: 'AdminUsers',
+        component: () => import('../views/admin/AdminUsers.vue')
+      },
+      {
+        path: 'games',
+        name: 'AdminGames',
+        component: () => import('../views/admin/AdminGames.vue')
+      },
+      {
+        path: 'orders',
+        name: 'AdminOrders',
+        component: () => import('../views/admin/AdminOrders.vue')
+      },
+      {
+        path: 'announcements',
+        name: 'AdminAnnouncements',
+        component: () => import('../views/admin/AdminAnnouncements.vue')
+      }
+    ]
   }
 ]
 
 const router = createRouter({
   history: createWebHistory(),
   routes
+})
+
+// 路由守卫 - 管理员权限检查
+router.beforeEach((to, from, next) => {
+  // 访问 /admin/* 路由需要管理员权限
+  if (to.path.startsWith('/admin')) {
+    if (!adminAuthAPI.isAdminLoggedIn()) {
+      // 非管理员，跳转登录页，登录后自动回跳
+      next({
+        path: '/login',
+        query: { redirect: to.fullPath }
+      })
+      return
+    }
+  }
+
+  next()
 })
 
 export default router

@@ -216,10 +216,10 @@
         </button>
 
         <div class="cjx-link-text">
-          <a @click="switchToLogin">使用已有账号登录 719cjx</a>
+            <a @click="switchToLogin">使用已有账号登录 719cjx</a>
+          </div>
         </div>
       </div>
-    </div>
 
     <div class="cjx-footer">
       719cjx - Steam游戏交易平台 | 沪ICP备19042195号-1
@@ -229,10 +229,11 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { authAPI } from '../config/supabase-local.ts'
 
 const router = useRouter()
+const route = useRoute()
 
 // 响应式数据
 const isLogin = ref(true)
@@ -384,10 +385,30 @@ const handleLogin = async () => {
       errors.loginPassword = result.error
       alert(result.error) // 使用alert确保错误信息显示
     } else {
+      const user = result.data as any
+      const isAdmin = user?.user_type === '管理员'
+      // 如果是管理员，额外标记
+      if (isAdmin) {
+        sessionStorage.setItem('steampy_admin', 'true')
+      }
       alert('登录成功！')
-      // 触发自定义事件通知Layout更新用户状态
       window.dispatchEvent(new Event('user-logged-in'))
-      router.push('/')
+
+      // 优先使用 redirect 参数（从路由守卫跳转过来的）
+      const redirect = route.query.redirect as string
+      if (redirect && redirect.startsWith('/admin')) {
+        if (isAdmin) {
+          router.replace(redirect)
+        } else {
+          alert('您的账号没有管理员权限')
+          router.replace('/')
+        }
+      } else if (redirect && redirect.startsWith('/')) {
+        router.replace(redirect)
+      } else {
+        // 默认跳转：管理员去后台，普通用户去首页
+        router.replace(isAdmin ? '/admin/dashboard' : '/')
+      }
     }
   } catch (error) {
     loading.value = false
