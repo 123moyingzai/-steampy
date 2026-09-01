@@ -1,89 +1,62 @@
 <template>
   <div class="cjx-layout-container">
-    <!-- 左侧导航栏 -->
-    <aside class="cjx-sidebar">
-      <div class="cjx-sidebar-logo">
-        <h1 @click="$router.push('/')">
-          <svg viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-          </svg>
-          <span>Steam PY匹歪</span>
-        </h1>
+    <!-- 顶部导航栏 -->
+    <header class="cjx-top-nav">
+      <!-- 左侧 Logo -->
+      <div class="cjx-nav-logo" @click="$router.push('/')">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+        <span>Steam PY匹歪</span>
       </div>
-      <nav class="cjx-sidebar-menu">
-        <div class="cjx-menu-title">市场</div>
-        <div class="cjx-menu-item" :class="{ active: $route.path === '/' }" @click="$router.push('/')">
-          <span class="cjx-menu-link">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-            </svg>
-            <span>首页页面 719cjx</span>
-          </span>
+
+      <!-- 中间导航菜单 -->
+      <nav class="cjx-nav-menu">
+        <div class="cjx-nav-group">
+          <span class="cjx-nav-group-title">市场</span>
+          <div class="cjx-nav-items">
+            <a class="cjx-nav-item" :class="{ active: $route.path === '/' }" @click="$router.push('/')">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+              <span>首页</span>
+            </a>
+            <a class="cjx-nav-item" :class="{ active: $route.path === '/cdkey' }" @click="$router.push('/cdkey')">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h18v2H3zm0 16h18v2H3zm0-8h18v2H3z"/></svg>
+              <span>CDK国区</span>
+            </a>
+            <a class="cjx-nav-item" :class="{ active: $route.path === '/gift' }" @click="$router.push('/gift')">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 4h2v16h-2zM4 4h14v2H4zm0 14h14v2H4zm0-7h14v2H4z"/></svg>
+              <span>礼物代购</span>
+            </a>
+            <a class="cjx-nav-item" :class="{ active: $route.path === '/balance' }" @click="$router.push('/balance')">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm0-4h-2V7h2v8z"/></svg>
+              <span>余额购</span>
+            </a>
+          </div>
         </div>
-        <div class="cjx-menu-item" :class="{ active: $route.path === '/cdkey' }" @click="$router.push('/cdkey')">
-          <span class="cjx-menu-link">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M3 3h18v2H3zm0 16h18v2H3zm0-8h18v2H3z"/>
-            </svg>
-            <span>cdk国区 719cjx</span>
-          </span>
-        </div>
-        <div class="cjx-menu-item" :class="{ active: $route.path === '/gift' }" @click="$router.push('/gift')">
-          <span class="cjx-menu-link">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M18 4h2v16h-2zM4 4h14v2H4zm0 14h14v2H4zm0-7h14v2H4z"/>
-            </svg>
-            <span>礼物代购</span>
-          </span>
-        </div>
-        <div class="cjx-menu-item" :class="{ active: $route.path === '/balance' }" @click="$router.push('/balance')">
-          <span class="cjx-menu-link">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm0-4h-2V7h2v8z"/>
-            </svg>
-            <span>余额购</span>
-          </span>
-        </div>
-        
-        <div class="cjx-menu-title">用户中心</div>
-        <div class="cjx-menu-item" :class="{ active: $route.path === '/buyer' }" @click="$router.push('/buyer')">
-          <span class="cjx-menu-link">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
-            </svg>
-            <span>买家中心 719cjx</span>
-          </span>
-        </div>
-        <div class="cjx-menu-item" :class="{ active: $route.path === '/seller' }" @click="$router.push('/seller')">
-          <span class="cjx-menu-link">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
-            </svg>
-            <span>卖家中心 719cjx</span>
-          </span>
-        </div>
-        <div class="cjx-menu-item" :class="{ active: $route.path === '/settings' }" @click="$router.push('/settings')">
-          <span class="cjx-menu-link">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
-            </svg>
-            <span>账号设置 719cjx</span>
-          </span>
+        <div class="cjx-nav-divider"></div>
+        <div class="cjx-nav-group">
+          <span class="cjx-nav-group-title">用户中心</span>
+          <div class="cjx-nav-items">
+            <a class="cjx-nav-item" :class="{ active: $route.path === '/buyer' }" @click="$router.push('/buyer')">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+              <span>买家中心</span>
+            </a>
+            <a class="cjx-nav-item" :class="{ active: $route.path === '/seller' }" @click="$router.push('/seller')">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/></svg>
+              <span>卖家中心</span>
+            </a>
+            <a class="cjx-nav-item" :class="{ active: $route.path === '/settings' }" @click="$router.push('/settings')">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+              <span>账号设置</span>
+            </a>
+          </div>
         </div>
       </nav>
-      <div class="cjx-sidebar-footer">
-        <p>进入网页版新澡堂(测试)</p>
-        <p>欢迎交流 官方QQ群<br>807662430</p>
-        <p>用户协议 | 隐私政策 719cjx</p>
-      </div>
-    </aside>
 
-    <!-- 主内容区 -->
-    <main class="cjx-main-content">
-      <!-- 顶部信息栏 -->
-      <div class="cjx-top-bar">
+      <!-- 右侧钱包 + 用户 -->
+      <div class="cjx-nav-right">
         <div class="cjx-wallet-info">
-          <span>钱包金额: </span>
+          <span class="cjx-wallet-label">钱包</span>
           <span class="cjx-wallet-balance">¥{{ walletBalance.toFixed(2) }}</span>
           <button class="cjx-top-btn cjx-withdraw">提现</button>
           <button class="cjx-top-btn cjx-details" @click="$router.push('/transactions')">明细</button>
@@ -102,7 +75,7 @@
             <div class="cjx-dropdown-menu" :class="{ active: showMenu }">
               <template v-if="isLoggedIn">
                 <div class="cjx-username-display">{{ currentUser?.nickname || currentUser?.username || '游客' }}</div>
-                <a class="cjx-dropdown-item" @click="$router.push('/settings')">账号设置 719cjx</a>
+                <a class="cjx-dropdown-item" @click="$router.push('/settings')">账号设置</a>
                 <a class="cjx-dropdown-item" @click="$router.push('/settings')">修改密码</a>
                 <div class="cjx-dropdown-divider"></div>
                 <a class="cjx-dropdown-item" @click="handleLogout">退出登录</a>
@@ -115,11 +88,19 @@
           </div>
         </div>
       </div>
+    </header>
 
-      <!-- 页面内容 -->
+    <!-- 主内容区 -->
+    <main class="cjx-main-content">
       <div class="cjx-page-content">
         <slot></slot>
       </div>
+
+      <!-- 底部页脚 -->
+      <footer class="cjx-footer">
+        <p>进入网页版新澡堂(测试) &nbsp;|&nbsp; 欢迎交流 官方QQ群 807662430</p>
+        <p>用户协议 | 隐私政策</p>
+      </footer>
     </main>
   </div>
 </template>
@@ -181,7 +162,7 @@ const loadData = () => {
 onMounted(() => {
   loadData()
   document.addEventListener('click', closeMenu)
-  
+
   // 监听sessionStorage变化，更新用户状态
   window.addEventListener('storage', (e) => {
     if (e.key === 'steampy_user') {
@@ -191,7 +172,7 @@ onMounted(() => {
       }
     }
   })
-  
+
   // 监听自定义登录/登出事件
   window.addEventListener('user-logged-in', () => {
     currentUser.value = authAPI.getCurrentUser()
@@ -209,136 +190,141 @@ onUnmounted(() => {
 <style scoped>
 .cjx-layout-container {
   display: flex;
+  flex-direction: column;
   min-height: 100vh;
   background: #f5f5f5;
 }
 
-/* 左侧导航栏 */
-.cjx-sidebar {
-  width: 220px;
+/* 顶部导航栏 */
+.cjx-top-nav {
+  height: 64px;
   background-color: #2c3e50;
   color: #ecf0f1;
-  padding: 1.5rem 0;
-  height: 100vh;
-  position: fixed;
+  display: flex;
+  align-items: center;
+  padding: 0 1.5rem;
+  position: sticky;
   top: 0;
-  left: 0;
-  overflow-y: auto;
   z-index: 100;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  gap: 1.5rem;
 }
 
-.cjx-sidebar-logo {
-  padding: 0 1.5rem 1.5rem;
-  border-bottom: 1px solid #34495e;
-  margin-bottom: 1rem;
-}
-
-.cjx-sidebar-logo h1 {
-  font-size: 1.2rem;
+/* Logo */
+.cjx-nav-logo {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
   cursor: pointer;
-}
-
-.cjx-sidebar-logo svg {
-  width: 24px;
-  height: 24px;
-}
-
-.cjx-sidebar-menu {
-  padding: 0 0.5rem;
-  list-style: none;
-}
-
-.cjx-menu-title {
-  font-size: 0.9rem;
-  color: #bdc3c7;
-  padding: 1rem 1.5rem 0.5rem;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.cjx-menu-item {
-  margin-bottom: 0.3rem;
-  border-radius: 4px;
-  transition: background-color 0.2s;
-  cursor: pointer;
-}
-
-.cjx-menu-item:hover,
-.cjx-menu-item.active {
-  background-color: #34495e;
-}
-
-.cjx-menu-link {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem;
-  padding: 0.8rem 1.5rem;
-  color: #ecf0f1;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.cjx-menu-item svg {
-  width: 18px;
-  height: 18px;
+  white-space: nowrap;
   flex-shrink: 0;
 }
 
-.cjx-sidebar-footer {
-  padding: 1.5rem;
-  border-top: 1px solid #34495e;
-  margin-top: 1rem;
-  font-size: 0.8rem;
-  color: #bdc3c7;
+.cjx-nav-logo svg {
+  width: 26px;
+  height: 26px;
 }
 
-.cjx-sidebar-footer p {
-  margin-bottom: 0.5rem;
-}
-
-/* 主内容区 */
-.cjx-main-content {
+/* 中部导航菜单 */
+.cjx-nav-menu {
   flex: 1;
-  margin-left: 220px;
-  width: calc(100% - 220px);
-  min-height: 100vh;
-}
-
-/* 顶部信息栏 */
-.cjx-top-bar {
-  height: 60px;
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #e9ecef;
-  padding: 0 2rem;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  position: sticky;
-  top: 0;
-  z-index: 10;
+  gap: 1rem;
+  overflow: hidden;
+}
+
+.cjx-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.cjx-nav-group-title {
+  font-size: 0.75rem;
+  color: #95a5a6;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.cjx-nav-items {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.cjx-nav-divider {
+  width: 1px;
+  height: 24px;
+  background-color: #34495e;
+}
+
+.cjx-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #ecf0f1;
+  text-decoration: none;
+  transition: background-color 0.2s;
+  white-space: nowrap;
+}
+
+.cjx-nav-item svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.cjx-nav-item:hover {
+  background-color: #34495e;
+}
+
+.cjx-nav-item.active {
+  background-color: #34495e;
+  color: #fff;
+}
+
+/* 右侧区域 */
+.cjx-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
 }
 
 .cjx-wallet-info {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.5rem;
+  background-color: #34495e;
+  padding: 0.4rem 0.75rem;
+  border-radius: 4px;
+}
+
+.cjx-wallet-label {
+  font-size: 0.8rem;
+  color: #bdc3c7;
 }
 
 .cjx-wallet-balance {
   font-weight: bold;
-  color: #27ae60;
+  color: #2ecc71;
+  font-size: 0.9rem;
 }
 
 .cjx-top-btn {
-  padding: 0.4rem 1rem;
-  border-radius: 4px;
+  padding: 0.3rem 0.75rem;
+  border-radius: 3px;
   border: none;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   transition: all 0.2s;
 }
 
@@ -352,25 +338,30 @@ onUnmounted(() => {
 }
 
 .cjx-details {
-  background-color: #95a5a6;
+  background-color: #7f8c8d;
   color: white;
 }
 
 .cjx-details:hover {
-  background-color: #7f8c8d;
+  background-color: #5d6d7e;
 }
 
 .cjx-user-actions {
   display: flex;
   align-items: center;
-  gap: 1.5rem;
+  gap: 1rem;
 }
 
 .cjx-action-icon {
   width: 20px;
   height: 20px;
   cursor: pointer;
-  color: #666;
+  color: #bdc3c7;
+  transition: color 0.2s;
+}
+
+.cjx-action-icon:hover {
+  color: #ecf0f1;
 }
 
 .cjx-avatar-menu-container {
@@ -401,7 +392,7 @@ onUnmounted(() => {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
   padding: 8px 0;
   display: none;
-  z-index: 100;
+  z-index: 200;
 }
 
 .cjx-dropdown-menu.active {
@@ -436,48 +427,70 @@ onUnmounted(() => {
   margin: 4px 0;
 }
 
+/* 主内容区 */
+.cjx-main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .cjx-page-content {
+  flex: 1;
   padding: 1.5rem 2rem;
 }
 
-/* 响应式设计 */
+/* 底部页脚 */
+.cjx-footer {
+  padding: 1.5rem 2rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: #999;
+  border-top: 1px solid #e0e0e0;
+  background-color: #fafafa;
+}
+
+.cjx-footer p {
+  margin: 0.25rem 0;
+}
+
+/* 响应式 */
 @media (max-width: 1024px) {
-  .cjx-sidebar {
-    width: 60px;
-    padding: 1rem 0;
+  .cjx-top-nav {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 0.75rem 1rem;
+    gap: 0.75rem;
   }
-  
-  .cjx-sidebar-logo h1 span,
-  .cjx-menu-link span,
-  .cjx-menu-title,
-  .cjx-sidebar-footer {
+
+  .cjx-nav-menu {
+    order: 3;
+    flex-basis: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+  }
+
+  .cjx-nav-divider {
     display: none;
   }
-  
-  .cjx-sidebar-logo {
-    padding: 0 0.5rem 1rem;
-    display: flex;
-    justify-content: center;
-  }
-  
-  .cjx-menu-link {
-    justify-content: center;
-    padding: 0.8rem;
-  }
-  
-  .cjx-main-content {
-    margin-left: 60px;
-    width: calc(100% - 60px);
+
+  .cjx-page-content {
+    padding: 1rem;
   }
 }
 
 @media (max-width: 768px) {
-  .cjx-top-bar {
-    padding: 0 1rem;
+  .cjx-nav-group-title {
+    display: none;
   }
-  
-  .cjx-page-content {
-    padding: 1rem;
+
+  .cjx-wallet-label {
+    display: none;
+  }
+
+  .cjx-nav-item span {
+    font-size: 0.85rem;
   }
 }
 </style>
