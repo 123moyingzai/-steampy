@@ -1,13 +1,13 @@
 ﻿<template>
   <div class="admin-layout">
     <!-- 侧边栏 -->
-    <aside class="admin-sidebar" :class="{ collapsed: sidebarCollapsed }">
+    <aside class="admin-sidebar">
       <div class="sidebar-header">
         <div class="sidebar-logo">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"/>
           </svg>
-          <span v-show="!sidebarCollapsed">管理后台</span>
+          <span>管理后台</span>
         </div>
       </div>
 
@@ -20,18 +20,9 @@
           @click="navigate(item.path)"
         >
           <span class="menu-icon" v-html="item.icon"></span>
-          <span v-show="!sidebarCollapsed" class="menu-label">{{ item.label }}</span>
+          <span class="menu-label">{{ item.label }}</span>
         </div>
       </nav>
-
-      <div class="sidebar-footer">
-        <button class="collapse-btn" @click="sidebarCollapsed = !sidebarCollapsed">
-          <svg viewBox="0 0 24 24" fill="currentColor" :style="{ transform: sidebarCollapsed ? 'rotate(180deg)' : 'none' }">
-            <path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z"/>
-          </svg>
-          <span v-show="!sidebarCollapsed">收起</span>
-        </button>
-      </div>
     </aside>
 
     <!-- 主内容区 -->
@@ -78,7 +69,6 @@ import { adminAuthAPI } from '../../config/admin-api'
 const router = useRouter()
 const route = useRoute()
 
-const sidebarCollapsed = ref(false)
 const adminName = ref('管理员')
 
 // 侧边栏菜单项
@@ -164,24 +154,12 @@ watch(() => route.path, () => {
   left: 0;
   overflow-y: auto;
   z-index: 100;
-  transition: width 0.25s ease;
-}
-
-.admin-sidebar.collapsed {
-  width: 64px;
-  padding: 1rem 0;
 }
 
 .sidebar-header {
   padding: 0 1.5rem 1.5rem;
   border-bottom: 1px solid #34495e;
   margin-bottom: 1rem;
-}
-
-.admin-sidebar.collapsed .sidebar-header {
-  padding: 0 0.5rem 1rem;
-  display: flex;
-  justify-content: center;
 }
 
 .sidebar-logo {
@@ -246,42 +224,6 @@ watch(() => route.path, () => {
   font-size: 0.95rem;
 }
 
-.sidebar-footer {
-  padding: 1rem 1.5rem 0;
-  border-top: 1px solid #34495e;
-  margin-top: 1rem;
-}
-
-.admin-sidebar.collapsed .sidebar-footer {
-  display: none;
-}
-
-.collapse-btn {
-  width: 100%;
-  padding: 0.6rem;
-  background: transparent;
-  border: 1px solid #34495e;
-  border-radius: 4px;
-  color: #bdc3c7;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  transition: all 0.2s;
-  font-size: 0.85rem;
-}
-
-.collapse-btn:hover {
-  background-color: #34495e;
-  color: #ecf0f1;
-}
-
-.collapse-btn svg {
-  width: 14px;
-  height: 14px;
-}
-
 /* 主内容区 */
 .admin-main {
   flex: 1;
@@ -291,12 +233,6 @@ watch(() => route.path, () => {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  transition: margin-left 0.25s ease;
-}
-
-.admin-sidebar.collapsed ~ .admin-main {
-  margin-left: 64px;
-  width: calc(100% - 64px);
 }
 
 /* 顶部栏 - 与客户端顶栏一致 */
