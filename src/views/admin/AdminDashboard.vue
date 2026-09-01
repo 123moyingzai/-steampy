@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="admin-dashboard">
     <!-- 统计卡片 -->
     <div class="stats-grid">
@@ -59,19 +59,19 @@
         </div>
         <div class="card-body quick-actions">
           <router-link to="/admin/users" class="quick-action">
-            <div class="qa-icon" style="background:#3b82f6"><span>👥</span></div>
+            <div class="qa-icon" style="background:#3498db"><span>👥</span></div>
             <span>管理用户</span>
           </router-link>
           <router-link to="/admin/games" class="quick-action">
-            <div class="qa-icon" style="background:#10b981"><span>🎮</span></div>
+            <div class="qa-icon" style="background:#27ae60"><span>🎮</span></div>
             <span>管理游戏</span>
           </router-link>
           <router-link to="/admin/orders" class="quick-action">
-            <div class="qa-icon" style="background:#f59e0b"><span>📋</span></div>
+            <div class="qa-icon" style="background:#f39c12"><span>📋</span></div>
             <span>处理订单</span>
           </router-link>
           <router-link to="/admin/announcements" class="quick-action">
-            <div class="qa-icon" style="background:#8b5cf6"><span>📢</span></div>
+            <div class="qa-icon" style="background:#7f8c8d"><span>📢</span></div>
             <span>发布公告</span>
           </router-link>
         </div>
@@ -98,25 +98,25 @@ const statsCards = [
     label: '总用户数',
     get value() { return stats.value.totalUsers },
     icon: '<path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5z"/>',
-    bg: 'linear-gradient(135deg, #3b82f6, #2563eb)'
+    bg: '#3498db'
   },
   {
     label: '游戏数量',
     get value() { return stats.value.totalGames },
     icon: '<path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V10h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>',
-    bg: 'linear-gradient(135deg, #10b981, #059669)'
+    bg: '#27ae60'
   },
   {
     label: '总订单数',
     get value() { return stats.value.totalOrders },
     icon: '<path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>',
-    bg: 'linear-gradient(135deg, #f59e0b, #d97706)'
+    bg: '#f39c12'
   },
   {
     label: '总收入 (¥)',
     get value() { return stats.value.totalRevenue.toFixed(2) },
     icon: '<path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>',
-    bg: 'linear-gradient(135deg, #ef4444, #dc2626)'
+    bg: '#e74c3c'
   }
 ]
 
@@ -220,13 +220,13 @@ onMounted(() => {
 .stat-value {
   font-size: 26px;
   font-weight: 700;
-  color: #1f2937;
+  color: #333;
   line-height: 1.2;
 }
 
 .stat-label {
   font-size: 13px;
-  color: #6b7280;
+  color: #666;
   margin-top: 4px;
 }
 
@@ -246,7 +246,7 @@ onMounted(() => {
 
 .card-header {
   padding: 16px 20px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid #eee;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -256,11 +256,11 @@ onMounted(() => {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
-  color: #1f2937;
+  color: #333;
 }
 
 .view-all {
-  color: #3b82f6;
+  color: #3498db;
   text-decoration: none;
   font-size: 13px;
 }
@@ -283,16 +283,16 @@ onMounted(() => {
 .data-table th {
   text-align: left;
   padding: 10px 12px;
-  color: #6b7280;
+  color: #666;
   font-weight: 500;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid #eee;
   font-size: 12px;
 }
 
 .data-table td {
   padding: 12px;
-  border-bottom: 1px solid #f9fafb;
-  color: #374151;
+  border-bottom: 1px solid #f5f5f5;
+  color: #333;
 }
 
 .data-table tr:last-child td {
@@ -302,17 +302,17 @@ onMounted(() => {
 .data-table .mono {
   font-family: 'Menlo', monospace;
   font-size: 12px;
-  color: #6b7280;
+  color: #666;
 }
 
 .data-table .price {
   font-weight: 600;
-  color: #dc2626;
+  color: #c0392b;
 }
 
 .data-table .time {
   font-size: 12px;
-  color: #9ca3af;
+  color: #999;
 }
 
 .badge {
@@ -324,29 +324,29 @@ onMounted(() => {
 }
 
 .badge.success {
-  background: #d1fae5;
-  color: #065f46;
+  background: #d5f5e3;
+  color: #1e8449;
 }
 
 .badge.warning {
-  background: #fef3c7;
-  color: #92400e;
+  background: #fdebd0;
+  color: #d68910;
 }
 
 .badge.danger {
   background: #fee2e2;
-  color: #991b1b;
+  color: #c0392b;
 }
 
 .badge.default {
-  background: #f3f4f6;
-  color: #374151;
+  background: #eee;
+  color: #333;
 }
 
 .empty-state {
   text-align: center;
   padding: 40px;
-  color: #9ca3af;
+  color: #999;
   font-size: 14px;
 }
 
@@ -363,17 +363,17 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
   padding: 24px 12px;
-  background: #f9fafb;
+  background: #f5f5f5;
   border-radius: 10px;
   text-decoration: none;
-  color: #374151;
+  color: #333;
   font-size: 13px;
   font-weight: 500;
   transition: all 0.2s;
 }
 
 .quick-action:hover {
-  background: #f3f4f6;
+  background: #eee;
   transform: translateY(-2px);
 }
 

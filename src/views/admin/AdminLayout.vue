@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="admin-layout">
     <!-- 侧边栏 -->
     <aside class="admin-sidebar" :class="{ collapsed: sidebarCollapsed }">
@@ -149,209 +149,235 @@ watch(() => route.path, () => {
 .admin-layout {
   display: flex;
   min-height: 100vh;
-  background: #f0f2f5;
+  background: #f5f5f5;
 }
 
-/* 侧边栏 */
+/* 侧边栏 - 与客户端 Layout 一致 */
 .admin-sidebar {
   width: 220px;
-  background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+  background-color: #2c3e50;
   color: #ecf0f1;
+  padding: 1.5rem 0;
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  overflow-y: auto;
+  z-index: 100;
   transition: width 0.25s ease;
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
 }
 
 .admin-sidebar.collapsed {
   width: 64px;
+  padding: 1rem 0;
 }
 
 .sidebar-header {
-  padding: 20px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0 1.5rem 1.5rem;
+  border-bottom: 1px solid #34495e;
+  margin-bottom: 1rem;
+}
+
+.admin-sidebar.collapsed .sidebar-header {
+  padding: 0 0.5rem 1rem;
+  display: flex;
+  justify-content: center;
 }
 
 .sidebar-logo {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 15px;
+  gap: 0.5rem;
+  font-size: 1.1rem;
   font-weight: 600;
   white-space: nowrap;
+  cursor: pointer;
 }
 
 .sidebar-logo svg {
   width: 24px;
   height: 24px;
-  color: #e74c3c;
   flex-shrink: 0;
 }
 
 .sidebar-menu {
+  padding: 0 0.5rem;
   flex: 1;
-  padding: 12px 8px;
-  overflow-y: auto;
 }
 
 .menu-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: 8px;
+  gap: 0.8rem;
+  padding: 0.8rem 1rem;
+  border-radius: 4px;
   cursor: pointer;
-  transition: all 0.2s;
-  color: rgba(255, 255, 255, 0.7);
-  margin-bottom: 4px;
+  transition: background-color 0.2s;
+  color: #ecf0f1;
+  margin-bottom: 0.3rem;
   white-space: nowrap;
+  font-size: 0.95rem;
 }
 
 .menu-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: #fff;
+  background-color: #34495e;
 }
 
 .menu-item.active {
-  background: linear-gradient(135deg, #e74c3c, #c0392b);
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+  background-color: #34495e;
+  color: #ecf0f1;
 }
 
 .menu-icon {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .menu-icon svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
 .menu-label {
-  font-size: 14px;
+  font-size: 0.95rem;
 }
 
 .sidebar-footer {
-  padding: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 1rem 1.5rem 0;
+  border-top: 1px solid #34495e;
+  margin-top: 1rem;
+}
+
+.admin-sidebar.collapsed .sidebar-footer {
+  display: none;
 }
 
 .collapse-btn {
   width: 100%;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.06);
-  border: none;
-  border-radius: 6px;
-  color: rgba(255, 255, 255, 0.6);
+  padding: 0.6rem;
+  background: transparent;
+  border: 1px solid #34495e;
+  border-radius: 4px;
+  color: #bdc3c7;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 0.4rem;
   transition: all 0.2s;
-  font-size: 13px;
+  font-size: 0.85rem;
 }
 
 .collapse-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  background-color: #34495e;
+  color: #ecf0f1;
 }
 
 .collapse-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
 }
 
 /* 主内容区 */
 .admin-main {
   flex: 1;
+  margin-left: 220px;
+  width: calc(100% - 220px);
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   min-width: 0;
+  transition: margin-left 0.25s ease;
 }
 
-/* 顶部栏 */
+.admin-sidebar.collapsed ~ .admin-main {
+  margin-left: 64px;
+  width: calc(100% - 64px);
+}
+
+/* 顶部栏 - 与客户端顶栏一致 */
 .admin-header {
   height: 60px;
-  background: #fff;
-  border-bottom: 1px solid #e8e8e8;
-  padding: 0 28px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  padding: 0 2rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.06);
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 .header-left {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 1rem;
 }
 
 .page-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #1f2937;
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #2c3e50;
   margin: 0;
 }
 
 .header-right {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 1.5rem;
 }
 
 .admin-info {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;
 }
 
 .admin-avatar {
-  width: 38px;
-  height: 38px;
-  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  width: 36px;
+  height: 36px;
+  background-color: #3498db;
   color: #fff;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 600;
-  font-size: 16px;
+  font-weight: bold;
+  font-size: 14px;
 }
 
 .admin-name {
-  font-size: 14px;
+  font-size: 0.9rem;
   font-weight: 500;
-  color: #1f2937;
+  color: #2c3e50;
 }
 
 .admin-role {
-  font-size: 12px;
-  color: #9ca3af;
+  font-size: 0.75rem;
+  color: #7f8c8d;
 }
 
 .logout-btn {
-  padding: 8px 16px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 6px;
-  color: #dc2626;
+  padding: 0.4rem 1rem;
+  background-color: #95a5a6;
+  border: none;
+  border-radius: 4px;
+  color: #fff;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  transition: all 0.2s;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
 }
 
 .logout-btn:hover {
-  background: #fecaca;
+  background-color: #7f8c8d;
 }
 
 .logout-btn svg {
@@ -362,7 +388,7 @@ watch(() => route.path, () => {
 /* 内容区 */
 .admin-content {
   flex: 1;
-  padding: 24px;
+  padding: 1.5rem 2rem;
   overflow: auto;
 }
 
@@ -377,6 +403,35 @@ watch(() => route.path, () => {
 }
 
 /* 响应式 */
+@media (max-width: 1024px) {
+  .admin-sidebar {
+    width: 60px;
+    padding: 1rem 0;
+  }
+
+  .sidebar-logo span,
+  .menu-label,
+  .sidebar-footer {
+    display: none;
+  }
+
+  .sidebar-header {
+    padding: 0 0.5rem 1rem;
+    display: flex;
+    justify-content: center;
+  }
+
+  .menu-item {
+    justify-content: center;
+    padding: 0.8rem;
+  }
+
+  .admin-main {
+    margin-left: 60px;
+    width: calc(100% - 60px);
+  }
+}
+
 @media (max-width: 768px) {
   .admin-sidebar {
     position: fixed;
@@ -384,6 +439,8 @@ watch(() => route.path, () => {
     top: 0;
     bottom: 0;
     z-index: 1000;
+    width: 220px;
+    padding: 1.5rem 0;
   }
 
   .admin-sidebar.mobile-open {
@@ -391,11 +448,11 @@ watch(() => route.path, () => {
   }
 
   .admin-content {
-    padding: 16px;
+    padding: 1rem;
   }
 
   .admin-header {
-    padding: 0 16px;
+    padding: 0 1rem;
   }
 }
 </style>

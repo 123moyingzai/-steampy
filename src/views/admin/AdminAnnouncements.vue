@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="admin-announcements">
     <!-- 工具栏 -->
     <div class="toolbar">
@@ -261,7 +261,7 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  background: #3498db;
   color: #fff;
 }
 
@@ -270,12 +270,12 @@ onMounted(() => {
 }
 
 .btn-default {
-  background: #f3f4f6;
-  color: #374151;
+  background: #eee;
+  color: #333;
 }
 
 .btn-default:hover {
-  background: #e5e7eb;
+  background: #ddd;
 }
 
 .card {
@@ -294,18 +294,18 @@ onMounted(() => {
 .data-table th {
   text-align: left;
   padding: 12px 16px;
-  color: #6b7280;
+  color: #666;
   font-weight: 500;
-  background: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
+  background: #f5f5f5;
+  border-bottom: 1px solid #ddd;
   font-size: 12px;
   white-space: nowrap;
 }
 
 .data-table td {
   padding: 14px 16px;
-  border-bottom: 1px solid #f3f4f6;
-  color: #374151;
+  border-bottom: 1px solid #eee;
+  color: #333;
 }
 
 .data-table tr:last-child td {
@@ -313,18 +313,18 @@ onMounted(() => {
 }
 
 .data-table tr:hover td {
-  background: #fafafa;
+  background: #f5f5f5;
 }
 
 .mono {
   font-family: 'Menlo', monospace;
   font-size: 12px;
-  color: #9ca3af;
+  color: #999;
 }
 
 .title-cell {
   font-weight: 500;
-  color: #1f2937;
+  color: #333;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -332,7 +332,7 @@ onMounted(() => {
 }
 
 .top-tag {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
+  background: #f39c12;
   color: #fff;
   font-size: 11px;
   padding: 2px 8px;
@@ -342,7 +342,7 @@ onMounted(() => {
 
 .time {
   font-size: 12px;
-  color: #9ca3af;
+  color: #999;
   white-space: nowrap;
 }
 
@@ -353,7 +353,7 @@ onMounted(() => {
 .btn-link {
   background: none;
   border: none;
-  color: #3b82f6;
+  color: #3498db;
   cursor: pointer;
   font-size: 13px;
   margin-right: 12px;
@@ -365,7 +365,7 @@ onMounted(() => {
 }
 
 .btn-link.danger {
-  color: #dc2626;
+  color: #e74c3c;
 }
 
 .badge {
@@ -377,29 +377,29 @@ onMounted(() => {
 }
 
 .badge.success {
-  background: #d1fae5;
-  color: #065f46;
+  background: #d5f5e3;
+  color: #1e8449;
 }
 
 .badge.warning {
-  background: #fef3c7;
-  color: #92400e;
+  background: #fdebd0;
+  color: #d68910;
 }
 
 .badge.danger {
-  background: #fee2e2;
-  color: #991b1b;
+  background-color: #fdecea;
+  color: #c0392b;
 }
 
 .badge.default {
-  background: #f3f4f6;
-  color: #6b7280;
+  background: #eee;
+  color: #666;
 }
 
 .empty-state {
   text-align: center;
   padding: 40px;
-  color: #9ca3af;
+  color: #999;
 }
 
 /* 弹窗 */
@@ -424,7 +424,7 @@ onMounted(() => {
 
 .modal-header {
   padding: 16px 20px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid #eee;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -434,20 +434,20 @@ onMounted(() => {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #1f2937;
+  color: #333;
 }
 
 .close-btn {
   background: none;
   border: none;
   font-size: 18px;
-  color: #9ca3af;
+  color: #999;
   cursor: pointer;
   padding: 4px 8px;
 }
 
 .close-btn:hover {
-  color: #374151;
+  color: #333;
 }
 
 .modal-body {
@@ -474,7 +474,7 @@ onMounted(() => {
 .form-group label {
   display: block;
   font-size: 13px;
-  color: #374151;
+  color: #333;
   margin-bottom: 6px;
   font-weight: 500;
 }
@@ -483,7 +483,7 @@ onMounted(() => {
 .form-group textarea {
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #ddd;
   border-radius: 6px;
   font-size: 14px;
   box-sizing: border-box;
@@ -498,7 +498,7 @@ onMounted(() => {
 .form-group input:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #8b5cf6;
+  border-color: #3498db;
 }
 
 .flex-end {
@@ -516,12 +516,12 @@ onMounted(() => {
 .checkbox-label input {
   width: 16px;
   height: 16px;
-  accent-color: #8b5cf6;
+  accent-color: #3498db;
 }
 
 .modal-footer {
   padding: 16px 20px;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid #eee;
   display: flex;
   justify-content: flex-end;
   gap: 10px;

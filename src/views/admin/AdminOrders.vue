@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="admin-orders">
     <!-- 工具栏 -->
     <div class="toolbar">
@@ -51,6 +51,7 @@
             <th>游戏</th>
             <th>类型</th>
             <th>金额</th>
+            <th>CDKey</th>
             <th>状态</th>
             <th>时间</th>
             <th>操作</th>
@@ -70,6 +71,13 @@
               <span class="type-tag">{{ order.order_type || 'cdkey' }}</span>
             </td>
             <td class="price">¥{{ order.total_price || order.price }}</td>
+            <td class="cdkey-cell">
+              <template v-if="order.cdkey">
+                <code class="cdkey-code">{{ order.cdkey }}</code>
+                <button class="btn-copy" @click="copyCdkey(order.cdkey)" title="复制">📋</button>
+              </template>
+              <span v-else class="no-data">-</span>
+            </td>
             <td>
               <span class="badge" :class="getStatusClass(order.status)">
                 {{ getStatusText(order.status) }}
@@ -189,9 +197,25 @@ const formatTime = (timeStr: string) => {
   if (!timeStr) return '-'
   try {
     const d = new Date(timeStr)
-    return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
   } catch {
     return timeStr
+  }
+}
+
+const copyCdkey = async (cdkey: string) => {
+  try {
+    await navigator.clipboard.writeText(cdkey)
+    alert('CDKey 已复制到剪贴板')
+  } catch {
+    // 兼容旧浏览器
+    const ta = document.createElement('textarea')
+    ta.value = cdkey
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+    alert('CDKey 已复制到剪贴板')
   }
 }
 
@@ -219,7 +243,7 @@ onMounted(() => {
 .search-box input {
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #ddd;
   border-radius: 8px;
   font-size: 14px;
   box-sizing: border-box;
@@ -227,12 +251,12 @@ onMounted(() => {
 
 .search-box input:focus {
   outline: none;
-  border-color: #f59e0b;
+  border-color: #f39c12;
 }
 
 .filter-group select {
   padding: 10px 14px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #ddd;
   border-radius: 8px;
   font-size: 14px;
   background: #fff;
@@ -241,7 +265,7 @@ onMounted(() => {
 
 .filter-group select:focus {
   outline: none;
-  border-color: #f59e0b;
+  border-color: #f39c12;
 }
 
 .summary-bar {
@@ -259,7 +283,7 @@ onMounted(() => {
   flex-direction: column;
   gap: 4px;
   padding: 0 16px;
-  border-right: 1px solid #f3f4f6;
+  border-right: 1px solid #eee;
 }
 
 .summary-item:last-child {
@@ -268,17 +292,17 @@ onMounted(() => {
 
 .summary-item .label {
   font-size: 13px;
-  color: #6b7280;
+  color: #666;
 }
 
 .summary-item .value {
   font-size: 22px;
   font-weight: 700;
-  color: #1f2937;
+  color: #333;
 }
 
 .summary-item .value.price {
-  color: #dc2626;
+  color: #e74c3c;
 }
 
 .summary-item .value.success {
@@ -286,7 +310,7 @@ onMounted(() => {
 }
 
 .summary-item .value.warning {
-  color: #f59e0b;
+  color: #f39c12;
 }
 
 .card {
@@ -305,18 +329,18 @@ onMounted(() => {
 .data-table th {
   text-align: left;
   padding: 12px;
-  color: #6b7280;
+  color: #666;
   font-weight: 500;
-  background: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
+  background: #f5f5f5;
+  border-bottom: 1px solid #ddd;
   font-size: 12px;
   white-space: nowrap;
 }
 
 .data-table td {
   padding: 12px;
-  border-bottom: 1px solid #f3f4f6;
-  color: #374151;
+  border-bottom: 1px solid #eee;
+  color: #333;
   vertical-align: middle;
 }
 
@@ -325,13 +349,53 @@ onMounted(() => {
 }
 
 .data-table tr:hover td {
-  background: #fafafa;
+  background: #f5f5f5;
 }
 
 .mono {
   font-family: 'Menlo', monospace;
   font-size: 12px;
-  color: #6b7280;
+  color: #666;
+}
+
+.cdkey-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.cdkey-code {
+  font-family: 'Menlo', monospace;
+  font-size: 12px;
+  background: #f5f5f5;
+  padding: 2px 8px;
+  border-radius: 4px;
+  color: #333;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: inline-block;
+}
+
+.btn-copy {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.btn-copy:hover {
+  background: #eee;
+}
+
+.no-data {
+  color: #ccc;
 }
 
 .game-cell {
@@ -348,22 +412,22 @@ onMounted(() => {
 }
 
 .type-tag {
-  background: #f3f4f6;
+  background: #eee;
   padding: 2px 8px;
   border-radius: 4px;
   font-size: 12px;
-  color: #6b7280;
+  color: #666;
   text-transform: uppercase;
 }
 
 .price {
   font-weight: 600;
-  color: #dc2626;
+  color: #e74c3c;
 }
 
 .time {
   font-size: 12px;
-  color: #9ca3af;
+  color: #999;
   white-space: nowrap;
 }
 
@@ -376,7 +440,7 @@ onMounted(() => {
 
 .status-select {
   padding: 5px 10px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #ddd;
   border-radius: 5px;
   font-size: 12px;
   background: #fff;
@@ -385,13 +449,13 @@ onMounted(() => {
 
 .status-select:focus {
   outline: none;
-  border-color: #3b82f6;
+  border-color: #3498db;
 }
 
 .btn-link {
   background: none;
   border: none;
-  color: #3b82f6;
+  color: #3498db;
   cursor: pointer;
   font-size: 13px;
   padding: 0;
@@ -402,7 +466,7 @@ onMounted(() => {
 }
 
 .btn-link.danger {
-  color: #dc2626;
+  color: #e74c3c;
 }
 
 .badge {
@@ -414,28 +478,28 @@ onMounted(() => {
 }
 
 .badge.success {
-  background: #d1fae5;
-  color: #065f46;
+  background: #d5f5e3;
+  color: #1e8449;
 }
 
 .badge.warning {
-  background: #fef3c7;
-  color: #92400e;
+  background: #fdebd0;
+  color: #d68910;
 }
 
 .badge.danger {
-  background: #fee2e2;
-  color: #991b1b;
+  background-color: #fdecea;
+  color: #c0392b;
 }
 
 .badge.default {
-  background: #f3f4f6;
-  color: #374151;
+  background: #eee;
+  color: #333;
 }
 
 .empty-state {
   text-align: center;
   padding: 40px;
-  color: #9ca3af;
+  color: #999;
 }
 </style>

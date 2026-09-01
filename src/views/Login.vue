@@ -400,7 +400,6 @@ const handleLogin = async () => {
         if (isAdmin) {
           router.replace(redirect)
         } else {
-          alert('您的账号没有管理员权限')
           router.replace('/')
         }
       } else if (redirect && redirect.startsWith('/')) {

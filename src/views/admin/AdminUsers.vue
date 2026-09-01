@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="admin-users">
     <!-- 工具栏 -->
     <div class="toolbar">
@@ -39,14 +39,18 @@
             <td>
               <span
                 class="badge"
-                :class="user.user_type === '管理员' ? 'admin' : 'user'"
-              >{{ user.user_type || '普通用户' }}</span>
+                :class="getUserBadgeClass(user)"
+              >{{ getUserBadgeText(user) }}</span>
             </td>
             <td class="price">¥{{ user.wallet_balance || '0.00' }}</td>
             <td class="time">{{ formatTime(user.created_at) }}</td>
             <td class="actions">
               <button class="btn-link" @click="openEditModal(user)">编辑</button>
-              <button class="btn-link danger" @click="handleDelete(user)">删除</button>
+              <button
+                class="btn-link"
+                :class="isUserBanned(user) ? 'success' : 'danger'"
+                @click="isUserBanned(user) ? handleUnban(user) : handleBan(user)"
+              >{{ isUserBanned(user) ? '解禁' : '封禁' }}</button>
             </td>
           </tr>
         </tbody>
@@ -230,13 +234,38 @@ const handleSave = async () => {
   }
 }
 
-const handleDelete = async (user: any) => {
-  if (!confirm(`确定删除用户 "${user.username}" 吗？此操作不可恢复！`)) return
-  const result = await adminUserAPI.deleteUser(user.id)
+const isUserBanned = (user: any) => user.user_type === '已封禁'
+
+const getUserBadgeText = (user: any) => {
+  if (user.user_type === '已封禁') return '已封禁'
+  return user.user_type || '普通用户'
+}
+
+const getUserBadgeClass = (user: any) => {
+  if (user.user_type === '已封禁') return 'banned'
+  if (user.user_type === '管理员') return 'admin'
+  return 'user'
+}
+
+const handleBan = async (user: any) => {
+  if (!confirm(`确定封禁用户 "${user.username}" 吗？封禁后该用户将无法登录。`)) return
+  const result = await adminUserAPI.updateUser(user.id, { user_type: '已封禁' })
   if (result.error) {
-    alert('删除失败: ' + result.error)
+    alert('封禁失败: ' + result.error)
   } else {
-    alert('删除成功')
+    alert('封禁成功')
+    await loadUsers()
+  }
+}
+
+const handleUnban = async (user: any) => {
+  if (!confirm(`确定解禁用户 "${user.username}" 吗？`)) return
+  // 解禁后默认恢复为普通用户
+  const result = await adminUserAPI.updateUser(user.id, { user_type: '普通用户' })
+  if (result.error) {
+    alert('解禁失败: ' + result.error)
+  } else {
+    alert('解禁成功')
     await loadUsers()
   }
 }
@@ -276,7 +305,7 @@ onMounted(() => {
 .search-box input {
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #ddd;
   border-radius: 8px;
   font-size: 14px;
   box-sizing: border-box;
@@ -285,7 +314,7 @@ onMounted(() => {
 
 .search-box input:focus {
   outline: none;
-  border-color: #3b82f6;
+  border-color: #3498db;
 }
 
 .btn {
@@ -307,7 +336,7 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  background: #3498db;
   color: #fff;
 }
 
@@ -316,12 +345,12 @@ onMounted(() => {
 }
 
 .btn-default {
-  background: #f3f4f6;
-  color: #374151;
+  background: #eee;
+  color: #333;
 }
 
 .btn-default:hover {
-  background: #e5e7eb;
+  background: #ddd;
 }
 
 .card {
@@ -340,17 +369,17 @@ onMounted(() => {
 .data-table th {
   text-align: left;
   padding: 12px 16px;
-  color: #6b7280;
+  color: #666;
   font-weight: 500;
-  background: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
+  background: #f5f5f5;
+  border-bottom: 1px solid #ddd;
   font-size: 12px;
 }
 
 .data-table td {
   padding: 14px 16px;
-  border-bottom: 1px solid #f3f4f6;
-  color: #374151;
+  border-bottom: 1px solid #eee;
+  color: #333;
 }
 
 .data-table tr:last-child td {
@@ -358,28 +387,28 @@ onMounted(() => {
 }
 
 .data-table tr:hover td {
-  background: #fafafa;
+  background: #f5f5f5;
 }
 
 .mono {
   font-family: 'Menlo', monospace;
   font-size: 12px;
-  color: #9ca3af;
+  color: #999;
 }
 
 .username {
   font-weight: 500;
-  color: #1f2937;
+  color: #333;
 }
 
 .price {
   font-weight: 600;
-  color: #dc2626;
+  color: #e74c3c;
 }
 
 .time {
   font-size: 12px;
-  color: #9ca3af;
+  color: #999;
   white-space: nowrap;
 }
 
@@ -390,7 +419,7 @@ onMounted(() => {
 .btn-link {
   background: none;
   border: none;
-  color: #3b82f6;
+  color: #3498db;
   cursor: pointer;
   font-size: 13px;
   margin-right: 12px;
@@ -402,7 +431,11 @@ onMounted(() => {
 }
 
 .btn-link.danger {
-  color: #dc2626;
+  color: #e74c3c;
+}
+
+.btn-link.success {
+  color: #27ae60;
 }
 
 .badge {
@@ -414,8 +447,8 @@ onMounted(() => {
 }
 
 .badge.admin {
-  background: #fef3c7;
-  color: #92400e;
+  background: #fdebd0;
+  color: #d68910;
 }
 
 .badge.user {
@@ -423,10 +456,15 @@ onMounted(() => {
   color: #1e40af;
 }
 
+.badge.banned {
+  background: #fdecea;
+  color: #c0392b;
+}
+
 .empty-state {
   text-align: center;
   padding: 40px;
-  color: #9ca3af;
+  color: #999;
 }
 
 /* 弹窗 */
@@ -451,7 +489,7 @@ onMounted(() => {
 
 .modal-header {
   padding: 16px 20px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid #eee;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -461,20 +499,20 @@ onMounted(() => {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #1f2937;
+  color: #333;
 }
 
 .close-btn {
   background: none;
   border: none;
   font-size: 18px;
-  color: #9ca3af;
+  color: #999;
   cursor: pointer;
   padding: 4px 8px;
 }
 
 .close-btn:hover {
-  color: #374151;
+  color: #333;
 }
 
 .modal-body {
@@ -490,7 +528,7 @@ onMounted(() => {
 .form-group label {
   display: block;
   font-size: 13px;
-  color: #374151;
+  color: #333;
   margin-bottom: 6px;
   font-weight: 500;
 }
@@ -499,7 +537,7 @@ onMounted(() => {
 .form-group select {
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #ddd;
   border-radius: 6px;
   font-size: 14px;
   box-sizing: border-box;
@@ -509,17 +547,17 @@ onMounted(() => {
 .form-group input:focus,
 .form-group select:focus {
   outline: none;
-  border-color: #3b82f6;
+  border-color: #3498db;
 }
 
 .form-group input:disabled {
-  background: #f9fafb;
-  color: #9ca3af;
+  background: #f5f5f5;
+  color: #999;
 }
 
 .modal-footer {
   padding: 16px 20px;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid #eee;
   display: flex;
   justify-content: flex-end;
   gap: 10px;

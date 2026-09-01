@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="admin-games">
     <!-- 工具栏 -->
     <div class="toolbar">
@@ -40,8 +40,8 @@
               </div>
             </td>
             <td class="game-name">{{ game.name }}</td>
-            <td class="price">¥{{ game.price }}</td>
-            <td class="original-price">¥{{ game.original_price || '-' }}</td>
+            <td class="price">¥{{ stripYuan(game.price) }}</td>
+            <td class="original-price">¥{{ stripYuan(game.original_price) || '-' }}</td>
             <td>
               <span class="discount">-{{ game.discount || '0' }}%</span>
             </td>
@@ -289,6 +289,11 @@ const handleDelete = async (game: any) => {
   }
 }
 
+const stripYuan = (val: any): string => {
+  if (val === null || val === undefined || val === '') return ''
+  return String(val).replace(/[¥$￥]/g, '').trim()
+}
+
 onMounted(() => {
   loadGames()
 })
@@ -313,7 +318,7 @@ onMounted(() => {
 .search-box input {
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #ddd;
   border-radius: 8px;
   font-size: 14px;
   box-sizing: border-box;
@@ -321,7 +326,7 @@ onMounted(() => {
 
 .search-box input:focus {
   outline: none;
-  border-color: #3b82f6;
+  border-color: #3498db;
 }
 
 .btn {
@@ -343,7 +348,7 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #10b981, #059669);
+  background: #3498db;
   color: #fff;
 }
 
@@ -352,12 +357,12 @@ onMounted(() => {
 }
 
 .btn-default {
-  background: #f3f4f6;
-  color: #374151;
+  background: #eee;
+  color: #333;
 }
 
 .btn-default:hover {
-  background: #e5e7eb;
+  background: #ddd;
 }
 
 .card {
@@ -376,18 +381,18 @@ onMounted(() => {
 .data-table th {
   text-align: left;
   padding: 12px 12px;
-  color: #6b7280;
+  color: #666;
   font-weight: 500;
-  background: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
+  background: #f5f5f5;
+  border-bottom: 1px solid #ddd;
   font-size: 12px;
   white-space: nowrap;
 }
 
 .data-table td {
   padding: 12px;
-  border-bottom: 1px solid #f3f4f6;
-  color: #374151;
+  border-bottom: 1px solid #eee;
+  color: #333;
   vertical-align: middle;
 }
 
@@ -396,13 +401,13 @@ onMounted(() => {
 }
 
 .data-table tr:hover td {
-  background: #fafafa;
+  background: #f5f5f5;
 }
 
 .mono {
   font-family: 'Menlo', monospace;
   font-size: 12px;
-  color: #9ca3af;
+  color: #999;
 }
 
 .game-thumb {
@@ -410,7 +415,7 @@ onMounted(() => {
   height: 32px;
   border-radius: 4px;
   overflow: hidden;
-  background: #f3f4f6;
+  background: #eee;
 }
 
 .game-thumb img {
@@ -421,7 +426,7 @@ onMounted(() => {
 
 .game-name {
   font-weight: 500;
-  color: #1f2937;
+  color: #333;
   max-width: 200px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -430,17 +435,17 @@ onMounted(() => {
 
 .price {
   font-weight: 600;
-  color: #dc2626;
+  color: #e74c3c;
 }
 
 .original-price {
-  color: #9ca3af;
+  color: #999;
   text-decoration: line-through;
   font-size: 12px;
 }
 
 .discount {
-  color: #f59e0b;
+  color: #f39c12;
   font-weight: 600;
 }
 
@@ -453,13 +458,13 @@ onMounted(() => {
 }
 
 .badge.success {
-  background: #d1fae5;
-  color: #065f46;
+  background: #d5f5e3;
+  color: #1e8449;
 }
 
 .badge.warning {
-  background: #fef3c7;
-  color: #92400e;
+  background: #fdebd0;
+  color: #d68910;
 }
 
 .actions {
@@ -469,7 +474,7 @@ onMounted(() => {
 .btn-link {
   background: none;
   border: none;
-  color: #3b82f6;
+  color: #3498db;
   cursor: pointer;
   font-size: 13px;
   margin-right: 12px;
@@ -481,13 +486,13 @@ onMounted(() => {
 }
 
 .btn-link.danger {
-  color: #dc2626;
+  color: #e74c3c;
 }
 
 .empty-state {
   text-align: center;
   padding: 40px;
-  color: #9ca3af;
+  color: #999;
 }
 
 /* 弹窗 */
@@ -516,7 +521,7 @@ onMounted(() => {
 
 .modal-header {
   padding: 16px 20px;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid #eee;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -526,20 +531,20 @@ onMounted(() => {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #1f2937;
+  color: #333;
 }
 
 .close-btn {
   background: none;
   border: none;
   font-size: 18px;
-  color: #9ca3af;
+  color: #999;
   cursor: pointer;
   padding: 4px 8px;
 }
 
 .close-btn:hover {
-  color: #374151;
+  color: #333;
 }
 
 .modal-body {
@@ -564,7 +569,7 @@ onMounted(() => {
 .form-group label {
   display: block;
   font-size: 13px;
-  color: #374151;
+  color: #333;
   margin-bottom: 6px;
   font-weight: 500;
 }
@@ -574,7 +579,7 @@ onMounted(() => {
 .form-group textarea {
   width: 100%;
   padding: 10px 14px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid #ddd;
   border-radius: 6px;
   font-size: 14px;
   box-sizing: border-box;
@@ -595,7 +600,7 @@ onMounted(() => {
 
 .modal-footer {
   padding: 16px 20px;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid #eee;
   display: flex;
   justify-content: flex-end;
   gap: 10px;

@@ -108,7 +108,12 @@ export const authAPI = {
       if (user.password_hash !== password) {
         return { error: '用户名或密码错误' }
       }
-      
+
+      // 检查账号是否已被封禁
+      if (user.user_type === '已封禁') {
+        return { error: '您的账号已被封禁，无法登录' }
+      }
+
       // 保存到sessionStorage
       const { password_hash, ...userWithoutPassword } = user
       sessionStorage.setItem('steampy_user', JSON.stringify(userWithoutPassword))

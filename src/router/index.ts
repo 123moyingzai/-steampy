@@ -112,8 +112,10 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   // 访问 /admin/* 路由需要管理员权限
   if (to.path.startsWith('/admin')) {
-    if (!adminAuthAPI.isAdminLoggedIn()) {
-      // 非管理员，跳转登录页，登录后自动回跳
+    const admin = adminAuthAPI.getCurrentAdmin()
+    const isAdmin = admin && admin.user_type === '管理员'
+    if (!adminAuthAPI.isAdminLoggedIn() || !isAdmin) {
+      // 未登录或非管理员，跳转登录页，登录后自动回跳（普通用户登录后会被 Login.vue 静默拦到首页）
       next({
         path: '/login',
         query: { redirect: to.fullPath }
