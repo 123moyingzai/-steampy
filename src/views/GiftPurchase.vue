@@ -1,9 +1,9 @@
-<template>
+﻿<template>
   <Layout>
 
       <!-- 页面标题 -->
       <div class="cjx-page-header">
-        <h1>礼物代购 719cjx</h1>
+        <h1>礼物代购</h1>
         <p>通过Steam好友赠送的方式购买游戏，安全可靠</p>
       </div>
 
@@ -33,7 +33,7 @@
         <!-- 右侧说明栏 -->
         <div class="cjx-sidebar-area">
           <div class="cjx-info-box">
-            <h3>什么是礼物代购? 719cjx</h3>
+            <h3>什么是礼物代购?</h3>
             <p>礼物代购是通过Steam好友赠送功能购买游戏的方式。卖家将游戏以礼物形式发送到您的Steam账户，您收到后即可激活。</p>
             <h4>购买流程:</h4>
             <ol>
@@ -83,7 +83,7 @@ const getImageUrl = (path) => {
 }
 
 const buyGame = (game) => {
-  alert(`您选择了购买: ${game.name}\n请使用APP完成购买流程 719cjx`)
+  alert(`您选择了购买: ${game.name}\n请使用APP完成购买流程`)
 }
 
 // 加载数据

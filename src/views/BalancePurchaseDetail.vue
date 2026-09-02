@@ -224,7 +224,7 @@ onMounted(() => {
   // 获取用户信息
   const currentUser = authAPI.getCurrentUser()
   if (currentUser) {
-    walletBalance.value = currentUser.wallet_balance || 0.06
+    walletBalance.value = currentUser.wallet_balance || 0
   }
 })
 </script>

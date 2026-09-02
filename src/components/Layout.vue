@@ -112,13 +112,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { authAPI } from '../config/supabase-local.ts'
+import { authAPI, walletAPI } from '../config/supabase-local.ts'
 
 const router = useRouter()
 
 // 响应式数据
 const currentUser = ref(null)
-const walletBalance = ref(0.06)
+const walletBalance = ref(0)
 const showMenu = ref(false)
 
 // 计算属性
@@ -144,6 +144,7 @@ const goToLogin = () => {
 const handleLogout = () => {
   authAPI.logout()
   currentUser.value = null
+  walletBalance.value = 0
   router.push('/login')
 }
 
@@ -154,11 +155,30 @@ const closeMenu = (e) => {
   }
 }
 
+// 从后端加载真实钱包余额
+const loadBalance = async () => {
+  if (!currentUser.value?.id) {
+    walletBalance.value = 0
+    return
+  }
+  try {
+    const r = await walletAPI.getBalance(currentUser.value.id)
+    if (r.data) {
+      const bal = r.data.balance ?? r.data
+      walletBalance.value = parseFloat(bal) || 0
+    } else {
+      walletBalance.value = 0
+    }
+  } catch {
+    walletBalance.value = 0
+  }
+}
+
 // 加载数据
 const loadData = () => {
   currentUser.value = authAPI.getCurrentUser()
   if (currentUser.value) {
-    walletBalance.value = currentUser.value.wallet_balance || 0.06
+    loadBalance()
   }
 }
 
@@ -172,7 +192,9 @@ onMounted(() => {
     if (e.key === 'steampy_user') {
       currentUser.value = authAPI.getCurrentUser()
       if (currentUser.value) {
-        walletBalance.value = currentUser.value.wallet_balance || 0.06
+        loadBalance()
+      } else {
+        walletBalance.value = 0
       }
     }
   })
@@ -181,7 +203,7 @@ onMounted(() => {
   window.addEventListener('user-logged-in', () => {
     currentUser.value = authAPI.getCurrentUser()
     if (currentUser.value) {
-      walletBalance.value = currentUser.value.wallet_balance || 0.06
+      loadBalance()
     }
   })
 })

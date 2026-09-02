@@ -12,10 +12,9 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/supabase': {
-        target: 'https://prvmjufbhsofvnjeswhq.supabase.co',
-        changeOrigin: true,
-        rewrite: (path: string) => path.replace(/^\/supabase/, '')
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true
       }
     }
   }

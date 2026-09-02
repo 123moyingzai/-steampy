@@ -1,8 +1,8 @@
-<template>
+﻿<template>
   <Layout>
       <!-- 页面标题 -->
       <div class="cjx-page-header">
-        <h1>余额购-国区 719cjx</h1>
+        <h1>余额购-国区</h1>
         <p>使用Steam钱包余额购买游戏，享受超低折扣</p>
       </div>
 
@@ -43,7 +43,7 @@
         <!-- 右侧说明栏 -->
         <div class="cjx-sidebar-area">
           <div class="cjx-balance-card">
-            <h3>我的余额 719cjx</h3>
+            <h3>我的余额</h3>
             <div class="cjx-balance-amount">登录后查看</div>
             <button class="cjx-recharge-btn" @click="recharge">立即充值</button>
           </div>
@@ -79,15 +79,20 @@ const router = useRouter()
 const games = ref([])
 const sortBy = ref('price-asc')
 
+const getPrice = (p: any) => {
+  if (typeof p === 'number') return p
+  return parseFloat(String(p).replace(/[^0-9.]/g, '')) || 0
+}
+
 // 排序后的游戏列表
 const sortedGames = computed(() => {
   let sorted = [...games.value]
   switch (sortBy.value) {
     case 'price-asc':
-      sorted.sort((a, b) => parseFloat(a.price.replace(/[^0-9.]/g, '')) - parseFloat(b.price.replace(/[^0-9.]/g, '')))
+      sorted.sort((a, b) => getPrice(a.price) - getPrice(b.price))
       break
     case 'price-desc':
-      sorted.sort((a, b) => parseFloat(b.price.replace(/[^0-9.]/g, '')) - parseFloat(a.price.replace(/[^0-9.]/g, '')))
+      sorted.sort((a, b) => getPrice(b.price) - getPrice(a.price))
       break
     case 'discount':
       sorted.sort((a, b) => {
@@ -122,7 +127,7 @@ const buyGame = (game) => {
 }
 
 const recharge = () => {
-  alert('充值功能请在APP中使用 719cjx')
+  alert('充值功能请在APP中使用')
 }
 
 // 加载数据

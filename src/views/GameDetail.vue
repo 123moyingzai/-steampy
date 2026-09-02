@@ -8,18 +8,18 @@
           <div class="cjx-game-hero">
             <img :src="getImageUrl(game.image)" :alt="game.name" class="cjx-hero-img">
             <div class="cjx-game-badges">
-              <span class="cjx-badge" v-if="game.is_presale">预售 719cjx</span>
+              <span class="cjx-badge" v-if="game.is_presale">预售</span>
               <span class="cjx-badge cjx-badge-discount" v-if="game.discount">{{ game.discount }}</span>
             </div>
           </div>
 
           <div class="cjx-game-info-section">
-            <h1 class="cjx-game-name">{{ game.name }} 719cjx</h1>
+            <h1 class="cjx-game-name">{{ game.name }}</h1>
             <p class="cjx-game-desc">{{ game.description || '暂无描述' }}</p>
             
             <!-- 版本切换 - 仅当存在多个版本时显示 -->
             <div class="cjx-version-switch" v-if="gameVersions.length > 1">
-              <label>选择版本 719cjx</label>
+              <label>选择版本</label>
               <div class="cjx-version-options">
                 <button 
                   v-for="version in gameVersions" 
@@ -52,12 +52,12 @@
 
           <!-- CDKey库存 -->
           <div class="cjx-cdkey-section">
-            <h3>CDKey库存 719cjx</h3>
+            <h3>CDKey库存</h3>
             <table class="cjx-table">
               <thead>
                 <tr>
                   <th>版本</th>
-                  <th>价格 719cjx</th>
+                  <th>价格</th>
                   <th>库存</th>
                   <th>操作</th>
                 </tr>
@@ -88,7 +88,7 @@
 
             <div class="cjx-buy-options">
               <div class="cjx-option-group">
-                <label>购买数量 719cjx</label>
+                <label>购买数量</label>
                 <div class="cjx-quantity">
                   <button @click="quantity > 1 && quantity--">-</button>
                   <input type="number" v-model.number="quantity" min="1" max="99" />
@@ -101,7 +101,7 @@
                 <div class="cjx-radio-group">
                   <label class="cjx-radio active">
                     <input type="radio" value="cdkey" v-model="deliveryMethod" />
-                    CDKey 719cjx
+                    CDKey
                   </label>
                   <label class="cjx-radio">
                     <input type="radio" value="gift" v-model="deliveryMethod" />
@@ -116,13 +116,13 @@
               <strong>¥{{ (game.current_price * quantity).toFixed(2) }}</strong>
             </div>
 
-            <button class="cjx-btn cjx-btn-buy" @click="buyNow">立即购买 719cjx</button>
+            <button class="cjx-btn cjx-btn-buy" @click="buyNow">立即购买</button>
             <button class="cjx-btn cjx-btn-cart" @click="addToCart">加入购物车</button>
           </div>
 
           <!-- 卖家信息 -->
           <div class="cjx-seller-card">
-            <h4>卖家信息 719cjx</h4>
+            <h4>卖家信息</h4>
             <div class="cjx-seller-info">
               <div class="cjx-seller-avatar">PY</div>
               <div class="cjx-seller-detail">
@@ -134,7 +134,7 @@
 
           <!-- 服务保障 -->
           <div class="cjx-service-card">
-            <h4>服务保障 719cjx</h4>
+            <h4>服务保障</h4>
             <ul class="cjx-service-list">
               <li>✓ 官方正版CDKey</li>
               <li>✓ 7天无理由退款</li>
@@ -147,7 +147,7 @@
 
       <!-- 加载中 -->
       <div class="cjx-loading" v-else>
-        <p>加载中... 719cjx</p>
+        <p>加载中...</p>
       </div>
     </div>
 
@@ -280,7 +280,7 @@
     <div class="cjx-modal cjx-cdkey-modal" v-if="showCdkeyModal" @click.self="closeCdkeyModal">
       <div class="cjx-modal-content cjx-cdkey-content">
         <div class="cjx-modal-header">
-          <h3>支付成功 719cjx</h3>
+          <h3>支付成功</h3>
           <button class="cjx-modal-close" @click="closeCdkeyModal">×</button>
         </div>
         <div class="cjx-modal-body cjx-cdkey-body">
@@ -291,7 +291,7 @@
             <span class="cjx-cdkey-code">{{ currentCdkey }}</span>
             <button class="cjx-btn-copy" @click="copyCdkey">复制</button>
           </div>
-          <p class="cjx-cdkey-tip">您也可以在明细页面的订单详情中再次查看 CDKey 719cjx</p>
+          <p class="cjx-cdkey-tip">您也可以在明细页面的订单详情中再次查看 CDKey</p>
         </div>
         <div class="cjx-modal-footer cjx-cdkey-footer">
           <button class="cjx-btn cjx-btn-view-order" @click="goToTransactions">查看订单</button>
@@ -316,7 +316,7 @@ const router = useRouter()
 const game = ref(null)
 const quantity = ref(1)
 const deliveryMethod = ref('cdkey')
-const walletBalance = ref(0.06)  // 默认余额
+const walletBalance = ref(0)
 const cdkeyList = ref([])
 
 // 游戏版本列表（用于多版本切换）
@@ -409,7 +409,7 @@ const decodeGameId = (id) => {
 const buyCDKey = (cdkey) => {
   const currentUser = authAPI.getCurrentUser()
   if (!currentUser) {
-    alert('请先登录 719cjx')
+    alert('请先登录')
     router.push('/login')
     return
   }
@@ -420,7 +420,7 @@ const buyCDKey = (cdkey) => {
 const buyNow = () => {
   const currentUser = authAPI.getCurrentUser()
   if (!currentUser) {
-    alert('请先登录 719cjx')
+    alert('请先登录')
     router.push('/login')
     return
   }
@@ -429,7 +429,7 @@ const buyNow = () => {
 }
 
 const addToCart = () => {
-  alert(`已加入购物车：${game.value.name} 719cjx`)
+  alert(`已加入购物车：${game.value.name}`)
 }
 
 // 关闭弹窗
@@ -452,7 +452,7 @@ const closeCdkeyModal = () => {
 // 复制 CDKey
 const copyCdkey = () => {
   navigator.clipboard.writeText(currentCdkey.value).then(() => {
-    showToast('CDKey 已复制到剪贴板 719cjx')
+    showToast('CDKey 已复制到剪贴板')
   }).catch(() => {
     // 降级方案
     const input = document.createElement('input')
@@ -461,7 +461,7 @@ const copyCdkey = () => {
     input.select()
     document.execCommand('copy')
     document.body.removeChild(input)
-    showToast('CDKey 已复制到剪贴板 719cjx')
+    showToast('CDKey 已复制到剪贴板')
   })
 }
 
@@ -474,7 +474,7 @@ const goToTransactions = () => {
 // 前往支付确认
 const goToConfirm = () => {
   if (!selectedPayment.value) {
-    alert('请选择支付方式 719cjx')
+    alert('请选择支付方式')
     return
   }
   showOrderModal.value = false
@@ -546,46 +546,16 @@ const simulatePaySuccess = async () => {
       orderResult = { data: { id: 'local_' + Date.now() } }
     }
     
-    // 添加消费交易记录到数据库（可选，失败不阻塞）
-    try {
-      await transactionAPI.createTransaction({
-        user_id: userId,
-        type: 'purchase',
-        title: `购买 ${game.value.name}`,
-        subtitle: `订单号: ${orderNo}`,
-        amount: -total,
-        balance_before: parseFloat(walletBalance?.value || 0) + total,
-        balance_after: parseFloat(walletBalance?.value || 0),
-        status: 'completed',
-        reference_type: 'order',
-        order_id: orderResult.data?.id
-      })
-    } catch (err) {
-      console.warn('交易记录保存失败:', err)
-    }
+    // 后端 createOrder 已经自动创建 transactions 和 user_games 记录
+    // 不需要前端重复调用
     
     // 扣除余额（如果使用余额支付）
     if (useBalance.value && total > 0) {
       try {
-        await walletAPI.updateBalance(userId, total, 'subtract')
+        await walletAPI.updateWallet(userId, { amount: total })
       } catch (err) {
         console.warn('余额更新失败:', err)
       }
-    }
-    
-    // 添加到用户游戏库（可选，失败不阻塞）
-    try {
-      await userGameAPI.addUserGame({
-        user_id: userId,
-        order_id: orderResult.data?.id,
-        game_id: game.value.id,
-        game_name: game.value.name,
-        game_image: game.value.image,
-        cdkey: cdkey,
-        version: getVersionType(game.value.name)
-      })
-    } catch (err) {
-      console.warn('添加游戏库失败:', err)
     }
     
     console.log('✓ 订单处理完成')
@@ -619,6 +589,18 @@ const generateCdkey = () => {
 
 // 加载数据
 const loadData = async () => {
+  // 加载真实钱包余额
+  const currentUser = authAPI.getCurrentUser()
+  if (currentUser?.id) {
+    try {
+      const r = await walletAPI.getBalance(currentUser.id)
+      if (r.data) {
+        const bal = r.data.balance ?? r.data
+        walletBalance.value = parseFloat(bal) || 0
+      }
+    } catch {}
+  }
+
   const gameId = route.params.id
   const decodedId = decodeGameId(gameId)
   if (gameId) {
@@ -710,7 +692,7 @@ const loadData = async () => {
     game.value = {
       id: gameId,
       name: isDeluxe ? '生化危机:安魂曲 豪华版' : '生化危机:安魂曲',
-      description: '一款史诗级的动作冒险游戏，带你进入一个充满神秘和危险的世界。719cjx',
+      description: '一款史诗级的动作冒险游戏，带你进入一个充满神秘和危险的世界。',
       current_price: defaultPrice,
       original_price: defaultOriginalPrice,
       discount: '-11%',

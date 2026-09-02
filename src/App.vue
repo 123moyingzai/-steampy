@@ -1,7 +1,7 @@
-<template>
+﻿<template>
   <div id="cjx-app">
     <router-view />
-    <div class="cjx-footer-text">719cjx</div>
+    <div class="cjx-footer-text"></div>
   </div>
 </template>
 

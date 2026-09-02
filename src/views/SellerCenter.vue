@@ -1,10 +1,10 @@
-<template>
+﻿<template>
   <Layout>
     <div class="cjx-seller-page">
       <!-- 标签页导航 -->
       <div class="cjx-tabs-nav">
         <ul class="cjx-tabs-list">
-          <li class="cjx-tab-item active">代购订单 719cjx</li>
+          <li class="cjx-tab-item active">代购订单</li>
           <li class="cjx-tab-item">CDKey管理</li>
           <li class="cjx-tab-item">挂售管理</li>
           <li class="cjx-tab-item">财务记录</li>
@@ -14,26 +14,26 @@
       <!-- 统计卡片 -->
       <div class="cjx-stats">
         <div class="cjx-stat-card">
-          <h4>代购总单数 719cjx</h4>
+          <h4>代购总单数</h4>
           <p class="cjx-stat-value">{{ quota.total_sales || 0 }}</p>
         </div>
         <div class="cjx-stat-card">
-          <h4>CDKey总单数 719cjx</h4>
+          <h4>CDKey总单数</h4>
           <p class="cjx-stat-value">{{ quota.cdkey_sales || 0 }}</p>
         </div>
         <div class="cjx-stat-card">
-          <h4>节省自己 719cjx</h4>
+          <h4>节省自己</h4>
           <p class="cjx-stat-value">¥{{ quota.saved_for_self?.toFixed(0) || 0 }}</p>
         </div>
         <div class="cjx-stat-card">
-          <h4>节省他人 719cjx</h4>
+          <h4>节省他人</h4>
           <p class="cjx-stat-value">¥{{ quota.saved_for_others?.toFixed(0) || 0 }}</p>
         </div>
       </div>
 
       <!-- 订单列表 -->
       <div class="cjx-section">
-        <h3 class="cjx-section-title">代购订单 719cjx</h3>
+        <h3 class="cjx-section-title">代购订单</h3>
         <div class="cjx-filter-bar">
           <input type="text" placeholder="搜索订单" class="cjx-search-input" v-model="searchQuery" />
           <button class="cjx-btn cjx-btn-primary" @click="searchOrders">查询</button>
@@ -43,7 +43,7 @@
           <table class="cjx-table">
             <thead>
               <tr>
-                <th>订单号 719cjx</th>
+                <th>订单号</th>
                 <th>游戏名称</th>
                 <th>金额</th>
                 <th>状态</th>
@@ -69,7 +69,7 @@
         </div>
         
         <div class="cjx-empty" v-else>
-          <p>暂无订单数据 719cjx</p>
+          <p>暂无订单数据</p>
         </div>
       </div>
     </div>
@@ -105,7 +105,7 @@ const searchOrders = () => {
 }
 
 const viewOrder = (order) => {
-  alert(`查看订单详情：${order.order_no} 719cjx`)
+  alert(`查看订单详情：${order.order_no}`)
 }
 
 // 加载数据
@@ -113,7 +113,7 @@ const loadData = async () => {
   const currentUser = authAPI.getCurrentUser()
   
   if (!currentUser) {
-    alert('请先登录 719cjx')
+    alert('请先登录')
     router.push('/login')
     return
   }

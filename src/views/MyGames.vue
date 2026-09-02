@@ -1,20 +1,20 @@
-<template>
+﻿<template>
   <Layout>
     <div class="cjx-games-page">
-      <h2 class="cjx-page-title">我的游戏库 719cjx</h2>
+      <h2 class="cjx-page-title">我的游戏库</h2>
 
       <!-- 统计概览 -->
       <div class="cjx-stats-cards">
         <div class="cjx-stat-card">
-          <span class="cjx-stat-label">已购游戏 719cjx</span>
+          <span class="cjx-stat-label">已购游戏</span>
           <span class="cjx-stat-value">{{ stats.totalGames }}</span>
         </div>
         <div class="cjx-stat-card">
-          <span class="cjx-stat-label">待激活 719cjx</span>
+          <span class="cjx-stat-label">待激活</span>
           <span class="cjx-stat-value">{{ stats.pendingActivation }}</span>
         </div>
         <div class="cjx-stat-card">
-          <span class="cjx-stat-label">已入库 719cjx</span>
+          <span class="cjx-stat-label">已入库</span>
           <span class="cjx-stat-value">{{ stats.activated }}</span>
         </div>
       </div>
@@ -24,7 +24,7 @@
         <input 
           type="text" 
           v-model="searchQuery"
-          placeholder="搜索游戏名称 719cjx"
+          placeholder="搜索游戏名称"
           class="cjx-search-input"
         />
         <select v-model="statusFilter" class="cjx-select">
@@ -51,7 +51,7 @@
           </div>
           
           <div class="cjx-game-info">
-            <h3 class="cjx-game-name">{{ game.name }} 719cjx</h3>
+            <h3 class="cjx-game-name">{{ game.name }}</h3>
             <p class="cjx-game-meta">
               <span>购买时间：{{ formatDate(game.purchase_date) }}</span>
               <span>版本：{{ game.version }}</span>
@@ -111,7 +111,7 @@
 
       <div class="cjx-empty" v-else>
         <div class="cjx-empty-icon">🎮</div>
-        <p>暂无游戏 719cjx</p>
+        <p>暂无游戏</p>
         <button class="cjx-btn cjx-btn-primary" @click="$router.push('/cdkey')">
           去购买游戏
         </button>
@@ -122,7 +122,7 @@
     <div class="cjx-modal" v-if="activatingGame" @click.self="activatingGame = null">
       <div class="cjx-modal-content">
         <div class="cjx-modal-header">
-          <h3>确认激活 719cjx</h3>
+          <h3>确认激活</h3>
           <button class="cjx-modal-close" @click="activatingGame = null">×</button>
         </div>
         <div class="cjx-modal-body">
@@ -134,7 +134,7 @@
             <code>{{ activatingGame.cdkey }}</code>
           </div>
           <div class="cjx-activation-steps">
-            <h4>激活步骤 719cjx：</h4>
+            <h4>激活步骤：</h4>
             <ol>
               <li>打开Steam客户端</li>
               <li>点击左下角"+添加游戏"</li>
@@ -154,7 +154,7 @@
     <div class="cjx-modal" v-if="showGuide" @click.self="showGuide = false">
       <div class="cjx-modal-content cjx-modal-large">
         <div class="cjx-modal-header">
-          <h3>Steam激活教程 719cjx</h3>
+          <h3>Steam激活教程</h3>
           <button class="cjx-modal-close" @click="showGuide = false">×</button>
         </div>
         <div class="cjx-modal-body">
@@ -163,37 +163,37 @@
               <div class="cjx-step-number">1</div>
               <div class="cjx-step-content">
                 <h4>打开Steam客户端</h4>
-                <p>启动Steam并登录您的账号 719cjx</p>
+                <p>启动Steam并登录您的账号</p>
               </div>
             </div>
             <div class="cjx-guide-step">
               <div class="cjx-step-number">2</div>
               <div class="cjx-step-content">
                 <h4>添加游戏</h4>
-                <p>点击左下角的"+ 添加游戏"按钮 719cjx</p>
+                <p>点击左下角的"+ 添加游戏"按钮</p>
               </div>
             </div>
             <div class="cjx-guide-step">
               <div class="cjx-step-number">3</div>
               <div class="cjx-step-content">
                 <h4>选择激活产品</h4>
-                <p>在菜单中选择"在Steam上激活产品" 719cjx</p>
+                <p>在菜单中选择"在Steam上激活产品"</p>
               </div>
             </div>
             <div class="cjx-guide-step">
               <div class="cjx-step-number">4</div>
               <div class="cjx-step-content">
                 <h4>输入CDKey</h4>
-                <p>输入您获得的CDKey，点击确认完成激活 719cjx</p>
+                <p>输入您获得的CDKey，点击确认完成激活</p>
               </div>
             </div>
           </div>
           <div class="cjx-guide-tips">
-            <h4>注意事项 719cjx：</h4>
+            <h4>注意事项：</h4>
             <ul>
               <li>请确保您登录的是正确的Steam账号</li>
               <li>CDKey一经使用即绑定到该账号，无法转移</li>
-              <li>如遇问题请联系客服 719cjx</li>
+              <li>如遇问题请联系客服</li>
             </ul>
           </div>
         </div>
@@ -270,7 +270,7 @@ const toggleCdkeyVisibility = (game) => {
 const copyCdkey = async (cdkey) => {
   try {
     await navigator.clipboard.writeText(cdkey)
-    showToast('CDKey已复制到剪贴板 719cjx')
+    showToast('CDKey已复制到剪贴板')
   } catch (err) {
     // 降级方案
     const textarea = document.createElement('textarea')
@@ -279,7 +279,7 @@ const copyCdkey = async (cdkey) => {
     textarea.select()
     document.execCommand('copy')
     document.body.removeChild(textarea)
-    showToast('CDKey已复制到剪贴板 719cjx')
+    showToast('CDKey已复制到剪贴板')
   }
 }
 
@@ -303,7 +303,7 @@ const confirmActivation = async () => {
       activatingGame.value.status = 'activated'
       activatingGame.value.activation_date = new Date().toISOString()
       
-      showToast('游戏已标记为已激活 719cjx')
+      showToast('游戏已标记为已激活')
     } catch (error) {
       console.error('激活失败:', error)
       
@@ -312,7 +312,7 @@ const confirmActivation = async () => {
       activatingGame.value.activation_date = new Date().toISOString()
       localStorage.setItem('myGames', JSON.stringify(games.value))
       
-      showToast('游戏已标记为已激活（本地） 719cjx')
+      showToast('游戏已标记为已激活（本地）')
     }
     
     activatingGame.value = null
@@ -320,7 +320,7 @@ const confirmActivation = async () => {
 }
 
 const viewInLibrary = (game) => {
-  alert(`游戏 ${game.name} 已在您的Steam库中 719cjx`)
+  alert(`游戏 ${game.name} 已在您的Steam库中`)
 }
 
 const showActivationGuide = () => {
@@ -329,7 +329,7 @@ const showActivationGuide = () => {
 
 const refreshGames = () => {
   loadData()
-  showToast('游戏列表已刷新 719cjx')
+  showToast('游戏列表已刷新')
 }
 
 // 生成模拟CDKey
@@ -405,7 +405,7 @@ const loadData = async () => {
 onMounted(() => {
   const currentUser = authAPI.getCurrentUser()
   if (!currentUser) {
-    alert('请先登录 719cjx')
+    alert('请先登录')
     router.push('/login')
     return
   }

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <Layout>
       <!-- 横幅轮播区 -->
       <div class="cjx-banner">
@@ -36,7 +36,7 @@
           </div>
         </div>
         <div class="cjx-banner-right">
-          <h3 class="cjx-announcement-title">公告栏 719cjx</h3>
+          <h3 class="cjx-announcement-title">公告栏</h3>
           <ul class="cjx-announcement-list">
             <li class="cjx-announcement-item" v-for="(item, index) in announcements" :key="index">
               <strong>{{ item.date }}</strong> {{ item.title }}
@@ -75,7 +75,7 @@
             <p>本平台致力于给每位玩家提供一个安全快速便捷的交易平台，来共享出自己账号中的额度</p>
             <p>在平台上，你可以轻松查询自己的代购额度，并且挂出自己的账号余额，提供给有需要的玩家购买</p>
             <p>也可在平台市场中挑选自己心仪的卖家和折扣，支付金额、确认好友请求后手动收取礼物</p>
-            <p>平台使用的账户信息直接对接steam接口，安全可靠。交易使用全自动流程，方便快捷，避免普通玩家之间交易产生的欺骗纠纷 719cjx</p>
+            <p>平台使用的账户信息直接对接steam接口，安全可靠。交易使用全自动流程，方便快捷，避免普通玩家之间交易产生的欺骗纠纷</p>
           </div>
         </div>
       </div>

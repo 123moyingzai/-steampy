@@ -1,10 +1,10 @@
-<template>
+﻿<template>
   <div class="cjx-login-page">
     <div class="cjx-logo">
       <svg viewBox="0 0 24 24">
         <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
       </svg>
-      <span>SteamPY匹歪 719cjx</span>
+      <span>SteamPY匹歪</span>
     </div>
 
     <div class="cjx-auth-container">
@@ -29,7 +29,7 @@
             <input 
               type="text" 
               class="cjx-form-control" 
-              placeholder="请输入用户名 719cjx"
+              placeholder="请输入用户名"
               v-model="loginForm.username"
             >
             <div class="cjx-error-message">{{ errors.loginUsername }}</div>
@@ -69,7 +69,7 @@
 
           <div class="cjx-checkbox-group" style="margin-bottom: 20px;">
             <input type="checkbox" class="cjx-form-checkbox" v-model="loginForm.agree">
-            <label>我已阅读并同意用户协议,隐私政策 719cjx</label>
+            <label>我已阅读并同意用户协议,隐私政策</label>
           </div>
           <div class="cjx-error-message">{{ errors.loginAgree }}</div>
 
@@ -78,7 +78,7 @@
           </button>
 
           <div class="cjx-link-text">
-            <a @click="switchToRegister">注册账户 719cjx</a>
+            <a @click="switchToRegister">注册账户</a>
           </div>
         </div>
 
@@ -124,7 +124,7 @@
 
           <div class="cjx-checkbox-group" style="margin-bottom: 20px;">
             <input type="checkbox" class="cjx-form-checkbox" v-model="phoneForm.agree">
-            <label>我已阅读并同意用户协议,隐私政策 719cjx</label>
+            <label>我已阅读并同意用户协议,隐私政策</label>
           </div>
           <div class="cjx-error-message">{{ errors.phoneAgree }}</div>
 
@@ -133,14 +133,14 @@
           </button>
 
           <div class="cjx-link-text">
-            <a @click="switchToRegister">注册账户 719cjx</a>
+            <a @click="switchToRegister">注册账户</a>
           </div>
         </div>
       </div>
 
       <!-- 注册表单 -->
       <div v-else id="cjx-register-panel" class="cjx-form-panel cjx-active">
-        <h2>注册 719cjx</h2>
+        <h2>注册</h2>
 
         <div class="cjx-form-group">
           <input 
@@ -207,7 +207,7 @@
 
         <div class="cjx-checkbox-group" style="margin-bottom: 20px;">
           <input type="checkbox" class="cjx-form-checkbox" v-model="registerForm.agree">
-          <label>我已阅读并同意用户协议,隐私政策 719cjx</label>
+          <label>我已阅读并同意用户协议,隐私政策</label>
         </div>
         <div class="cjx-error-message">{{ errors.regAgree }}</div>
 
@@ -216,13 +216,13 @@
         </button>
 
         <div class="cjx-link-text">
-            <a @click="switchToLogin">使用已有账号登录 719cjx</a>
+            <a @click="switchToLogin">使用已有账号登录</a>
           </div>
         </div>
       </div>
 
     <div class="cjx-footer">
-      719cjx - Steam游戏交易平台 | 沪ICP备19042195号-1
+      - Steam游戏交易平台 | 沪ICP备19042195号-1
     </div>
   </div>
 </template>
@@ -436,7 +436,7 @@ const handlePhoneLogin = () => {
 
   if (!isValid) return
 
-  alert('手机号登录成功！719cjx')
+  alert('手机号登录成功！')
   router.push('/')
 }
 

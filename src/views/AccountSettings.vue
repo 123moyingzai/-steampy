@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <Layout>
     <div class="cjx-settings-page">
       <!-- 侧边标签 -->
@@ -7,24 +7,24 @@
           class="cjx-settings-tab" 
           :class="{ active: activeTab === 'basic' }"
           @click="activeTab = 'basic'"
-        >基本信息 719cjx</div>
+        >基本信息</div>
         <div 
           class="cjx-settings-tab" 
           :class="{ active: activeTab === 'security' }"
           @click="activeTab = 'security'"
-        >账号安全 719cjx</div>
+        >账号安全</div>
         <div 
           class="cjx-settings-tab" 
           :class="{ active: activeTab === 'steam' }"
           @click="activeTab = 'steam'"
-        >Steam绑定 719cjx</div>
+        >Steam绑定</div>
       </div>
 
       <!-- 内容区域 -->
       <div class="cjx-settings-content">
         <!-- 基本信息 -->
         <div v-show="activeTab === 'basic'" class="cjx-settings-panel">
-          <h2>基本信息 719cjx</h2>
+          <h2>基本信息</h2>
           
           <div class="cjx-avatar-section">
             <div class="cjx-avatar-large">{{ avatarText }}</div>
@@ -39,12 +39,12 @@
             </div>
 
             <div class="cjx-form-row">
-              <label>昵称 719cjx</label>
+              <label>昵称</label>
               <input type="text" v-model="userInfo.nickname" class="cjx-input" placeholder="设置昵称" />
             </div>
 
             <div class="cjx-form-row">
-              <label>性别 719cjx</label>
+              <label>性别</label>
               <div class="cjx-radio-group">
                 <label><input type="radio" v-model="userInfo.gender" value="male" /> 男</label>
                 <label><input type="radio" v-model="userInfo.gender" value="female" /> 女</label>
@@ -52,7 +52,7 @@
             </div>
 
             <div class="cjx-form-row">
-              <label>国家/地区 719cjx</label>
+              <label>国家/地区</label>
               <select v-model="userInfo.country" class="cjx-select">
                 <option value="中国">中国</option>
                 <option value="美国">美国</option>
@@ -71,12 +71,12 @@
 
         <!-- 账号安全 -->
         <div v-show="activeTab === 'security'" class="cjx-settings-panel">
-          <h2>账号安全 719cjx</h2>
+          <h2>账号安全</h2>
           
           <div class="cjx-security-list">
             <div class="cjx-security-item">
               <div class="cjx-security-info">
-                <h4>登录密码 719cjx</h4>
+                <h4>登录密码</h4>
                 <p>密码强度：{{ userInfo.passwordStrength }}</p>
               </div>
               <button class="cjx-btn cjx-btn-secondary" @click="showPasswordModal = true">修改</button>
@@ -84,7 +84,7 @@
 
             <div class="cjx-security-item">
               <div class="cjx-security-info">
-                <h4>手机绑定 719cjx</h4>
+                <h4>手机绑定</h4>
                 <p>{{ userInfo.phone || '未绑定' }}</p>
               </div>
               <button class="cjx-btn cjx-btn-secondary">更换</button>
@@ -94,7 +94,7 @@
 
         <!-- Steam绑定 -->
         <div v-show="activeTab === 'steam'" class="cjx-settings-panel">
-          <h2>Steam绑定 719cjx</h2>
+          <h2>Steam绑定</h2>
           
           <div class="cjx-steam-bind" v-if="!userInfo.steam_id">
             <div class="cjx-steam-icon">🎮</div>
@@ -114,7 +114,7 @@
     <!-- 修改密码弹窗 -->
     <div class="cjx-modal" v-if="showPasswordModal" @click.self="showPasswordModal = false">
       <div class="cjx-modal-content">
-        <h3>修改密码 719cjx</h3>
+        <h3>修改密码</h3>
         <div class="cjx-form">
           <div class="cjx-form-row">
             <label>原密码</label>
@@ -199,7 +199,7 @@ const savePassword = () => {
     alert('两次输入的密码不一致')
     return
   }
-  alert('密码修改成功！719cjx')
+  alert('密码修改成功！')
   showPasswordModal.value = false
 }
 
@@ -208,7 +208,7 @@ const loadData = () => {
   const currentUser = authAPI.getCurrentUser()
   
   if (!currentUser) {
-    alert('请先登录 719cjx')
+    alert('请先登录')
     router.push('/login')
     return
   }

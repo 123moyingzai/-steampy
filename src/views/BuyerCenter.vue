@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <Layout>
     <div class="cjx-buyer-page">
       <!-- 标签页导航 -->
@@ -8,22 +8,22 @@
             class="cjx-tab-item" 
             :class="{ active: activeTab === 'py' }"
             @click="activeTab = 'py'"
-          >PY代购 719cjx</li>
+          >PY代购</li>
           <li 
             class="cjx-tab-item" 
             :class="{ active: activeTab === 'cdkey' }"
             @click="activeTab = 'cdkey'"
-          >CDKey 719cjx</li>
+          >CDKey</li>
           <li 
             class="cjx-tab-item" 
             :class="{ active: activeTab === 'request' }"
             @click="activeTab = 'request'"
-          >求购 719cjx</li>
+          >求购</li>
           <li 
             class="cjx-tab-item" 
             :class="{ active: activeTab === 'collect' }"
             @click="activeTab = 'collect'"
-          >代领 719cjx</li>
+          >代领</li>
         </ul>
       </div>
 
@@ -32,7 +32,7 @@
         <div class="cjx-filter-bar">
           <input type="text" placeholder="搜索游戏名称" class="cjx-search-input" v-model="searchQuery" />
           <select class="cjx-select" v-model="statusFilter">
-            <option value="">全部状态 719cjx</option>
+            <option value="">全部状态</option>
             <option value="pending">待支付</option>
             <option value="paid">已支付</option>
             <option value="shipped">已发货</option>
@@ -45,7 +45,7 @@
           <table class="cjx-table">
             <thead>
               <tr>
-                <th>订单号 719cjx</th>
+                <th>订单号</th>
                 <th>下单时间</th>
                 <th>游戏名称</th>
                 <th>单价</th>
@@ -77,7 +77,7 @@
         </div>
         
         <div class="cjx-empty" v-else>
-          <p>暂无订单数据 719cjx</p>
+          <p>暂无订单数据</p>
           <button class="cjx-btn cjx-btn-primary" @click="$router.push('/cdkey')">去购买</button>
         </div>
       </div>
@@ -87,7 +87,7 @@
         <div class="cjx-filter-bar">
           <input type="text" placeholder="搜索订单号或游戏名称" class="cjx-search-input" v-model="cdkeySearchQuery" />
           <select class="cjx-select" v-model="cdkeyStatusFilter">
-            <option value="">全部状态 719cjx</option>
+            <option value="">全部状态</option>
             <option value="completed">交易完成</option>
             <option value="pending">待支付</option>
             <option value="cancelled">已取消</option>
@@ -98,7 +98,7 @@
           <table class="cjx-table cjx-order-table">
             <thead>
               <tr>
-                <th>订单号 719cjx</th>
+                <th>订单号</th>
                 <th>购买日期</th>
                 <th>游戏名称</th>
                 <th>订单金额</th>
@@ -128,7 +128,7 @@
         </div>
         
         <div class="cjx-empty" v-else>
-          <p>暂无CDKey订单 719cjx</p>
+          <p>暂无CDKey订单</p>
           <button class="cjx-btn cjx-btn-primary" @click="$router.push('/cdkey')">去购买</button>
         </div>
       </div>
@@ -136,17 +136,17 @@
       <!-- 求购标签页 -->
       <div v-show="activeTab === 'request'" class="cjx-tab-content">
         <div class="cjx-filter-bar">
-          <button class="cjx-btn cjx-btn-primary" @click="showRequestForm = true">发布求购 719cjx</button>
+          <button class="cjx-btn cjx-btn-primary" @click="showRequestForm = true">发布求购</button>
         </div>
         <div class="cjx-empty">
-          <p>暂无求购信息 719cjx</p>
+          <p>暂无求购信息</p>
         </div>
       </div>
 
       <!-- 代领标签页 -->
       <div v-show="activeTab === 'collect'" class="cjx-tab-content">
         <div class="cjx-empty">
-          <p>暂无代领订单 719cjx</p>
+          <p>暂无代领订单</p>
         </div>
       </div>
     </div>
@@ -155,7 +155,7 @@
     <div class="cjx-modal" v-if="selectedOrder" @click.self="closeOrderDetail">
       <div class="cjx-modal-content">
         <div class="cjx-modal-header">
-          <h3>订单详情 719cjx</h3>
+          <h3>订单详情</h3>
           <button class="cjx-modal-close" @click="closeOrderDetail">×</button>
         </div>
         <div class="cjx-modal-body">
@@ -191,7 +191,7 @@
             <span class="cjx-detail-label">游戏 CDKey</span>
             <div class="cjx-cdkey-box">
               <span class="cjx-cdkey-value">{{ selectedOrder.cdkey }}</span>
-              <button class="cjx-btn-copy" @click="copyCdkeyFromOrder">复制 719cjx</button>
+              <button class="cjx-btn-copy" @click="copyCdkeyFromOrder">复制</button>
             </div>
           </div>
         </div>
@@ -301,7 +301,7 @@ const viewOrderDetail = (order) => {
 const copyCdkeyFromOrder = () => {
   if (!selectedOrder.value?.cdkey) return
   navigator.clipboard.writeText(selectedOrder.value.cdkey).then(() => {
-    alert('CDKey已复制到剪贴板 719cjx')
+    alert('CDKey已复制到剪贴板')
   }).catch(() => {
     const textarea = document.createElement('textarea')
     textarea.value = selectedOrder.value.cdkey
@@ -309,7 +309,7 @@ const copyCdkeyFromOrder = () => {
     textarea.select()
     document.execCommand('copy')
     document.body.removeChild(textarea)
-    alert('CDKey已复制到剪贴板 719cjx')
+    alert('CDKey已复制到剪贴板')
   })
 }
 
@@ -334,7 +334,7 @@ const searchOrders = () => {
 }
 
 const viewOrder = (order) => {
-  alert(`查看订单详情：${order.order_no} 719cjx`)
+  alert(`查看订单详情：${order.order_no}`)
 }
 
 // 加载数据 - 从 Supabase 数据库获取
@@ -343,7 +343,7 @@ const loadData = async () => {
   const userId = currentUser?.id || 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
 
   if (!currentUser) {
-    alert('请先登录 719cjx')
+    alert('请先登录')
     router.push('/login')
     return
   }

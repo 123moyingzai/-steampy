@@ -1,12 +1,12 @@
 <template>
   <Layout>
     <div class="cjx-recharge-page">
-      <h2 class="cjx-page-title">余额充值 719cjx</h2>
+      <h2 class="cjx-page-title">余额充值</h2>
       
       <!-- 当前余额展示 -->
       <div class="cjx-balance-card">
         <div class="cjx-balance-info">
-          <span class="cjx-balance-label">当前余额 719cjx</span>
+          <span class="cjx-balance-label">当前余额</span>
           <span class="cjx-balance-amount">¥{{ userBalance.toFixed(2) }}</span>
         </div>
         <div class="cjx-balance-actions">
@@ -16,7 +16,7 @@
 
       <!-- 充值金额选择 -->
       <div class="cjx-recharge-section">
-        <h3>选择充值金额 719cjx</h3>
+        <h3>选择充值金额</h3>
         <div class="cjx-amount-options">
           <div 
             v-for="amount in presetAmounts" 
@@ -49,7 +49,7 @@
 
       <!-- 支付方式 -->
       <div class="cjx-payment-section">
-        <h3>选择支付方式 719cjx</h3>
+        <h3>选择支付方式</h3>
         <div class="cjx-payment-options">
           <label 
             v-for="method in paymentMethods" 
@@ -95,13 +95,13 @@
           <span v-else>立即充值 ¥{{ rechargeAmount > 0 ? rechargeAmount.toFixed(2) : '0.00' }}</span>
         </button>
         <p class="cjx-recharge-tip">
-          充值即表示同意《用户充值协议》719cjx
+          充值即表示同意《用户充值协议》
         </p>
       </div>
 
       <!-- 充值记录 -->
       <div class="cjx-recharge-history">
-        <h3>最近充值记录 719cjx</h3>
+        <h3>最近充值记录</h3>
         <div class="cjx-history-list" v-if="rechargeRecords.length > 0">
           <div 
             v-for="record in rechargeRecords" 
@@ -121,7 +121,7 @@
           </div>
         </div>
         <div class="cjx-empty" v-else>
-          <p>暂无充值记录 719cjx</p>
+          <p>暂无充值记录</p>
         </div>
       </div>
     </div>
@@ -217,17 +217,17 @@ const viewHistory = () => {
 
 const handleRecharge = async () => {
   if (rechargeAmount.value <= 0) {
-    alert('请选择或输入充值金额 719cjx')
+    alert('请选择或输入充值金额')
     return
   }
   if (!selectedPayment.value) {
-    alert('请选择支付方式 719cjx')
+    alert('请选择支付方式')
     return
   }
 
   const currentUser = authAPI.getCurrentUser()
   if (!currentUser) {
-    alert('请先登录 719cjx')
+    alert('请先登录')
     router.push('/login')
     return
   }
@@ -258,7 +258,7 @@ const handleRecharge = async () => {
       rechargeRecords.value.unshift(newRecord)
       
       console.log(`✓ 充值成功: ¥${totalAmount.value.toFixed(2)}`)
-      alert(`充值成功！到账金额 ¥${totalAmount.value.toFixed(2)} 719cjx`)
+      alert(`充值成功！到账金额 ¥${totalAmount.value.toFixed(2)}`)
     } catch (error) {
       console.error('充值失败:', error)
       alert(`充值失败: ${error.message}`)
@@ -284,8 +284,11 @@ const loadData = async () => {
   try {
     // 从数据库加载余额
     const balanceResult = await walletAPI.getBalance(userId)
-    if (balanceResult.data !== undefined) {
-      userBalance.value = parseFloat(balanceResult.data)
+    if (balanceResult.data) {
+      const bal = balanceResult.data.balance ?? balanceResult.data
+      userBalance.value = parseFloat(bal) || 0
+    } else {
+      userBalance.value = 0
     }
     
     // 从数据库加载交易记录（筛选充值类型）
@@ -321,7 +324,7 @@ const loadData = async () => {
 onMounted(() => {
   const currentUser = authAPI.getCurrentUser()
   if (!currentUser) {
-    alert('请先登录 719cjx')
+    alert('请先登录')
     router.push('/login')
     return
   }

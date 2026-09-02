@@ -1,11 +1,11 @@
-<template>
+﻿<template>
   <Layout>
     <div class="cjx-cdkey-page">
       <!-- 预售专区 -->
       <section class="cjx-section">
         <h2 class="cjx-section-title">
           <span class="cjx-tag-hot">HOT</span>
-          预售专区 719cjx
+          预售专区
         </h2>
         <div class="cjx-game-grid">
           <div class="cjx-game-card cjx-presale" v-for="(game, index) in preSaleGames" :key="'pre-'+index" @click="goToGame(game)">
@@ -14,7 +14,7 @@
               <h3 class="cjx-game-title">{{ game.name }}</h3>
               <p class="cjx-game-price">{{ game.price }}</p>
               <span v-if="game.discount" class="cjx-game-discount">{{ game.discount }}</span>
-              <span class="cjx-presale-tag">预售 719cjx</span>
+              <span class="cjx-presale-tag">预售</span>
             </div>
           </div>
         </div>
@@ -22,7 +22,7 @@
 
       <!-- CDKey市场 -->
       <section class="cjx-section">
-        <h2 class="cjx-section-title">CDKey市场 719cjx</h2>
+        <h2 class="cjx-section-title">CDKey市场</h2>
         
         <!-- 筛选栏 -->
         <div class="cjx-filter-bar">
@@ -62,7 +62,7 @@
 
         <!-- 加载更多 -->
         <div class="cjx-load-more" v-if="displayGames.length < filteredGames.length">
-          <button class="cjx-btn cjx-btn-secondary" @click="loadMore">加载更多 719cjx</button>
+          <button class="cjx-btn cjx-btn-secondary" @click="loadMore">加载更多</button>
         </div>
       </section>
 
@@ -129,10 +129,14 @@ const filteredGames = computed(() => {
   }
   
   // 排序
+  const getPrice = (p: any) => {
+    if (typeof p === 'number') return p
+    return parseFloat(String(p).replace(/[^0-9.]/g, '')) || 0
+  }
   if (sortBy.value === 'price-asc') {
-    result.sort((a, b) => parseFloat(a.price.replace(/[^0-9.]/g, '')) - parseFloat(b.price.replace(/[^0-9.]/g, '')))
+    result.sort((a, b) => getPrice(a.price) - getPrice(b.price))
   } else if (sortBy.value === 'price-desc') {
-    result.sort((a, b) => parseFloat(b.price.replace(/[^0-9.]/g, '')) - parseFloat(a.price.replace(/[^0-9.]/g, '')))
+    result.sort((a, b) => getPrice(b.price) - getPrice(a.price))
   } else if (sortBy.value === 'name') {
     result.sort((a, b) => a.name.localeCompare(b.name))
   }

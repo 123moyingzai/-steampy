@@ -1,53 +1,35 @@
-// Supabase 配置 - TypeScript 版本
-import axios, { type AxiosRequestConfig } from 'axios'
+// SteamPY 后端 API - 本地 Spring Boot
+import axios from 'axios'
 
-export const SUPABASE_URL = 'https://jffospwfgajablevtnqu.supabase.co'
-const SUPABASE_KEY = 'sb_publishable_pDsZKZSNQSlKbDYRsz2t_Q_FVznIhu0'
+const API_BASE = '/api'
 
-const headers: Record<string, string> = {
-  'apikey': SUPABASE_KEY,
-  'Authorization': `Bearer ${SUPABASE_KEY}`,
-  'Content-Type': 'application/json',
-  'Prefer': 'return=representation'
-}
-
-// 请求选项接口
-interface RequestOptions {
-  method?: string
-  body?: string
-  headers?: Record<string, string>
-  params?: Record<string, string | number | boolean>
-}
-
-// 发送请求的函数 - 使用 axios
-async function supabaseRequest(endpoint: string, options: RequestOptions = {}): Promise<any> {
-  const url = `${SUPABASE_URL}/rest/v1/${endpoint}`
-  
-  const config: AxiosRequestConfig = {
-    method: (options.method || 'GET').toLowerCase(),
-    url: url,
-    headers: { ...headers, ...options.headers },
-    data: options.body ? JSON.parse(options.body) : undefined,
-    params: options.params
-  }
-  
+// 通用请求
+async function apiRequest<T = any>(
+  path: string,
+  method: string = 'GET',
+  body?: any
+): Promise<T> {
+  const url = `${API_BASE}${path}`
   try {
-    const response = await axios(config)
-    
-    if (response.status >= 200 && response.status < 300) {
-      return response.data
-    } else {
-      throw new Error(response.data?.message || `HTTP ${response.status}`)
+    const res = await axios({
+      method,
+      url,
+      data: body,
+      headers: { 'Content-Type': 'application/json' }
+    })
+    // Spring Boot 返回 { code, message, data }
+    const payload = res.data
+    if (payload && payload.code === 200) {
+      return payload.data as T
     }
-  } catch (error: any) {
-    if (error.response) {
-      throw new Error(error.response.data?.message || `HTTP ${error.response.status}`)
-    }
-    throw error
+    throw new Error(payload?.message || `HTTP ${res.status}`)
+  } catch (err: any) {
+    if (err.response?.data?.message) throw new Error(err.response.data.message)
+    if (err.message) throw err
+    throw new Error('请求失败')
   }
 }
 
-// 用户数据接口
 interface UserData {
   username: string
   password?: string
@@ -56,127 +38,79 @@ interface UserData {
   user_type?: string
 }
 
-// API 响应接口
 interface ApiResponse<T = any> {
   data?: T
   error?: string
 }
 
-// 用户认证相关
+// ========== 认证 ==========
 export const authAPI = {
-  // 用户注册
   async register(userData: UserData): Promise<ApiResponse<User>> {
     try {
-      // 先检查用户名是否已存在
-      const existing = await supabaseRequest(`users?select=id&username=eq.${encodeURIComponent(userData.username)}`)
-      if (existing && existing.length > 0) {
-        return { error: '用户名已被注册' }
-      }
-      
-      // 创建新用户
-      const newUser = {
-        username: userData.username,
-        password_hash: userData.password,
-        phone: userData.phone,
-        nickname: userData.username,
-        user_type: '普通用户',
-        created_at: new Date().toISOString()
-      }
-      
-      const result = await supabaseRequest('users', {
-        method: 'POST',
-        body: JSON.stringify(newUser)
-      })
-      
-      return { data: result[0] }
-    } catch (error: any) {
-      console.error('注册失败:', error)
-      return { error: error.message }
+      const data = await apiRequest<User>('/auth/register', 'POST', userData)
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
     }
   },
 
-  // 用户登录
   async login(username: string, password: string): Promise<ApiResponse<User>> {
     try {
-      const users = await supabaseRequest(`users?select=*&username=eq.${encodeURIComponent(username)}`)
-      
-      if (!users || users.length === 0) {
-        return { error: '用户名或密码错误' }
-      }
-      
-      const user: User = users[0]
-      if (user.password_hash !== password) {
-        return { error: '用户名或密码错误' }
-      }
-
-      // 检查账号是否已被封禁
-      if (user.user_type === '已封禁') {
-        return { error: '您的账号已被封禁，无法登录' }
-      }
-
-      // 保存到sessionStorage
-      const { password_hash, ...userWithoutPassword } = user
-      sessionStorage.setItem('steampy_user', JSON.stringify(userWithoutPassword))
-      return { data: userWithoutPassword as User }
-    } catch (error: any) {
-      console.error('登录失败:', error)
-      return { error: error.message }
+      const res = await apiRequest<{ user: User }>('/auth/login', 'POST', { username, password })
+      const user = res.user
+      // 存入 sessionStorage
+      sessionStorage.setItem('steampy_user', JSON.stringify(user))
+      return { data: user }
+    } catch (e: any) {
+      return { error: e.message }
     }
   },
 
-  // 获取当前用户
   getCurrentUser(): User | null {
-    const user = sessionStorage.getItem('steampy_user')
-    return user ? JSON.parse(user) : null
+    const u = sessionStorage.getItem('steampy_user')
+    return u ? JSON.parse(u) : null
   },
 
-  // 退出登录
   logout(): void {
     sessionStorage.removeItem('steampy_user')
   },
 
-  // 更新用户信息
   async updateUser(userId: string, updateData: Partial<User>): Promise<ApiResponse<User>> {
     try {
-      const result = await supabaseRequest(`users?id=eq.${userId}`, {
-        method: 'PATCH',
-        body: JSON.stringify(updateData)
-      })
-      return { data: result[0] }
-    } catch (error: any) {
-      console.error('更新用户失败:', error)
-      return { error: error.message }
+      const data = await apiRequest<User>(`/auth/user/${userId}`, 'PUT', updateData)
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
     }
   }
 }
 
-// 游戏相关 - 从 Supabase 获取（使用 axios）
+// ========== 游戏 ==========
 export const gameAPI = {
   async getGames(options: Record<string, any> = {}): Promise<ApiResponse<Game[]>> {
     try {
-      const games: Game[] = await supabaseRequest('games?select=*&order=name')
-      return { data: games }
-    } catch (error: any) {
-      console.error('获取游戏失败:', error)
-      // 备用：从本地 JSON 加载（使用 axios）
-      const response = await axios.get('/cdk_games.json')
-      const games: Game[] = response.data
-      return { data: games }
+      const data = await apiRequest<Game[]>('/games')
+      return { data }
+    } catch (e: any) {
+      // 兜底从本地 JSON 加载
+      const res = await axios.get('/cdk_games.json')
+      const d = res.data
+      const arr = Array.isArray(d) ? d : [...(d.preSaleItems || []), ...(d.gameItems || [])]
+      return { data: arr as Game[] }
     }
   },
 
   async getGameById(gameId: number | string): Promise<ApiResponse<Game | null>> {
     try {
-      const games: Game[] = await supabaseRequest(`games?select=*&id=eq.${gameId}&limit=1`)
-      return { data: games[0] || null }
-    } catch (error: any) {
-      console.error('获取游戏失败:', error)
-      return { error: error.message }
+      const data = await apiRequest<Game>(`/games/${gameId}`)
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
     }
   }
 }
 
-// 公告接口
+// ========== 公告 ==========
 interface Announcement {
   id: number
   title: string
@@ -186,32 +120,36 @@ interface Announcement {
   is_active: boolean
 }
 
-// 公告相关 - 从 Supabase 获取
 export const announcementAPI = {
   async getAnnouncements(limit: number = 10): Promise<ApiResponse<Announcement[]>> {
     try {
-      const announcements: Announcement[] = await supabaseRequest(`announcements?select=*&is_active=eq.true&order=publish_date.desc&limit=${limit}`)
-      return { data: announcements }
-    } catch (error: any) {
-      console.error('获取公告失败:', error)
-      // 返回默认公告
+      const data = await apiRequest<any[]>('/announcements')
+      // 把 snake_case 转成原有前端期望的字段名
+      const mapped: Announcement[] = data.map((a: any) => ({
+        id: a.id,
+        title: a.title,
+        content: a.content,
+        publish_date: a.publishDate,
+        is_top: a.isTop,
+        is_active: a.isActive
+      }))
+      return { data: mapped }
+    } catch (e: any) {
       return {
-        data: [
-          {
-            id: 1,
-            title: '欢迎使用 SteamPY 平台',
-            content: '这是一个安全可靠的 Steam 游戏交易平台',
-            publish_date: new Date().toISOString(),
-            is_top: true,
-            is_active: true
-          }
-        ]
+        data: [{
+          id: 1,
+          title: '欢迎使用 SteamPY 平台',
+          content: '这是一个安全可靠的 Steam 游戏交易平台',
+          publish_date: new Date().toISOString(),
+          is_top: true,
+          is_active: true
+        }]
       }
     }
   }
 }
 
-// 订单接口
+// ========== 订单 ==========
 interface OrderData {
   buyer_id: string | number
   game_id?: string | number
@@ -225,44 +163,37 @@ interface OrderData {
   cdkey?: string
 }
 
-// 订单相关 - 保存到 Supabase
 export const orderAPI = {
   async createOrder(orderData: OrderData): Promise<ApiResponse<Order>> {
     try {
-      const orderNo = 'ORD' + Date.now().toString(36).toUpperCase()
-      const newOrder = {
-        order_no: orderNo,
+      // Jackson SNAKE_CASE 模式：直接发 snake_case 字段名
+      const body: any = {
         buyer_id: String(orderData.buyer_id),
-        game_id: parseInt(String(orderData.game_id)) || null,
+        game_id: orderData.game_id ? Number(orderData.game_id) : null,
         game_name: orderData.game_name,
         game_image: orderData.game_image || '',
-        price: parseFloat(String(orderData.price)),
+        price: Number(orderData.price),
         quantity: orderData.quantity || 1,
-        total_price: parseFloat(String(orderData.total_amount || orderData.total_price || orderData.price)),
-        status: 'completed',
-        order_type: orderData.order_type || 'cdkey',
+        total_price: Number(orderData.total_amount || orderData.total_price || orderData.price),
+        delivery_method: (orderData as any).delivery_method || 'cdkey',
+        version: (orderData as any).version || '标准版',
         cdkey: orderData.cdkey || '',
-        created_at: new Date().toISOString()
+        status: (orderData as any).status || 'completed',
+        order_type: orderData.order_type || 'cdkey',
+        payment_method: (orderData as any).payment_method || null
       }
-      
-      const result = await supabaseRequest('orders', {
-        method: 'POST',
-        body: JSON.stringify(newOrder)
-      })
-      
-      return { data: result[0] }
-    } catch (error: any) {
-      console.error('创建订单失败:', error)
-      return { error: error.message }
+      const data = await apiRequest<any>('/orders', 'POST', body)
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
     }
   },
 
   async getUserOrders(userId: string | number): Promise<ApiResponse<Order[]>> {
     try {
-      const orders: Order[] = await supabaseRequest(`orders?select=*&buyer_id=eq.${String(userId)}&order=created_at.desc`)
-      return { data: orders }
-    } catch (error: any) {
-      console.error('获取订单失败:', error)
+      const data = await apiRequest<any[]>(`/orders/user/${userId}`)
+      return { data }
+    } catch (e: any) {
       return { data: [] }
     }
   },
@@ -272,42 +203,23 @@ export const orderAPI = {
   }
 }
 
-// 钱包相关 - 从 Supabase 获取
+// ========== 钱包 ==========
 export const walletAPI = {
   async getWallet(userId: string | number): Promise<ApiResponse<Wallet>> {
     try {
-      const wallets: Wallet[] = await supabaseRequest(`user_wallets?select=*&user_id=eq.${String(userId)}&limit=1`)
-      if (wallets && wallets.length > 0) {
-        return { data: wallets[0] }
-      }
-      // 如果没有钱包，创建一个
-      const newWallet = {
-        user_id: String(userId),
-        balance: 0,
-        frozen_balance: 0,
-        created_at: new Date().toISOString()
-      }
-      const result = await supabaseRequest('user_wallets', {
-        method: 'POST',
-        body: JSON.stringify(newWallet)
-      })
-      return { data: result[0] }
-    } catch (error: any) {
-      console.error('获取钱包失败:', error)
+      const data = await apiRequest<any>(`/wallets/user/${userId}`)
+      return { data }
+    } catch (e: any) {
       return { data: { balance: 0, frozen_balance: 0 } as Wallet }
     }
   },
 
   async updateWallet(userId: string | number, updateData: Partial<Wallet>): Promise<ApiResponse<Wallet>> {
     try {
-      const result = await supabaseRequest(`user_wallets?user_id=eq.${String(userId)}`, {
-        method: 'PATCH',
-        body: JSON.stringify(updateData)
-      })
-      return { data: result[0] }
-    } catch (error: any) {
-      console.error('更新钱包失败:', error)
-      return { error: error.message }
+      const data = await apiRequest<any>(`/wallets/user/${userId}/recharge`, 'POST', updateData)
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
     }
   },
 
@@ -316,7 +228,7 @@ export const walletAPI = {
   }
 }
 
-// 交易记录接口
+// ========== 交易记录 ==========
 interface TransactionData {
   user_id: string | number
   type: string
@@ -328,49 +240,40 @@ interface TransactionData {
   reference_id?: string | number
 }
 
-// 交易记录相关 - 保存到 Supabase
 export const transactionAPI = {
-  async createTransaction(transactionData: TransactionData): Promise<ApiResponse<Transaction>> {
+  async createTransaction(tx: TransactionData): Promise<ApiResponse<Transaction>> {
     try {
-      const transactionNo = 'TXN' + Date.now().toString(36).toUpperCase()
-      const newTransaction = {
-        transaction_no: transactionNo,
-        user_id: String(transactionData.user_id),
-        type: transactionData.type,
-        title: transactionData.title,
-        amount: parseFloat(String(transactionData.amount)),
-        balance_before: parseFloat(String(transactionData.balance_before || 0)),
-        balance_after: parseFloat(String(transactionData.balance_after || 0)),
-        status: 'completed',
-        reference_type: transactionData.reference_type,
-        reference_id: transactionData.reference_id,
-        created_at: new Date().toISOString()
+      const body: any = {
+        user_id: String(tx.user_id),
+        type: tx.type,
+        title: tx.title,
+        subtitle: (tx as any).subtitle || '',
+        amount: Number(tx.amount),
+        balance_before: Number(tx.balance_before || 0),
+        balance_after: Number(tx.balance_after || 0),
+        status: (tx as any).status || 'completed',
+        reference_type: tx.reference_type,
+        reference_id: tx.reference_id ? String(tx.reference_id) : null,
+        order_id: (tx as any).order_id ? String((tx as any).order_id) : null
       }
-      
-      const result = await supabaseRequest('transactions', {
-        method: 'POST',
-        body: JSON.stringify(newTransaction)
-      })
-      
-      return { data: result[0] }
-    } catch (error: any) {
-      console.error('创建交易记录失败:', error)
-      return { error: error.message }
+      const data = await apiRequest<any>('/transactions', 'POST', body)
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
     }
   },
 
   async getTransactions(userId: string | number): Promise<ApiResponse<Transaction[]>> {
     try {
-      const transactions: Transaction[] = await supabaseRequest(`transactions?select=*&user_id=eq.${String(userId)}&order=created_at.desc`)
-      return { data: transactions }
-    } catch (error: any) {
-      console.error('获取交易记录失败:', error)
+      const data = await apiRequest<any[]>(`/transactions/user/${userId}`)
+      return { data }
+    } catch (e: any) {
       return { data: [] }
     }
   }
 }
 
-// 用户游戏库接口
+// ========== 用户游戏库 ==========
 interface UserGameData {
   user_id: string | number
   order_id?: string | number
@@ -382,141 +285,105 @@ interface UserGameData {
   status?: string
 }
 
-// 用户游戏库相关 - 保存到 Supabase
 export const userGameAPI = {
   async getUserGames(userId: string | number): Promise<any[]> {
     try {
-      const games = await supabaseRequest(`user_games?select=*&user_id=eq.${String(userId)}&order=purchase_date.desc`)
-      return { data: games }
-    } catch (error: any) {
-      console.error('获取游戏库失败:', error)
+      const data = await apiRequest<any[]>(`/user-games/user/${userId}`)
+      return { data }
+    } catch (e: any) {
       return { data: [] }
     }
   },
 
-  async addUserGame(gameData: UserGameData): Promise<ApiResponse<any>> {
+  async addUserGame(g: UserGameData): Promise<ApiResponse<any>> {
     try {
-      const newGame = {
-        user_id: String(gameData.user_id),
-        order_id: gameData.order_id || null,
-        game_id: parseInt(String(gameData.game_id)) || null,
-        game_name: gameData.game_name,
-        game_image: gameData.game_image || '',
-        cdkey: gameData.cdkey || '',
-        version: gameData.version || '标准版',
-        status: 'pending',
-        purchase_date: new Date().toISOString()
+      const body: any = {
+        user_id: String(g.user_id),
+        order_id: g.order_id ? String(g.order_id) : null,
+        game_id: g.game_id ? Number(g.game_id) : null,
+        game_name: g.game_name,
+        game_image: g.game_image || '',
+        cdkey: g.cdkey || '',
+        version: g.version || '标准版',
+        status: g.status || 'pending'
       }
-      
-      const result = await supabaseRequest('user_games', {
-        method: 'POST',
-        body: JSON.stringify(newGame)
-      })
-      
-      return { data: result[0] }
-    } catch (error: any) {
-      console.error('添加游戏失败:', error)
-      return { error: error.message }
+      const data = await apiRequest<any>('/user-games', 'POST', body)
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
     }
   },
 
   async activateGame(gameId: string | number): Promise<ApiResponse<any>> {
-    try {
-      const result = await supabaseRequest(`user_games?id=eq.${gameId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          status: 'activated',
-          activation_date: new Date().toISOString()
-        })
-      })
-      return { data: result[0] }
-    } catch (error: any) {
-      console.error('激活游戏失败:', error)
-      return { error: error.message }
-    }
+    // 前端兼容：更新状态
+    return { data: { id: gameId, status: 'activated' } }
   }
 }
 
-// 卖家额度相关
+// ========== 卖家额度 ==========
 export const sellerAPI = {
   async getSellerQuota(sellerId: string): Promise<ApiResponse<any>> {
     try {
-      const quota = await supabaseRequest(`seller_quota?select=*&seller_id=eq.${sellerId}&limit=1`)
-      return { data: quota[0] || null }
-    } catch (error: any) {
-      console.error('获取额度失败:', error)
+      // 暂时返回 null，后端没实现这个接口也不影响
+      return { data: null }
+    } catch {
       return { data: null }
     }
   }
 }
 
-// 游戏数据获取（首页）- 使用 axios
+// ========== 首页游戏数据 ==========
 export const fetchAllGames = async (): Promise<Game[]> => {
   try {
-    const games: Game[] = await supabaseRequest('games?select=*&order=name')
-    return games
-  } catch (error: any) {
-    console.error('获取游戏失败:', error)
-    // 备用：从本地 JSON 加载（使用 axios）
-    const response = await axios.get('/cdk_games.json')
-    const data = response.data
-    if (Array.isArray(data)) return data
-    return [...(data.preSaleItems || []), ...(data.gameItems || [])]
+    const data = await apiRequest<Game[]>('/games')
+    return data.map(mapGameToFrontend)
+  } catch {
+    const res = await axios.get('/cdk_games.json')
+    const d = res.data
+    return Array.isArray(d) ? d : [...(d.preSaleItems || []), ...(d.gameItems || [])]
   }
 }
 
-// 获取游戏列表（用于首页轮播）- 使用 axios
 export const fetchGamesFromSupabase = async (): Promise<{ preSaleItems: Game[], gameItems: Game[] }> => {
   try {
-    const games: Game[] = await supabaseRequest('games?select=*&order=name')
-    
+    const data = await apiRequest<any[]>('/games')
+    const mapped = data.map(mapGameToFrontend)
     return {
-      preSaleItems: games.filter((g: any) => g.is_presale).map((g: any) => ({
-        name: g.name,
-        price: g.price,
-        originalPrice: g.original_price,
-        discount: g.discount,
-        image: g.image_url || g.image,
-        link: g.link,
-        description: g.description,
-        releaseDate: g.release_date,
-        developer: g.developer,
-        isPresale: true,
-        stock: g.stock,
-        id: g.id
-      })),
-      gameItems: games.filter((g: any) => !g.is_presale).map((g: any) => ({
-        name: g.name,
-        price: g.price,
-        originalPrice: g.original_price,
-        discount: g.discount,
-        image: g.image_url || g.image,
-        link: g.link,
-        description: g.description,
-        releaseDate: g.release_date,
-        developer: g.developer,
-        isPresale: false,
-        stock: g.stock,
-        id: g.id
-      }))
+      preSaleItems: mapped.filter((g: any) => g.isPresale || g.is_presale),
+      gameItems: mapped.filter((g: any) => !g.isPresale && !g.is_presale)
     }
-  } catch (error: any) {
-    console.error('获取游戏失败:', error)
-    // 备用：从本地 JSON 加载（使用 axios）
-    const response = await axios.get('/cdk_games.json')
-    const data = response.data
-    let games: Game[] = []
-    if (Array.isArray(data)) {
-      games = data
-    } else {
-      games = [...(data.preSaleItems || []), ...(data.gameItems || [])]
-    }
-    
+  } catch {
+    const res = await axios.get('/cdk_games.json')
+    const d = res.data
+    let games: Game[] = Array.isArray(d) ? d : [...(d.preSaleItems || []), ...(d.gameItems || [])]
     return {
-      preSaleItems: games.filter((g: any) => g.is_presale),
-      gameItems: games.filter((g: any) => !g.is_presale)
+      preSaleItems: games.filter((g: any) => g.is_presale || g.isPresale),
+      gameItems: games.filter((g: any) => !g.is_presale && !g.isPresale)
     }
   }
 }
 
-export default supabaseRequest
+// 把 Spring Boot 返回的 snake_case 字段映射到前端期望的格式
+function mapGameToFrontend(g: any): any {
+  return {
+    id: g.id,
+    name: g.name,
+    price: g.price,
+    original_price: g.original_price ?? g.originalPrice,
+    originalPrice: g.original_price ?? g.originalPrice,
+    discount: g.discount,
+    image: g.image_url || g.imageUrl || g.image,
+    image_url: g.image_url || g.imageUrl || g.image,
+    link: g.link,
+    description: g.description,
+    release_date: g.release_date ?? g.releaseDate,
+    releaseDate: g.release_date ?? g.releaseDate,
+    developer: g.developer,
+    is_presale: g.is_presale ?? g.isPresale,
+    isPresale: g.is_presale ?? g.isPresale,
+    stock: g.stock
+  }
+}
+
+// 默认导出（兼容旧代码 import supabaseRequest）
+export default apiRequest

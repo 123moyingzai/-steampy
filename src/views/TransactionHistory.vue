@@ -1,7 +1,7 @@
 <template>
   <Layout>
     <div class="cjx-transaction-page">
-      <h2 class="cjx-page-title">余额明细 719cjx</h2>
+      <h2 class="cjx-page-title">余额明细</h2>
 
       <!-- 钱包余额显示 -->
       <div class="cjx-balance-header">
@@ -15,7 +15,7 @@
         <div class="cjx-filter-group">
           <label>种类：</label>
           <select v-model="filterType" class="cjx-select">
-            <option value="">请选择</option>
+            <option value="">全部类型</option>
             <option value="recharge">充值</option>
             <option value="purchase">购买</option>
             <option value="refund">退款</option>
@@ -48,7 +48,7 @@
           >
             <span class="cjx-col-order">{{ item.order_no || item.id }}</span>
             <span class="cjx-col-date">{{ formatDateTime(item.created_at) }}</span>
-            <span class="cjx-col-type">{{ getTypeText(item.type) }} 719cjx</span>
+            <span class="cjx-col-type">{{ getTypeText(item.type) }}</span>
             <span class="cjx-col-amount" :class="item.amount > 0 ? 'cjx-amount-positive' : 'cjx-amount-negative'">
               {{ item.amount > 0 ? '' : '-' }}¥{{ Math.abs(item.amount).toFixed(2) }}
             </span>
@@ -56,7 +56,7 @@
         </div>
 
         <div class="cjx-empty" v-else>
-          <p>暂无明细记录 719cjx</p>
+          <p>暂无明细记录</p>
         </div>
       </div>
 
@@ -162,13 +162,15 @@ const formatDateTime = (dateStr) => {
 }
 
 const getTypeText = (type) => {
-  const typeMap = {
+  const typeMap: Record<string, string> = {
     'recharge': '充值',
-    'purchase': 'CDKey',
+    'purchase': '购买',
     'refund': '退款',
-    'bonus': '赠送'
+    'bonus': '赠送',
+    '消费': '购买',
+    '充值': '充值'
   }
-  return typeMap[type] || type
+  return typeMap[type] || type || '其他'
 }
 
 const searchRecords = () => {
@@ -192,8 +194,10 @@ const loadData = async () => {
   try {
     // 从数据库加载余额
     const balanceResult = await walletAPI.getBalance(userId)
-    if (balanceResult.data !== undefined) {
-      currentBalance.value = parseFloat(balanceResult.data)
+    if (balanceResult.data) {
+      // data 可能是对象 { balance: 123.45 } 或直接数字
+      const bal = balanceResult.data.balance ?? balanceResult.data
+      currentBalance.value = parseFloat(bal) || 0
     }
     
     // 从数据库加载交易记录
@@ -223,7 +227,7 @@ const loadData = async () => {
 onMounted(() => {
   const currentUser = authAPI.getCurrentUser()
   if (!currentUser) {
-    alert('请先登录 719cjx')
+    alert('请先登录')
     router.push('/login')
     return
   }
