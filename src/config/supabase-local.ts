@@ -200,6 +200,15 @@ export const orderAPI = {
 
   async getOrders(userId: string | number): Promise<ApiResponse<Order[]>> {
     return this.getUserOrders(userId)
+  },
+
+  async getSellerOrders(sellerId: string | number): Promise<ApiResponse<Order[]>> {
+    try {
+      const data = await apiRequest<any>(`/orders/seller/${sellerId}`)
+      return { data }
+    } catch (e: any) {
+      return { data: [] }
+    }
   }
 }
 
@@ -214,6 +223,25 @@ export const walletAPI = {
     }
   },
 
+  async recharge(userId: string | number, amount: number): Promise<ApiResponse<any>> {
+    try {
+      const data = await apiRequest<any>(`/wallets/user/${userId}/recharge`, 'POST', { amount })
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+
+  async withdraw(userId: string | number, amount: number): Promise<ApiResponse<any>> {
+    try {
+      const data = await apiRequest<any>(`/wallets/user/${userId}/withdraw`, 'POST', { amount })
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+
+  // 兼容旧调用
   async updateWallet(userId: string | number, updateData: Partial<Wallet>): Promise<ApiResponse<Wallet>> {
     try {
       const data = await apiRequest<any>(`/wallets/user/${userId}/recharge`, 'POST', updateData)
@@ -315,8 +343,21 @@ export const userGameAPI = {
   },
 
   async activateGame(gameId: string | number): Promise<ApiResponse<any>> {
-    // 前端兼容：更新状态
-    return { data: { id: gameId, status: 'activated' } }
+    try {
+      const data = await apiRequest<any>(`/user-games/${gameId}/activate`, 'PUT')
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+
+  async deleteGame(gameId: string | number): Promise<ApiResponse<any>> {
+    try {
+      await apiRequest<any>(`/user-games/${gameId}`, 'DELETE')
+      return { data: null }
+    } catch (e: any) {
+      return { error: e.message }
+    }
   }
 }
 
@@ -324,10 +365,80 @@ export const userGameAPI = {
 export const sellerAPI = {
   async getSellerQuota(sellerId: string): Promise<ApiResponse<any>> {
     try {
-      // 暂时返回 null，后端没实现这个接口也不影响
       return { data: null }
     } catch {
       return { data: null }
+    }
+  }
+}
+
+// ========== 上架/CDKey（listings）==========
+export const listingAPI = {
+  async createListing(listing: any): Promise<ApiResponse<any>> {
+    try {
+      const body: any = {
+        seller_id: String(listing.seller_id),
+        game_id: Number(listing.game_id),
+        game_name: listing.game_name,
+        game_image: listing.game_image || '',
+        version: listing.version || '标准版',
+        cdkey: listing.cdkey,
+        price: Number(listing.price),
+        original_price: Number(listing.original_price || 0),
+        region: listing.region || '国区'
+      }
+      const data = await apiRequest<any>('/listings', 'POST', body)
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+
+  async createBatch(listings: any[]): Promise<ApiResponse<any>> {
+    try {
+      const body = listings.map(l => ({
+        seller_id: String(l.seller_id),
+        game_id: Number(l.game_id),
+        game_name: l.game_name,
+        game_image: l.game_image || '',
+        version: l.version || '标准版',
+        cdkey: l.cdkey,
+        price: Number(l.price),
+        original_price: Number(l.original_price || 0),
+        region: l.region || '国区'
+      }))
+      const data = await apiRequest<any>('/listings/batch', 'POST', body)
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+
+  async getAvailable(gameId?: number): Promise<ApiResponse<any[]>> {
+    try {
+      const url = gameId ? `/listings/available?game_id=${gameId}` : '/listings/available'
+      const data = await apiRequest<any[]>(url)
+      return { data }
+    } catch (e: any) {
+      return { data: [] }
+    }
+  },
+
+  async getBySeller(sellerId: string | number): Promise<ApiResponse<any[]>> {
+    try {
+      const data = await apiRequest<any[]>(`/listings/seller/${sellerId}`)
+      return { data }
+    } catch (e: any) {
+      return { data: [] }
+    }
+  },
+
+  async deleteListing(id: string): Promise<ApiResponse<any>> {
+    try {
+      await apiRequest<any>(`/listings/${id}`, 'DELETE')
+      return { data: null }
+    } catch (e: any) {
+      return { error: e.message }
     }
   }
 }

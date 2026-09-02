@@ -50,29 +50,62 @@
             </div>
           </div>
 
-          <!-- CDKey库存 -->
+          <!-- 出售卖家（图1风格） -->
           <div class="cjx-cdkey-section">
-            <h3>CDKey库存</h3>
-            <table class="cjx-table">
+            <h3>出售卖家</h3>
+            <table class="cjx-seller-table" v-if="visibleCdkeyList.length > 0">
               <thead>
                 <tr>
-                  <th>版本</th>
-                  <th>价格</th>
+                  <th style="width:40px">#</th>
+                  <th>头像</th>
+                  <th>Steam账户名</th>
                   <th>库存</th>
+                  <th>CDKey单价</th>
+                  <th>折扣</th>
                   <th>操作</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="cdkey in cdkeyList" :key="cdkey.id">
-                  <td>{{ cdkey.version || '标准版' }}</td>
-                  <td class="cjx-price">¥{{ cdkey.price.toFixed(2) }}</td>
-                  <td>{{ cdkey.quantity }}件</td>
+                <tr 
+                  v-for="(cdkey, idx) in visibleCdkeyList" 
+                  :key="cdkey._rowKey || cdkey.id" 
+                  :class="{ 'cjx-row-min': cdkey === cheapestRow }"
+                >
+                  <td class="cjx-rank">{{ idx + 1 }}</td>
                   <td>
-                    <button class="cjx-btn cjx-btn-primary" @click="buyCDKey(cdkey)">购买</button>
+                    <img 
+                      v-if="cdkey.avatar" :src="cdkey.avatar" 
+                      class="cjx-avatar"
+                      @error="(e: any) => e.target.src = '/picture/default-avatar.png'"
+                    />
+                    <div v-else class="cjx-avatar cjx-avatar-default">🎮</div>
+                  </td>
+                  <td>
+                    <span v-if="cdkey.source === 'official'" class="cjx-official-name">S***y（官方）</span>
+                    <span v-else class="cjx-seller-name">{{ cdkey.seller_name || '未知用户' }}</span>
+                    <span v-if="cdkey === cheapestRow" class="cjx-min-tag">最低价</span>
+                  </td>
+                  <td>{{ cdkey.stock ?? cdkey.quantity ?? 0 }}</td>
+                  <td class="cjx-price-cell">¥{{ (cdkey.price || 0).toFixed(2) }}</td>
+                  <td :class="'cjx-discount ' + (cdkey.discount_pct && cdkey.discount_pct > 0 ? 'cjx-discount-green' : '')">
+                    <template v-if="cdkey.discount_pct && cdkey.discount_pct > 0">-{{ cdkey.discount_pct }}%</template>
+                    <template v-else class="cjx-discount-none">—</template>
+                  </td>
+                  <td>
+                    <button class="cjx-btn-buy" @click="buyCDKey(cdkey)">购买</button>
                   </td>
                 </tr>
               </tbody>
             </table>
+            <div v-else class="cjx-empty-row">暂无可售 CDKey</div>
+
+            <!-- 加载更多（分页折叠）-->
+            <div class="cjx-load-more" v-if="cdkeyList.length > pageSize">
+              <button class="cjx-btn-loadmore" @click="loadMore" v-if="displayCount < cdkeyList.length">
+                加载更多（还剩 {{ cdkeyList.length - displayCount }} 条）
+              </button>
+              <span v-else class="cjx-all-loaded">— 已显示全部 {{ cdkeyList.length }} 条 —</span>
+            </div>
           </div>
         </div>
 
@@ -120,19 +153,7 @@
             <button class="cjx-btn cjx-btn-cart" @click="addToCart">加入购物车</button>
           </div>
 
-          <!-- 卖家信息 -->
-          <div class="cjx-seller-card">
-            <h4>卖家信息</h4>
-            <div class="cjx-seller-info">
-              <div class="cjx-seller-avatar">PY</div>
-              <div class="cjx-seller-detail">
-                <p class="cjx-seller-name">Steam PY官方</p>
-                <p class="cjx-seller-rating">⭐⭐⭐⭐⭐ 好评率 99%</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- 服务保障 -->
+          <!-- 服务保障（卖家信息已移至左侧出售卖家表格） -->
           <div class="cjx-service-card">
             <h4>服务保障</h4>
             <ul class="cjx-service-list">
@@ -303,7 +324,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import { authAPI, orderAPI, transactionAPI, walletAPI, userGameAPI } from '../config/supabase-local.ts'
@@ -318,6 +339,23 @@ const quantity = ref(1)
 const deliveryMethod = ref('cdkey')
 const walletBalance = ref(0)
 const cdkeyList = ref([])
+
+// 卖家 listing 模式
+const selectedListingId = ref(route.query.listing_id || null)
+const isSellerListing = ref(route.query.source === 'seller' || !!route.query.listing_id)
+const activeListingIds = ref<string[]>([]) // 当前选中行可用的 listing_ids（聚合库存）
+const activeRowSource = ref<'official' | 'seller' | null>(null)
+
+// 分页（卖家列表折叠 + 加载更多）
+const pageSize = 5
+const displayCount = ref(pageSize)
+const loadMore = () => { displayCount.value += pageSize }
+
+// 可见行（前 displayCount 条）
+const visibleCdkeyList = computed(() => cdkeyList.value.slice(0, displayCount.value))
+
+// 最低价行（排序后的第一条）
+const cheapestRow = computed(() => cdkeyList.value.length > 0 ? cdkeyList.value[0] : null)
 
 // 游戏版本列表（用于多版本切换）
 const gameVersions = ref([])
@@ -413,6 +451,17 @@ const buyCDKey = (cdkey) => {
     router.push('/login')
     return
   }
+  // 记录选中行信息
+  activeRowSource.value = cdkey.source || (cdkey.listing_ids ? 'seller' : 'official')
+  if (cdkey.listing_ids && cdkey.listing_ids.length > 0) {
+    activeListingIds.value = [...cdkey.listing_ids]
+  } else if (cdkey.id) {
+    activeListingIds.value = [cdkey.id]
+  } else {
+    activeListingIds.value = []
+  }
+  selectedListingId.value = activeListingIds.value.length > 0 ? activeListingIds.value[0] : null
+
   // 打开创建订单弹窗
   showOrderModal.value = true
 }
@@ -424,8 +473,13 @@ const buyNow = () => {
     router.push('/login')
     return
   }
-  // 打开创建订单弹窗
-  showOrderModal.value = true
+  // 自动选最低价行（排序后第一条）
+  const row = cheapestRow.value
+  if (row) {
+    buyCDKey(row)
+  } else {
+    alert('暂无可售 CDKey')
+  }
 }
 
 const addToCart = () => {
@@ -499,28 +553,14 @@ const showToast = (message) => {
 const simulatePaySuccess = async () => {
   try {
     const total = game.value.current_price * quantity.value
-    const orderNo = 'ORD' + Date.now()
-    const cdkey = generateCdkey()
-
-    // 保存当前 CDKey 用于显示
-    currentCdkey.value = cdkey
 
     const currentUser = authAPI.getCurrentUser()
     const userId = currentUser?.id || 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
     
-    console.log('=== 提交订单数据 ===')
-    console.log('userId:', userId)
-    console.log('gameId:', game.value.id)
-    console.log('gameName:', game.value.name)
-    console.log('price:', game.value.current_price)
-    console.log('total:', total)
-    console.log('cdkey:', cdkey)
-    
-    // 创建订单到数据库
+    // 创建订单
     let orderResult
     try {
-      console.log('正在调用 orderAPI.createOrder...')
-      orderResult = await orderAPI.createOrder({
+      const orderBody: any = {
         buyer_id: userId,
         game_id: game.value.id,
         game_name: game.value.name,
@@ -530,49 +570,93 @@ const simulatePaySuccess = async () => {
         total_price: total,
         delivery_method: deliveryMethod.value,
         version: getVersionType(game.value.name),
-        cdkey: cdkey,
         status: 'completed',
         payment_method: selectedPayment.value
-      })
+      }
+
+      // 卖家 listing 模式：后端自动发货 + 自动填 cdkey + seller_id
+      if (activeListingIds.value.length > 0 && activeRowSource.value !== 'official') {
+        // 从当前聚合行中随机选一个可用 listing
+        const idx = Math.floor(Math.random() * activeListingIds.value.length)
+        const picked = activeListingIds.value.splice(idx, 1)[0]
+        orderBody.listing_id = picked
+        // 不传 cdkey，让后端从 listing 表自动取
+      } else {
+        // 官方模式：前端生成假 cdkey（展示用）
+        orderBody.cdkey = generateCdkey()
+      }
+
+      console.log('正在调用 orderAPI.createOrder...', orderBody)
+      orderResult = await orderAPI.createOrder(orderBody)
       
       console.log('orderAPI.createOrder 返回:', orderResult)
       
       if (orderResult.error) {
-        console.warn('订单创建使用本地存储:', orderResult.error)
-        orderResult = { data: { id: 'local_' + Date.now() } }
+        alert('下单失败: ' + orderResult.error)
+        return
       }
-    } catch (err) {
-      console.warn('订单创建失败，使用本地模式:', err)
-      orderResult = { data: { id: 'local_' + Date.now() } }
+    } catch (err: any) {
+      alert('下单失败: ' + (err?.message || '未知错误'))
+      return
     }
     
-    // 后端 createOrder 已经自动创建 transactions 和 user_games 记录
-    // 不需要前端重复调用
+    // 从后端订单取 cdkey（卖家 listing 模式下后端自动填入；官方模式也是后端返回的）
+    const returnedCdkey = orderResult?.data?.cdkey || orderResult?.cdkey || ''
+    currentCdkey.value = returnedCdkey || '（订单已创建，请在订单记录中查看）'
     
-    // 扣除余额（如果使用余额支付）
-    if (useBalance.value && total > 0) {
-      try {
-        await walletAPI.updateWallet(userId, { amount: total })
-      } catch (err) {
-        console.warn('余额更新失败:', err)
+    console.log('✓ 订单创建成功，CDKey:', currentCdkey.value)
+
+    // ===== 前端扣库存（更新 cdkeyList 对应行）=====
+    // 遍历 cdkeyList，找到刚才选中的那一行，stock--，stock=0 时移除
+    const targetKey = activeRowSource.value === 'seller'
+      ? activeListingIds.value  // 已被 splice 减少
+      : null
+    for (let i = 0; i < cdkeyList.value.length; i++) {
+      const row = cdkeyList.value[i]
+      if (row.source === 'seller' && row.listing_ids) {
+        // 如果 listing_ids 数量变了（刚才 splice 过），说明这行被选中了
+        // 更直接：看当前 activeListingIds 是否是这行 listing_ids 的子集（因为 splice 从 activeListingIds 删了一个）
+        const origLen = row.listing_ids.length
+        const remainingInRow = row.listing_ids.filter((id: string) => activeListingIds.value.includes(id)).length
+        // 简单处理：直接让这行 stock-- 并重算
+        const newStock = Math.max(0, origLen - 1)
+        row.stock = newStock
+        if (newStock === 0) {
+          cdkeyList.value.splice(i, 1)
+          i--
+        } else {
+          // 同步 listing_ids 也移除已售的那个
+          const soldId = row.listing_ids.find((id: string) => !activeListingIds.value.includes(id))
+          if (soldId) {
+            const idx = row.listing_ids.indexOf(soldId)
+            if (idx >= 0) row.listing_ids.splice(idx, 1)
+          }
+        }
+        break
+      } else if (row.source === 'official') {
+        // 官方行库存也 -1（模拟）
+        row.stock = Math.max(0, (row.stock || 0) - 1)
+        if ((row.stock || 0) === 0) {
+          cdkeyList.value.splice(i, 1)
+          i--
+        }
+        break
       }
     }
+
+    // 如果官方行被移除或不再是最低价，更新 game.current_price 为当前最低价
+    if (cheapestRow.value) {
+      game.value.current_price = cheapestRow.value.price
+    }
     
-    console.log('✓ 订单处理完成')
-    
-    // 关闭支付弹窗
+    // 关闭支付弹窗 + 显示 CDKey
     showPayModal.value = false
-    
-    // 显示 CDKey 弹窗
     showCdkeyModal.value = true
     
   } catch (error) {
     console.error('支付处理出错:', error)
     alert('支付处理出现问题，请重试')
-    
-    // 即使出错也关闭支付弹窗并显示CDKey
     showPayModal.value = false
-    showCdkeyModal.value = true
   }
 }
 
@@ -606,17 +690,22 @@ const loadData = async () => {
   if (gameId) {
     try {
       // 从 Supabase 获取游戏的正确数字 ID
-      let dbGameId = null
-      try {
-        // 先尝试从数据库获取
-        const dbGames = await request(`${SUPABASE_URL}/rest/v1/games?name=eq.${encodeURIComponent(decodedId)}&limit=1`)
-        if (dbGames && dbGames.length > 0) {
-          dbGameId = dbGames[0].id
-          console.log('从数据库获取到游戏ID:', dbGameId)
-        }
-      } catch (e) {
-        console.warn('获取游戏ID失败，使用备选方案')
-      }
+          // ===== 获取数据库游戏ID（多来源兜底）=====
+          let dbGameId: any = route.query.game_id || null
+          if (!dbGameId) {
+            try {
+              const dbGames = await request(`${SUPABASE_URL}/rest/v1/games?name=eq.${encodeURIComponent(decodedId)}&limit=1`)
+              if (dbGames && dbGames.length > 0) {
+                dbGameId = dbGames[0].id
+                console.log('从 Supabase 获取 game_id:', dbGameId)
+              }
+            } catch (e) {
+              console.warn('Supabase 拿不到 game_id，用 game_name 试试')
+            }
+          }
+          if (dbGameId) console.log('✓ 最终 game_id =', dbGameId)
+
+          // ===== 加载官方游戏数据 =====
       
       // 从本地JSON加载游戏数据
       const response = await axios.get('/cdk_games.json')
@@ -674,8 +763,71 @@ const loadData = async () => {
             developer: foundGame.developer || '未知',
             stock: foundGame.stock || 99
           }
-          // 设置CDKey列表 - 使用真实数据，只显示当前版本
-          cdkeyList.value = generateCdkeyList(foundGame)
+
+          // ===== 构建 出售卖家 列表：官方 + 卖家 listings =====
+          // 0. 统一算折扣
+          const calcDiscount = (price: number, original: number) => {
+            if (!original || original <= price) return 0
+            return Math.round((1 - price / original) * 100)
+          }
+
+          // 1. 官方游戏一行
+          const officialRow = {
+            _rowKey: 'official',
+            source: 'official',
+            id: 'official',
+            seller_name: 'S***y',
+            avatar: '',
+            price: currentPrice,
+            stock: foundGame.stock || 99,
+            listing_ids: [],
+            version: getVersionType(foundGame.name),
+            discount_pct: calcDiscount(currentPrice, originalPrice)
+          }
+
+          // 2. 卖家 listings（后端按 卖家+价格 聚合）
+          let sellerRows: any[] = []
+          try {
+            const params: any = {}
+            if (dbGameId) params.game_id = dbGameId
+            params.game_name = decodedId // 永远带上 game_name 兜底
+            console.log('查询卖家 listings params:', params)
+            const gr = await axios.get(`/api/listings/available-grouped`, { params })
+            console.log('卖家 listings 返回:', gr.data)
+            if (gr.data?.code === 200 && Array.isArray(gr.data.data)) {
+              sellerRows = gr.data.data.map((g: any, i: number) => ({
+                _rowKey: `seller-${g.seller_id}-${g.price}-${i}`,
+                source: 'seller',
+                seller_id: g.seller_id,
+                seller_name: g.seller_name,
+                avatar: '',
+                price: Number(g.price),
+                stock: g.stock,
+                listing_ids: g.listing_ids || [],
+                version: g.version,
+                discount_pct: calcDiscount(Number(g.price), originalPrice)
+              }))
+            }
+          } catch (e) {
+            console.warn('加载卖家 listings 失败', e)
+          }
+
+          // 3. 合并：按价格升序，同价卖家优先
+          const all = [officialRow, ...sellerRows]
+          all.sort((a, b) => {
+            const pa = a.price, pb = b.price
+            if (pa !== pb) return pa - pb
+            const ra = a.source === 'seller' ? 0 : 1
+            const rb = b.source === 'seller' ? 0 : 1
+            return ra - rb
+          })
+          cdkeyList.value = all
+
+          // 如果 URL 带了 listing_id，定位到那一行的 listing_ids
+          if (selectedListingId.value) {
+            const target = sellerRows.find(r => r.listing_ids.includes(selectedListingId.value))
+            if (target) activeListingIds.value = [...target.listing_ids]
+          }
           return
         }
       }
@@ -877,32 +1029,143 @@ onMounted(() => {
 }
 
 .cjx-cdkey-section h3 {
-  margin: 0 0 20px 0;
+  margin: 0 0 18px 0;
+  color: #333;
+  font-size: 16px;
+}
+
+/* 图1风格 卖家表格 */
+.cjx-seller-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  background: #fff;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.cjx-seller-table th,
+.cjx-seller-table td {
+  padding: 13px 14px;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+}
+.cjx-seller-table thead th {
+  background: #fafafa;
+  font-weight: 600;
+  color: #555;
+  font-size: 12px;
+}
+.cjx-seller-table tbody tr:hover {
+  background: #fafafa;
+}
+.cjx-seller-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* 最低价行高亮 */
+.cjx-row-min td {
+  background: #fff8e1 !important;
+}
+
+.cjx-rank {
+  color: #999;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* 头像 */
+.cjx-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #f0f0f0;
+  display: inline-block;
+  vertical-align: middle;
+  border: 1px solid #eee;
+}
+.cjx-avatar-default {
+  text-align: center;
+  line-height: 32px;
+  font-size: 16px;
+}
+
+/* 用户名 */
+.cjx-official-name {
+  color: #1565c0;
+  font-weight: 500;
+}
+.cjx-seller-name {
   color: #333;
 }
 
-.cjx-table {
-  width: 100%;
-  border-collapse: collapse;
+.cjx-min-tag {
+  background: #ff9800;
+  color: #fff;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-left: 6px;
+  vertical-align: middle;
 }
 
-.cjx-table th,
-.cjx-table td {
-  padding: 15px;
-  text-align: left;
-  border-bottom: 1px solid #eee;
-}
-
-.cjx-table th {
-  background: #f9f9f9;
-  font-weight: bold;
-  color: #666;
-}
-
-.cjx-price {
+/* 价格 */
+.cjx-price-cell {
   color: #e74c3c;
-  font-weight: bold;
-  font-size: 16px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* 折扣 */
+.cjx-discount-green {
+  color: #e74c3c;
+  font-weight: 600;
+}
+.cjx-discount-none {
+  color: #ccc;
+}
+
+/* 购买按钮 */
+.cjx-btn-buy {
+  padding: 5px 16px;
+  background: #e74c3c;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+.cjx-btn-buy:hover {
+  background: #c0392b;
+}
+
+/* 分页/加载更多 */
+.cjx-load-more {
+  text-align: center;
+  margin-top: 14px;
+  padding: 10px;
+}
+.cjx-btn-loadmore {
+  padding: 8px 22px;
+  background: #fff;
+  border: 1px solid #27ae60;
+  color: #27ae60;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.cjx-btn-loadmore:hover {
+  background: #e8f8f0;
+}
+.cjx-all-loaded {
+  font-size: 12px;
+  color: #aaa;
+}
+.cjx-empty-row {
+  text-align: center;
+  padding: 30px;
+  color: #999;
 }
 
 .cjx-buy-card {

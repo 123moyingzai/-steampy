@@ -12,6 +12,8 @@ public class Order {
     private String id;
     private String orderNo;
     private String buyerId;
+    private String sellerId;
+    private String listingId;
     private Long gameId;
     private String gameName;
     private String gameImage;
