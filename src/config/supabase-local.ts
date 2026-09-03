@@ -164,7 +164,7 @@ interface OrderData {
 }
 
 export const orderAPI = {
-  async createOrder(orderData: OrderData): Promise<ApiResponse<Order>> {
+  async createOrder(orderData: OrderData, urlOverride?: string): Promise<ApiResponse<Order>> {
     try {
       // Jackson SNAKE_CASE 模式：直接发 snake_case 字段名
       const body: any = {
@@ -178,11 +178,13 @@ export const orderAPI = {
         delivery_method: (orderData as any).delivery_method || 'cdkey',
         version: (orderData as any).version || '标准版',
         cdkey: orderData.cdkey || '',
+        listing_id: (orderData as any).listing_id || null,
+        seller_id: (orderData as any).seller_id || null,
         status: (orderData as any).status || 'completed',
         order_type: orderData.order_type || 'cdkey',
         payment_method: (orderData as any).payment_method || null
       }
-      const data = await apiRequest<any>('/orders', 'POST', body)
+      const data = await apiRequest<any>(urlOverride || '/orders', 'POST', body)
       return { data }
     } catch (e: any) {
       return { error: e.message }

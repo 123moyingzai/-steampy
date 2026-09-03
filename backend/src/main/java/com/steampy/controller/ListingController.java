@@ -4,11 +4,14 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.steampy.dto.Result;
 import com.steampy.entity.Listing;
 import com.steampy.entity.User;
+import com.steampy.entity.Game;
 import com.steampy.mapper.ListingMapper;
 import com.steampy.mapper.UserMapper;
+import com.steampy.mapper.GameMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -22,6 +25,9 @@ public class ListingController {
 
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    private GameMapper gameMapper;
 
     // 给 listing 填充 seller_name（脱敏）
     private void fillSellerNames(List<Listing> listings) {
@@ -151,6 +157,16 @@ public class ListingController {
         List<Listing> all = listingMapper.selectList(qw);
         fillSellerNames(all);
 
+        // 查所有游戏的 original_price 做索引
+        QueryWrapper<Game> gqw = new QueryWrapper<>();
+        List<Game> games = gameMapper.selectList(gqw);
+        Map<Long, BigDecimal> originalPriceMap = new HashMap<>();
+        for (Game g : games) {
+            if (g.getOriginalPrice() != null) {
+                originalPriceMap.put(g.getId(), g.getOriginalPrice());
+            }
+        }
+
         // 按 game_id + seller_id + price 分组
         Map<String, List<Listing>> groups = new LinkedHashMap<>();
         for (Listing l : all) {
@@ -169,6 +185,7 @@ public class ListingController {
             row.put("seller_id", first.getSellerId());
             row.put("seller_name", first.getSellerName());
             row.put("price", first.getPrice());
+            row.put("original_price", originalPriceMap.getOrDefault(first.getGameId(), BigDecimal.ZERO));
             row.put("stock", group.size());
             row.put("version", first.getVersion());
             row.put("region", first.getRegion());

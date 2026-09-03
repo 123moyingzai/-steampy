@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿<template>
   <div class="admin-announcements">
     <!-- 工具栏 -->
     <div class="toolbar">

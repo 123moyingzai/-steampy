@@ -1,4 +1,4 @@
-﻿﻿<template>
+﻿﻿﻿﻿﻿<template>
   <Layout>
     <div class="cjx-cdkey-page">
       <!-- CDKey市场 -->
@@ -124,11 +124,18 @@ const allGames = computed(() => {
     if (official && info.minPrice < official.price) {
       official.price = info.minPrice
       official.lowest_source = 'seller'
-      if (official.original_price && official.original_price > 0) {
-        official.discount = '-' + Math.round((1 - info.minPrice / official.original_price) * 100) + '%'
+      // 有官方 original_price 就用官方的，没有就从 listings 找
+      let op = official.original_price ? Number(official.original_price) : 0
+      if (op === 0) {
+        const lOp = listings.value.find(x => String(x.game_id) === gid)?.original_price
+        op = Number(lOp || 0)
+      }
+      if (op > 0) {
+        official.original_price = op
+        official.discount = '-' + Math.round((1 - info.minPrice / op) * 100) + '%'
       }
     }
-    // 如果没有官方游戏，就从 listings 里创建一行（有些可能不是官方游戏但有玩家卖）
+    // 如果没有官方游戏，就从 listings 里创建一行
     if (!official) {
       const l = listings.value.find(x => String(x.game_id) === gid)
       if (l) {
