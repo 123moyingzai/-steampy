@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿<template>
   <Layout>
     <div class="cjx-cdkey-page">
       <!-- CDKey市场 -->
@@ -155,7 +155,11 @@ const allGames = computed(() => {
     }
   }
 
-  return Array.from(map.values())
+  const result = Array.from(map.values())
+  // 诊断 log — 只看 game_id=8 三更
+  const sg = result.find((x: any) => String(x.game_id) === '8')
+  if (sg) console.log('[catalog] 三更:', JSON.stringify(sg))
+  return result
 })
 
 const displayGames = computed(() => {

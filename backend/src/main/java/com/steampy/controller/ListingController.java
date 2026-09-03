@@ -8,6 +8,7 @@ import com.steampy.entity.Game;
 import com.steampy.mapper.ListingMapper;
 import com.steampy.mapper.UserMapper;
 import com.steampy.mapper.GameMapper;
+import com.steampy.mapper.UserGameMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,6 +29,9 @@ public class ListingController {
 
     @Autowired
     private GameMapper gameMapper;
+
+    @Autowired
+    private UserGameMapper userGameMapper;
 
     // 给 listing 填充 seller_name（脱敏）
     private void fillSellerNames(List<Listing> listings) {
@@ -202,6 +206,18 @@ public class ListingController {
         return Result.success(result);
     }
 
+    /** 查重接口 —— 给定 cdkey，返回是否已存在于 listings 表（不区分状态，sold 的也算重复）*/
+    @GetMapping("/check-cdkey")
+    public Result<Map<String, Object>> checkCdkey(@RequestParam String cdkey) {
+        String normalized = cdkey == null ? "" : cdkey.trim().toUpperCase();
+        QueryWrapper<Listing> qw = new QueryWrapper<>();
+        qw.eq("UPPER(cdkey)", normalized);
+        long count = listingMapper.selectCount(qw);
+        Map<String, Object> r = new java.util.HashMap<>();
+        r.put("exists", count > 0);
+        return Result.success(r);
+    }
+
     // 查某个卖家的所有上架
     @GetMapping("/seller/{sellerId}")
     public Result<List<Listing>> getBySeller(@PathVariable String sellerId) {
@@ -219,12 +235,13 @@ public class ListingController {
         return Result.success(l);
     }
 
-    // 下架 / 删除
+    // 下架 / 删除（只有 available 可以硬删除；sold 用 soft-delete；pending_activation 用 relist/self-activate）
     @DeleteMapping("/{id}")
     public Result<Void> deleteListing(@PathVariable String id) {
         Listing l = listingMapper.selectById(id);
         if (l == null) return Result.error("不存在");
-        if ("sold".equals(l.getStatus())) return Result.error("已售出不能删除");
+        if ("sold".equals(l.getStatus())) return Result.error("已售出的 CDK 不能直接删除，请使用'下架拿回'");
+        if ("pending_activation".equals(l.getStatus())) return Result.error("待激活的 CDK 不能直接删除，请使用'自己激活'或'重新上架'");
         listingMapper.deleteById(id);
         return Result.success(null);
     }
@@ -239,6 +256,106 @@ public class ListingController {
         l.setSoldAt(LocalDateTime.now());
         l.setUpdatedAt(LocalDateTime.now());
         listingMapper.updateById(l);
+        return Result.success(null);
+    }
+
+    // ======== 改单个价格 ========
+    @PutMapping("/{id}/price")
+    public Result<Void> updatePrice(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        Listing l = listingMapper.selectById(id);
+        if (l == null) return Result.error("不存在");
+        String s = l.getStatus();
+        if (!"available".equals(s) && !"pending_activation".equals(s)) {
+            return Result.error("只有在售/待激活的可以改价（当前状态: " + s + "）");
+        }
+        Object p = body.get("price");
+        if (p == null) return Result.error("缺少 price");
+        l.setPrice(new BigDecimal(p.toString()));
+        l.setUpdatedAt(LocalDateTime.now());
+        listingMapper.updateById(l);
+        return Result.success(null);
+    }
+
+    // ======== 批量改价 ========
+    @PutMapping("/batch-price")
+    public Result<Map<String, Object>> batchUpdatePrice(@RequestBody Map<String, Object> body) {
+        Map<String, Object> updates = (Map<String, Object>) body.get("updates");
+        if (updates == null || updates.isEmpty()) return Result.error("updates 为空");
+        int ok = 0;
+        for (Map.Entry<String, Object> e : updates.entrySet()) {
+            Listing l = listingMapper.selectById(e.getKey());
+            if (l != null && "available".equals(l.getStatus())) {
+                l.setPrice(new BigDecimal(e.getValue().toString()));
+                l.setUpdatedAt(LocalDateTime.now());
+                listingMapper.updateById(l);
+                ok++;
+            }
+        }
+        Map<String, Object> r = new HashMap<>();
+        r.put("updated", ok);
+        return Result.success(r);
+    }
+
+    // ======== 下架 → 待激活（available 和 sold 都可以变成 pending_activation）=======
+    @PutMapping("/{id}/soft-delete")
+    public Result<Void> softDelete(@PathVariable String id) {
+        Listing l = listingMapper.selectById(id);
+        if (l == null) return Result.error("不存在");
+        String cur = l.getStatus();
+        if (!"available".equals(cur) && !"sold".equals(cur)) {
+            return Result.error("当前状态(" + cur + ")不允许下架");
+        }
+        // 不管 available 还是 sold → 都变成 pending_activation
+        // available: 清掉 order_id/sold_at；sold: 保留原 order_id/sold_at 记录
+        l.setStatus("pending_activation");
+        if ("available".equals(cur)) {
+            l.setOrderId(null);
+            l.setSoldAt(null);
+        }
+        l.setUpdatedAt(LocalDateTime.now());
+        listingMapper.updateById(l);
+        return Result.success(null);
+    }
+
+    // ======== 待激活 → 重新上架 ========
+    @PutMapping("/{id}/relist")
+    public Result<Void> relistPending(@PathVariable String id) {
+        Listing l = listingMapper.selectById(id);
+        if (l == null) return Result.error("不存在");
+        if (!"pending_activation".equals(l.getStatus())) return Result.error("只有待激活的可以重新上架");
+        // 清除原 order_id/sold_at，重新变成 available
+        l.setStatus("available");
+        l.setOrderId(null);
+        l.setSoldAt(null);
+        l.setUpdatedAt(LocalDateTime.now());
+        listingMapper.updateById(l);
+        return Result.success(null);
+    }
+
+    // ======== 待激活 → 自己激活（加入 user_games 并删除 listing）=======
+    @PutMapping("/{id}/self-activate")
+    public Result<Void> selfActivate(@PathVariable String id) {
+        Listing l = listingMapper.selectById(id);
+        if (l == null) return Result.error("不存在");
+        if (!"pending_activation".equals(l.getStatus())) return Result.error("只有待激活的可以自己激活");
+        // 加入 user_games
+        com.steampy.entity.UserGame ug = new com.steampy.entity.UserGame();
+        ug.setId(UUID.randomUUID().toString());
+        ug.setUserId(l.getSellerId());
+        ug.setOrderId(l.getOrderId());
+        ug.setGameId(l.getGameId());
+        ug.setGameName(l.getGameName());
+        ug.setGameImage(l.getGameImage());
+        ug.setCdkey(l.getCdkey());
+        ug.setVersion(l.getVersion());
+        ug.setStatus("activated");
+        ug.setSource("cdkey"); // 自己激活也算 cdkey 来源
+        ug.setPurchaseDate(java.time.LocalDate.now().toString());
+        ug.setActivationDate(java.time.LocalDate.now().toString());
+        ug.setCreatedAt(LocalDateTime.now());
+        userGameMapper.insert(ug);
+        // 删除 listing（这个 CDK 已经被消耗了）
+        listingMapper.deleteById(id);
         return Result.success(null);
     }
 }

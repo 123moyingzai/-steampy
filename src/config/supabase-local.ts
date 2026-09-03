@@ -426,6 +426,29 @@ export const listingAPI = {
     }
   },
 
+  /** 某游戏按卖家+价格 聚合的可售列表（GameDetail 用的同一接口） */
+  async getGrouped(params: { game_id?: number; game_name?: string }): Promise<ApiResponse<any[]>> {
+    try {
+      const qs = new URLSearchParams()
+      if (params.game_id) qs.set('game_id', String(params.game_id))
+      if (params.game_name) qs.set('game_name', params.game_name)
+      const data = await apiRequest<any[]>(`/listings/available-grouped?${qs.toString()}`)
+      return { data }
+    } catch (e: any) {
+      return { data: [] }
+    }
+  },
+
+  /** 查重：给定 CDKey，查 listings 表里是否已存在 */
+  async checkCdkey(cdkey: string): Promise<ApiResponse<{ exists: boolean }>> {
+    try {
+      const data = await apiRequest<{ exists: boolean }>(`/listings/check-cdkey?cdkey=${encodeURIComponent(cdkey.toUpperCase())}`)
+      return { data }
+    } catch (e: any) {
+      return { data: { exists: false } }
+    }
+  },
+
   async getBySeller(sellerId: string | number): Promise<ApiResponse<any[]>> {
     try {
       const data = await apiRequest<any[]>(`/listings/seller/${sellerId}`)
@@ -439,6 +462,56 @@ export const listingAPI = {
     try {
       await apiRequest<any>(`/listings/${id}`, 'DELETE')
       return { data: null }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+
+  /** 改单个 CDK 价格（available） */
+  async updatePrice(id: string, price: number): Promise<ApiResponse<any>> {
+    try {
+      const data = await apiRequest<any>(`/listings/${id}/price`, 'PUT', { price })
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+
+  /** 批量改价：{ listingId: newPrice } */
+  async batchUpdatePrice(idPriceMap: Record<string, number>): Promise<ApiResponse<any>> {
+    try {
+      const data = await apiRequest<any>('/listings/batch-price', 'PUT', { updates: idPriceMap })
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+
+  /** 已售 → 待激活（拿回 CDK） */
+  async softDelete(id: string): Promise<ApiResponse<any>> {
+    try {
+      const data = await apiRequest<any>(`/listings/${id}/soft-delete`, 'PUT')
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+
+  /** 待激活 → 重新上架 */
+  async relistPending(id: string): Promise<ApiResponse<any>> {
+    try {
+      const data = await apiRequest<any>(`/listings/${id}/relist`, 'PUT')
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+
+  /** 待激活 → 自己激活（加入 user_games）*/
+  async selfActivate(id: string): Promise<ApiResponse<any>> {
+    try {
+      const data = await apiRequest<any>(`/listings/${id}/self-activate`, 'PUT')
+      return { data }
     } catch (e: any) {
       return { error: e.message }
     }
