@@ -81,8 +81,7 @@
                     <div v-else class="cjx-avatar cjx-avatar-default">🎮</div>
                   </td>
                   <td>
-                    <span v-if="cdkey.source === 'official'" class="cjx-official-name">S***y（官方）</span>
-                    <span v-else class="cjx-seller-name">{{ cdkey.seller_name || '未知用户' }}</span>
+                    <span class="cjx-seller-name">{{ cdkey.seller_name || 'S***y' }}</span>
                     <span v-if="cdkey === cheapestRow" class="cjx-min-tag">最低价</span>
                   </td>
                   <td>{{ cdkey.stock ?? cdkey.quantity ?? 0 }}</td>
@@ -128,7 +127,7 @@
                 ¥{{ game.original_price.toFixed(2) }}
               </p>
               <p class="cjx-price-source" v-if="selectedRow">
-                {{ selectedRow.source === 'official' ? '卖家: 官方 S***y' : '卖家: ' + (selectedRow.seller_name || '未知用户') }}
+                卖家: {{ selectedRow?.seller_name || 'S***y' }}
               </p>
             </div>
 
@@ -205,7 +204,7 @@
             </div>
             <div class="cjx-order-row">
               <span class="cjx-order-label">出售方：</span>
-              <span class="cjx-order-value">{{ selectedRow?.source === 'official' ? '官方 S***y' : (selectedRow?.seller_name || '未知用户') }}</span>
+              <span class="cjx-order-value">{{ selectedRow?.seller_name || 'S***y' }}</span>
             </div>
             <div class="cjx-order-row">
               <span class="cjx-order-label">游戏金额：</span>
@@ -350,7 +349,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
-import { authAPI, orderAPI, transactionAPI, walletAPI, userGameAPI } from '../config/supabase-local.ts'
+import { authAPI, orderAPI, transactionAPI, walletAPI, userGameAPI, fetchAllGames } from '../config/supabase-local.ts'
 import Layout from '../components/Layout.vue'
 
 const route = useRoute()
@@ -368,7 +367,7 @@ const selectedRow = ref<any>(null) // 当前选中的卖家行（决定右侧价
 const selectedListingId = ref(route.query.listing_id || null)
 const isSellerListing = ref(route.query.source === 'seller' || !!route.query.listing_id)
 const activeListingIds = ref<string[]>([]) // 当前选中行可用的 listing_ids（聚合库存）
-const activeRowSource = ref<'official' | 'seller' | null>(null)
+const activeRowSource = ref<'seller' | null>(null)
 
 // 分页（卖家列表折叠 + 加载更多）
 const pageSize = 5
@@ -516,7 +515,7 @@ const buyCDKey = async (cdkey) => {
   }
   // 设置选中行 → 右侧价格、订单弹窗全部跟这个行
   selectedRow.value = cdkey
-  activeRowSource.value = cdkey.source || (cdkey.listing_ids ? 'seller' : 'official')
+  activeRowSource.value = 'seller'
   if (cdkey.listing_ids && cdkey.listing_ids.length > 0) {
     activeListingIds.value = [...cdkey.listing_ids]
   } else if (cdkey.id) {
@@ -721,7 +720,7 @@ const fetchCdkeyList = async () => {
     return Math.round((1 - price / original) * 100)
   }
   const officialRow = {
-    _rowKey: 'official', source: 'official', id: 'official',
+    _rowKey: 'official', source: 'seller', id: 'official',
     seller_name: 'S***y', avatar: '', price: currentPrice,
     stock: game.value.stock || 99, listing_ids: [],
     version: getVersionType(game.value.name),
@@ -756,201 +755,113 @@ const fetchCdkeyList = async () => {
 
 // 加载数据
 const loadData = async () => {
-  // 加载真实钱包余额
-  const currentUser = authAPI.getCurrentUser()
-  if (currentUser?.id) {
-    try {
-      const r = await walletAPI.getBalance(currentUser.id)
-      if (r.data) {
-        const bal = r.data.balance ?? r.data
-        walletBalance.value = parseFloat(bal) || 0
-      }
-    } catch {}
+  const gameId = Number(route.query.game_id || 0);
+  const gameNameFromRoute = decodeURIComponent(String(route.params.id || ''));
+
+  let allGames = [];
+  try {
+    allGames = await fetchAllGames();
+  } catch (e) {
+    console.warn('fetchAllGames failed:', e);
+    return;
   }
 
-  const gameId = route.params.id
-  const decodedId = decodeGameId(gameId)
-  if (gameId) {
+  if (!allGames.length) {
+    console.warn('后端无游戏数据');
+    return;
+  }
+
+  let matched = null;
+  if (gameId) matched = allGames.find(g => Number(g.id) === gameId);
+  if (!matched && gameNameFromRoute) {
+    matched = allGames.find(g =>
+      g.name === gameNameFromRoute ||
+      g.name.includes(gameNameFromRoute) ||
+      gameNameFromRoute.includes(g.name)
+    );
+  }
+  if (!matched) {
+    console.warn('未找到匹配游戏，game_id=' + gameId + ', name=' + gameNameFromRoute);
+    return;
+  }
+
+  const currentPrice = Number(matched.price || 0);
+  const originalPrice = Number(matched.original_price || currentPrice);
+
+  game.value = {
+    id: matched.id,
+    name: matched.name,
+    description: matched.description || '暂无描述',
+    current_price: currentPrice,
+    original_price: originalPrice,
+    discount: matched.discount || (originalPrice > currentPrice
+      ? '-' + Math.round((1 - currentPrice / originalPrice) * 100) + '%' : ''),
+    image: matched.image,
+    is_presale: !!matched.is_presale,
+    release_date: matched.release_date,
+    developer: matched.developer,
+    stock: matched.stock ?? 99
+  };
+
+  const baseName = matched.name.replace(/豪华版|终极版|Definitive|Deluxe|Ultimate/i, '').trim();
+  const versions = allGames.filter(g =>
+    g.name === matched.name ||
+    g.name.replace(/豪华版|终极版|Definitive|Deluxe|Ultimate/i, '').trim() === baseName
+  );
+  gameVersions.value = versions.map(g => ({
+    id: g.id,
+    name: g.name,
+    price: Number(g.price || 0),
+    originalPrice: Number(g.original_price || g.price || 0),
+    stock: g.stock ?? 99,
+    image: g.image,
+    developer: g.developer,
+    releaseDate: g.release_date,
+    description: g.description
+  }));
+  selectedVersion.value = gameVersions.value.find(v => v.name === matched.name) || gameVersions.value[0];
+
+  const calcDiscount = (p, o) => o > 0 ? Math.round((1 - p / o) * 100) : 0;
+  const officialRow = {
+    _rowKey: 'official', source: 'seller', id: 'official',
+    seller_name: 'S***y', avatar: '', price: currentPrice,
+    stock: matched.stock || 99, listing_ids: [],
+    version: '标准版',
+    discount_pct: calcDiscount(currentPrice, originalPrice)
+  };
+  let sellerRows = [];
+  try {
+    const gr = await axios.get('/api/listings/available-grouped', {
+      params: { game_id: matched.id }
+    });
+    if (gr.data?.code === 200 && Array.isArray(gr.data.data)) {
+      sellerRows = gr.data.data.map((g, i) => ({
+        _rowKey: 'seller-' + g.seller_id + '-' + g.price + '-' + i,
+        source: 'seller', seller_id: g.seller_id, seller_name: g.seller_name,
+        avatar: '', price: Number(g.price), stock: g.stock,
+        listing_ids: g.listing_ids || [], version: g.version,
+        discount_pct: calcDiscount(Number(g.price), originalPrice)
+      }));
+    }
+  } catch (e) {
+    console.warn('加载卖家 listings 失败', e);
+  }
+
+  const all = [officialRow, ...sellerRows];
+  all.sort((a, b) => a.price !== b.price ? a.price - b.price : (b.source === 'seller' ? 1 : -1));
+  cdkeyList.value = all;
+
+  if (selectedListingId.value) {
+    const target = sellerRows.find(r => r.listing_ids.includes(selectedListingId.value));
+    if (target) activeListingIds.value = [...target.listing_ids];
+  }
+
+  const currentUser = authAPI.getCurrentUser();
+  if (currentUser?.id) {
     try {
-      // 从 Supabase 获取游戏的正确数字 ID
-          // ===== 获取数据库游戏ID（多来源兜底）=====
-          let dbGameId: any = route.query.game_id || null
-          if (!dbGameId) {
-            try {
-              const dbGames = await request(`${SUPABASE_URL}/rest/v1/games?name=eq.${encodeURIComponent(decodedId)}&limit=1`)
-              if (dbGames && dbGames.length > 0) {
-                dbGameId = dbGames[0].id
-                console.log('从 Supabase 获取 game_id:', dbGameId)
-              }
-            } catch (e) {
-              console.warn('Supabase 拿不到 game_id，用 game_name 试试')
-            }
-          }
-          if (dbGameId) console.log('✓ 最终 game_id =', dbGameId)
-
-          // ===== 加载官方游戏数据 =====
-      
-      // 从本地JSON加载游戏数据
-      const response = await axios.get('/cdk_games.json')
-      if (response.data) {
-        const data = response.data
-        // 合并预售商品和普通游戏
-        const allGames = [...(data.preSaleItems || []), ...(data.gameItems || [])]
-        
-        // 查找对应的游戏 - 支持多种匹配方式
-        const foundGame = allGames.find(g => {
-          const name = g.name || ''
-          if (name === decodedId || name === gameId) return true
-          return name.includes(decodedId) || decodedId.includes(name) ||
-                 name.includes(gameId) || gameId.includes(name)
-        })
-        
-        if (foundGame) {
-          const currentPrice = parseFloat(foundGame.price?.replace(/[^0-9.]/g, '')) || 0
-          const originalPrice = parseFloat(foundGame.originalPrice?.replace(/[^0-9.]/g, '')) || currentPrice * 1.2
-          const baseGameName = getBaseGameName(foundGame.name)
-          
-          // 查找同一游戏的所有版本
-          const relatedVersions = allGames.filter(g => {
-            const otherBaseName = getBaseGameName(g.name)
-            return otherBaseName === baseGameName
-          }).map(g => ({
-            id: encodeURIComponent(g.name),
-            name: g.name,
-            price: parseFloat(g.price?.replace(/[^0-9.]/g, '')) || 0,
-            originalPrice: parseFloat(g.originalPrice?.replace(/[^0-9.]/g, '')) || 0,
-            stock: g.stock || 99,
-            image: g.image,
-            description: g.description,
-            isPresale: g.isPresale,
-            releaseDate: g.releaseDate,
-            developer: g.developer,
-            discount: g.discount
-          }))
-          
-          // 设置游戏版本列表
-          gameVersions.value = relatedVersions
-          // 设置当前选中的版本
-          selectedVersion.value = relatedVersions.find(v => v.name === foundGame.name) || relatedVersions[0]
-          
-          game.value = {
-            id: dbGameId || gameId,
-            name: foundGame.name,
-            description: foundGame.description || '暂无描述',
-            current_price: currentPrice,
-            original_price: originalPrice,
-            discount: foundGame.discount || '',
-            image: foundGame.image || 'picture/安魂曲.jpg',
-            is_presale: foundGame.isPresale || false,
-            release_date: foundGame.releaseDate || '待定',
-            developer: foundGame.developer || '未知',
-            stock: foundGame.stock || 99
-          }
-
-          // ===== 构建 出售卖家 列表：官方 + 卖家 listings =====
-          // 0. 统一算折扣
-          const calcDiscount = (price: number, original: number) => {
-            if (!original || original <= price) return 0
-            return Math.round((1 - price / original) * 100)
-          }
-
-          // 1. 官方游戏一行
-          const officialRow = {
-            _rowKey: 'official',
-            source: 'official',
-            id: 'official',
-            seller_name: 'S***y',
-            avatar: '',
-            price: currentPrice,
-            stock: foundGame.stock || 99,
-            listing_ids: [],
-            version: getVersionType(foundGame.name),
-            discount_pct: calcDiscount(currentPrice, originalPrice)
-          }
-
-          // 2. 卖家 listings（后端按 卖家+价格 聚合）
-          let sellerRows: any[] = []
-          try {
-            const params: any = {}
-            if (dbGameId) params.game_id = dbGameId
-            params.game_name = decodedId // 永远带上 game_name 兜底
-            console.log('查询卖家 listings params:', params)
-            const gr = await axios.get(`/api/listings/available-grouped`, { params })
-            console.log('卖家 listings 返回:', gr.data)
-            if (gr.data?.code === 200 && Array.isArray(gr.data.data)) {
-              sellerRows = gr.data.data.map((g: any, i: number) => ({
-                _rowKey: `seller-${g.seller_id}-${g.price}-${i}`,
-                source: 'seller',
-                seller_id: g.seller_id,
-                seller_name: g.seller_name,
-                avatar: '',
-                price: Number(g.price),
-                stock: g.stock,
-                listing_ids: g.listing_ids || [],
-                version: g.version,
-                discount_pct: calcDiscount(Number(g.price), originalPrice)
-              }))
-            }
-          } catch (e) {
-            console.warn('加载卖家 listings 失败', e)
-          }
-
-          // 3. 合并：按价格升序，同价卖家优先
-          const all = [officialRow, ...sellerRows]
-          all.sort((a, b) => {
-            const pa = a.price, pb = b.price
-            if (pa !== pb) return pa - pb
-            const ra = a.source === 'seller' ? 0 : 1
-            const rb = b.source === 'seller' ? 0 : 1
-            return ra - rb
-          })
-          cdkeyList.value = all
-
-          // 如果 URL 带了 listing_id，定位到那一行的 listing_ids
-          if (selectedListingId.value) {
-            const target = sellerRows.find(r => r.listing_ids.includes(selectedListingId.value))
-            if (target) activeListingIds.value = [...target.listing_ids]
-          }
-          return
-        }
-      }
-    } catch (error) {
-      console.error('加载游戏数据失败:', error)
-    }
-    
-    // 使用默认数据（根据ID生成）
-    const isDeluxe = decodedId === 'anhunqu-deluxe' || gameId === 'anhunqu-deluxe'
-    const defaultPrice = isDeluxe ? 354 : 309
-    const defaultOriginalPrice = isDeluxe ? 398 : 348
-    const defaultStock = isDeluxe ? 50 : 99
-    
-    game.value = {
-      id: gameId,
-      name: isDeluxe ? '生化危机:安魂曲 豪华版' : '生化危机:安魂曲',
-      description: '一款史诗级的动作冒险游戏，带你进入一个充满神秘和危险的世界。',
-      current_price: defaultPrice,
-      original_price: defaultOriginalPrice,
-      discount: '-11%',
-      image: 'picture/安魂曲.jpg',
-      is_presale: true,
-      release_date: '2024-12-20',
-      developer: 'Epic Games',
-      stock: defaultStock
-    }
-    
-    // 设置版本列表（默认数据）
-    gameVersions.value = [
-      { id: '生化危机:安魂曲', name: '生化危机:安魂曲', price: 309, originalPrice: 348, stock: 99 },
-      { id: '生化危机:安魂曲%20豪华版', name: '生化危机:安魂曲 豪华版', price: 354, originalPrice: 398, stock: 50 }
-    ]
-    selectedVersion.value = gameVersions.value.find(v => v.name === game.value.name) || gameVersions.value[0]
-    
-    // 设置CDKey列表
-    cdkeyList.value = generateCdkeyList({
-      name: game.value.name,
-      price: `¥${defaultPrice}`,
-      stock: defaultStock
-    })
+      const w = await walletAPI.getWallet(currentUser.id);
+      walletBalance.value = Number(w?.data?.balance ?? 0);
+    } catch { walletBalance.value = 0 }
   }
 }
 

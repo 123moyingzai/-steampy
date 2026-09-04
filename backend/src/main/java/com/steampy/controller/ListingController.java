@@ -9,6 +9,7 @@ import com.steampy.mapper.ListingMapper;
 import com.steampy.mapper.UserMapper;
 import com.steampy.mapper.GameMapper;
 import com.steampy.mapper.UserGameMapper;
+import com.steampy.mapper.OrderMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -32,6 +33,9 @@ public class ListingController {
 
     @Autowired
     private UserGameMapper userGameMapper;
+
+    @Autowired
+    private OrderMapper orderMapper;
 
     // 给 listing 填充 seller_name（脱敏）
     private void fillSellerNames(List<Listing> listings) {
@@ -204,6 +208,76 @@ public class ListingController {
             return String.valueOf(a.get("game_name")).compareTo(String.valueOf(b.get("game_name")));
         });
         return Result.success(result);
+    }
+
+    // ======== 查代购卖家列表（py 类型，支持按 game_id 过滤）=======
+    @GetMapping("/py-sellers")
+    public Result<List<Map<String, Object>>> listPySellers(
+            @RequestParam(required = false) Long gameId,
+            @RequestParam(required = false) String region) {
+        QueryWrapper<Listing> qw = new QueryWrapper<>();
+        qw.eq("type", "py").eq("status", "available");
+        if (gameId != null) qw.eq("game_id", gameId);
+        if (region != null && !region.isEmpty()) qw.like("region", region);
+        qw.orderByAsc("price");
+        List<Listing> listings = listingMapper.selectList(qw);
+
+        // 查卖家用户信息
+        Set<String> sellerIds = listings.stream().map(Listing::getSellerId).collect(Collectors.toSet());
+        Map<String, User> userMap = new HashMap<>();
+        if (!sellerIds.isEmpty()) {
+            userMapper.selectBatchIds(sellerIds).forEach(u -> userMap.put(u.getId(), u));
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Listing l : listings) {
+            Map<String, Object> row = new HashMap<>();
+            row.put("listing_id", l.getId());
+            row.put("seller_id", l.getSellerId());
+            User u = userMap.get(l.getSellerId());
+            String rawName = u != null ? (u.getNickname() != null ? u.getNickname() : u.getUsername()) : "未知";
+            row.put("seller_name", maskStr(rawName));
+            row.put("seller_avatar", u != null ? u.getAvatarUrl() : null);
+            row.put("game_id", l.getGameId());
+            row.put("game_name", l.getGameName());
+            row.put("price", l.getPrice());
+            row.put("quota", l.getQuota());
+            row.put("auto_deliver", l.getAutoDeliver() != null && l.getAutoDeliver());
+            row.put("region", l.getRegion());
+            row.put("sale_price", l.getPrice());
+            row.put("original_price", l.getOriginalPrice());
+            // 折扣
+            if (l.getOriginalPrice() != null && l.getOriginalPrice().compareTo(BigDecimal.ZERO) > 0) {
+                BigDecimal pct = l.getPrice().divide(l.getOriginalPrice(), 4, java.math.RoundingMode.HALF_UP)
+                        .multiply(new BigDecimal("100"));
+                row.put("discount_pct", pct.setScale(0, java.math.RoundingMode.HALF_UP).intValue());
+            } else {
+                row.put("discount_pct", 100);
+            }
+            // mock 成交数（从 orders 表按 seller_id + py 类型统计）
+            row.put("deals", countPyDeals(l.getSellerId()));
+            // 流畅度（quota > 0 ? 顺畅 : 一般）
+            row.put("fluency", l.getQuota() != null && l.getQuota().compareTo(BigDecimal.ZERO) > 0 ? "顺畅" : "一般");
+            row.put("fluency_class", l.getQuota() != null && l.getQuota().compareTo(BigDecimal.ZERO) > 0 ? "dot-green" : "dot-yellow");
+            // 发货类型
+            row.put("deliver_type", l.getAutoDeliver() != null && l.getAutoDeliver() ? "自动发货" : "手动发货");
+            result.add(row);
+        }
+        return Result.success(result);
+    }
+
+    private int countPyDeals(String sellerId) {
+        if (sellerId == null) return 0;
+        QueryWrapper<com.steampy.entity.Order> qw = new QueryWrapper<>();
+        qw.eq("seller_id", sellerId).eq("order_type", "py").eq("status", "completed");
+        return orderMapper.selectCount(qw).intValue();
+    }
+
+    // 脱敏名字：取首尾 + ***（3位以上的中间用***）
+    private String maskStr(String s) {
+        if (s == null || s.isEmpty()) return "";
+        if (s.length() <= 2) return s.charAt(0) + "***";
+        return s.charAt(0) + "***" + s.charAt(s.length() - 1);
     }
 
     /** 查重接口 —— 给定 cdkey，返回是否已存在于 listings 表（不区分状态，sold 的也算重复）*/

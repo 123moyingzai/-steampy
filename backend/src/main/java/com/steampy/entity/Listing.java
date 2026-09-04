@@ -23,7 +23,10 @@ public class Listing {
     private BigDecimal price;
     private BigDecimal originalPrice;
     private String region;
-    private String status; // available / sold
+    private String status; // available / sold / pending_activation
+    private String type;   // cdkey / py
+    private BigDecimal quota;    // 代购可用额度 (仅 py)
+    private Boolean autoDeliver; // 是否自动发货 (仅 py)
     private String orderId;
     private LocalDateTime soldAt;
     private LocalDateTime createdAt;

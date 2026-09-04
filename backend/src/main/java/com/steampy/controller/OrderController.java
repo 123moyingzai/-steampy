@@ -71,24 +71,44 @@ public class OrderController {
         if (order.getListingId() != null && !order.getListingId().isEmpty()) {
             Listing listing = listingMapper.selectById(order.getListingId());
             if (listing == null) {
-                return Result.error("CDKey 不存在");
+                return Result.error("上架记录不存在");
             }
             if (!"available".equals(listing.getStatus())) {
-                return Result.error("该 CDKey 已售出");
+                return Result.error("该商品已售出/下架");
             }
             // 禁止卖家自购
             if (listing.getSellerId().equals(order.getBuyerId())) {
-                return Result.error("不能购买您自己上架的 CDKey");
+                return Result.error("不能购买您自己上架的商品");
             }
-            // 发货：把 listing 的 cdkey 和 seller_id 填入订单
-            order.setCdkey(listing.getCdkey());
             order.setSellerId(listing.getSellerId());
-            // 标记 listing 已售出
-            listing.setStatus("sold");
-            listing.setOrderId(order.getId());
-            listing.setSoldAt(LocalDateTime.now());
-            listing.setUpdatedAt(LocalDateTime.now());
-            listingMapper.updateById(listing);
+
+            if ("py".equals(listing.getType())) {
+                // ===== PY代购：扣额度 + 下架 listing（额度用完才下架，否则只扣 quota）=====
+                BigDecimal cost = order.getTotalPrice();
+                BigDecimal remain = listing.getQuota() != null ? listing.getQuota().subtract(cost) : BigDecimal.ZERO;
+                if (remain.compareTo(BigDecimal.ZERO) < 0) {
+                    return Result.error("卖家代购额度不足");
+                }
+                listing.setQuota(remain);
+                if (remain.compareTo(BigDecimal.ZERO) == 0) {
+                    listing.setStatus("sold"); // 额度用完下架
+                    listing.setOrderId(order.getId());
+                    listing.setSoldAt(LocalDateTime.now());
+                }
+                listing.setUpdatedAt(LocalDateTime.now());
+                listingMapper.updateById(listing);
+                order.setOrderType("py");
+                order.setCdkey(null); // py 无 cdkey
+            } else {
+                // ===== CDKey：扣 cdkey + 下架 =====
+                order.setCdkey(listing.getCdkey());
+                listing.setStatus("sold");
+                listing.setOrderId(order.getId());
+                listing.setSoldAt(LocalDateTime.now());
+                listing.setUpdatedAt(LocalDateTime.now());
+                listingMapper.updateById(listing);
+            }
+
             // 记录卖家收入
             isSellerListing = true;
             sellerId = listing.getSellerId();
@@ -116,20 +136,23 @@ public class OrderController {
         t.setCreatedAt(LocalDateTime.now());
         transactionMapper.insert(t);
 
-        // 用户游戏库（标记 source=cdkey，区分 PY代购 source=store）
-        UserGame ug = new UserGame();
-        ug.setId(UUID.randomUUID().toString());
-        ug.setUserId(order.getBuyerId());
-        ug.setOrderId(order.getId());
-        ug.setGameId(order.getGameId());
-        ug.setGameName(order.getGameName());
-        ug.setGameImage(order.getGameImage());
-        ug.setCdkey(order.getCdkey()); // ← 确保 cdkey 入库
-        ug.setVersion(order.getVersion() != null ? order.getVersion() : "标准版");
-        ug.setStatus("pending");
-        ug.setPurchaseDate(LocalDateTime.now().toString());
-        ug.setSource("cdkey"); // ← 标记来源是 CDKey 购买（不是 PY代购）
-        userGameMapper.insert(ug);
+        // 用户游戏库：CDKey 购买才入库（cdkey 非空），PY代购等商家发货后再加
+        // source: cdkey=玩家购 / store=PY代购（后续商家发货时补）
+        if (order.getCdkey() != null && !order.getCdkey().isEmpty() && !"py".equals(order.getOrderType())) {
+            UserGame ug = new UserGame();
+            ug.setId(UUID.randomUUID().toString());
+            ug.setUserId(order.getBuyerId());
+            ug.setOrderId(order.getId());
+            ug.setGameId(order.getGameId());
+            ug.setGameName(order.getGameName());
+            ug.setGameImage(order.getGameImage());
+            ug.setCdkey(order.getCdkey());
+            ug.setVersion(order.getVersion() != null ? order.getVersion() : "标准版");
+            ug.setStatus("pending");
+            ug.setPurchaseDate(LocalDateTime.now().toString());
+            ug.setSource("cdkey");
+            userGameMapper.insert(ug);
+        }
 
         // ===== 如果是卖家上架的 CDKey，给卖家加余额 + 写卖家交易记录 =====
         if (isSellerListing && sellerId != null && sellerIncome.compareTo(BigDecimal.ZERO) > 0) {

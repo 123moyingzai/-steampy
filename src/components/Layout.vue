@@ -62,7 +62,7 @@
         <div class="cjx-wallet-info">
           <span class="cjx-wallet-label">钱包</span>
           <span class="cjx-wallet-balance">¥{{ walletBalance.toFixed(2) }}</span>
-          <button class="cjx-top-btn cjx-withdraw">提现</button>
+          <button class="cjx-top-btn cjx-withdraw" @click="$router.push('/wallet')">钱包</button>
           <button class="cjx-top-btn cjx-details" @click="$router.push('/transactions')">明细</button>
         </div>
         <div class="cjx-user-actions">

@@ -234,12 +234,29 @@ export const walletAPI = {
     }
   },
 
-  async withdraw(userId: string | number, amount: number): Promise<ApiResponse<any>> {
+  async withdraw(
+    userId: string | number,
+    amount: number,
+    extra: { pay_method?: string; account?: string; real_name?: string } = {}
+  ): Promise<ApiResponse<any>> {
     try {
-      const data = await apiRequest<any>(`/wallets/user/${userId}/withdraw`, 'POST', { amount })
+      const data = await apiRequest<any>(`/wallets/user/${userId}/withdraw`, 'POST', {
+        amount,
+        pay_method: extra.pay_method || 'alipay',
+        account: extra.account || '',
+        real_name: extra.real_name || ''
+      })
       return { data }
     } catch (e: any) {
       return { error: e.message }
+    }
+  },
+  async getWithdrawRecords(userId: string | number): Promise<ApiResponse<any[]>> {
+    try {
+      const data = await apiRequest<any[]>(`/wallets/user/${userId}/withdraw-records`)
+      return { data: data || [] }
+    } catch (e: any) {
+      return { data: [] }
     }
   },
 
@@ -446,6 +463,18 @@ export const listingAPI = {
       return { data }
     } catch (e: any) {
       return { data: { exists: false } }
+    }
+  },
+
+  async getPySellers(params: { gameId?: number; region?: string } = {}): Promise<ApiResponse<any[]>> {
+    try {
+      const qs = new URLSearchParams()
+      if (params.gameId) qs.set('game_id', String(params.gameId))
+      if (params.region) qs.set('region', params.region)
+      const data = await apiRequest<any[]>(`/listings/py-sellers${qs.toString() ? '?' + qs.toString() : ''}`)
+      return { data }
+    } catch (e: any) {
+      return { data: [] }
     }
   },
 
