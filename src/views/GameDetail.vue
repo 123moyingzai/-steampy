@@ -188,9 +188,8 @@
       <div class="cjx-loading" v-else>
         <p>加载中...</p>
       </div>
-    </div>
 
-    <!-- 创建订单弹窗 -->
+      <!-- 创建订单弹窗 -->
     <div class="cjx-modal cjx-order-modal" v-if="showOrderModal" @click.self="closeOrderModal">
       <div class="cjx-modal-content">
         <div class="cjx-modal-header">
