@@ -44,6 +44,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../views/GameDetail.vue')
   },
   {
+    path: '/game/:gameId/review',
+    name: 'ReviewPublish',
+    component: () => import('../views/ReviewPublish.vue')
+  },
+  {
     path: '/gift',
     name: 'GiftPurchase',
     component: () => import('../views/GiftPurchase.vue')
@@ -115,7 +120,14 @@ const routes: RouteRecordRaw[] = [
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
+  scrollBehavior(to, from, savedPosition) {
+    // 浏览器后退/前进：恢复原位置
+    if (savedPosition) return savedPosition
+    // 列表页之间切换（CDK国区 ↔ 礼物代购 ↔ 余额购 ↔ 首页）：也保持顶部
+    // 详情页 / 钱包 / 充值 / 订单 等任何新页面：滚到顶部
+    return { top: 0 }
+  }
 })
 
 // 路由守卫 - 管理员权限检查

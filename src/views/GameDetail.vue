@@ -1,6 +1,12 @@
 <template>
   <Layout>
     <div class="cjx-detail-page">
+      <!-- 返回按钮 -->
+      <div class="cjx-detail-back" @click="handleBack">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        <span>返回</span>
+      </div>
+
       <!-- 游戏详情内容 -->
       <div class="cjx-detail-container" v-if="game">
         <!-- 左侧游戏信息 -->
@@ -341,15 +347,60 @@
           <button class="cjx-btn cjx-btn-close" @click="closeCdkeyModal">关闭</button>
         </div>
       </div>
+
+      <!-- ====== 评测模块 ====== -->
+      <div class="cjx-reviews" v-if="game">
+        <div class="cjx-reviews-head">
+          <h2 class="cjx-reviews-title">评测</h2>
+          <div class="cjx-reviews-summary" v-if="reviews.length">
+            <span class="cjx-rec-pill rec-pos">{{ recommendCount }} 推荐</span>
+            <span class="cjx-rec-pill rec-neg">{{ reviews.length - recommendCount }} 不推荐</span>
+          </div>
+        </div>
+
+        <!-- 评论列表 -->
+        <div class="cjx-review-list" v-if="reviews.length">
+          <div class="cjx-review-item" v-for="r in reviews" :key="r.id">
+            <div class="cjx-review-top">
+              <div class="cjx-review-user">
+                <span class="cjx-review-avatar">{{ (r.userName || '匿').slice(0, 1) }}</span>
+                <span class="cjx-review-name">{{ r.userName || '匿名用户' }}</span>
+                <span class="cjx-review-rec" :class="r.recommend === 1 ? 'rec-pos' : 'rec-neg'">
+                  {{ r.recommend === 1 ? '👍 推荐' : '👎 不推荐' }}
+                </span>
+              </div>
+              <span class="cjx-review-time">{{ formatTime(r.createdAt) }}</span>
+            </div>
+            <p class="cjx-review-content">{{ r.content }}</p>
+            <div class="cjx-review-imgs" v-if="r.images">
+              <img
+                v-for="(img, i) in (r.images || '').split(',').filter(Boolean)"
+                :key="i"
+                :src="img"
+                class="cjx-review-img"
+                @click="previewImg(img)"
+              />
+            </div>
+          </div>
+        </div>
+        <div class="cjx-review-empty" v-else>
+          <p>还没有任何评测，来做第一个评价的人吧 👇</p>
+        </div>
+
+        <!-- 底部输入框 → 点击跳发布页 -->
+        <div class="cjx-review-input" @click="goReviewPublish">
+          <span class="cjx-review-input-ph">我也要评测</span>
+        </div>
+      </div>
     </div>
   </Layout>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
-import { authAPI, orderAPI, transactionAPI, walletAPI, userGameAPI, fetchAllGames } from '../config/supabase-local.ts'
+import { authAPI, orderAPI, transactionAPI, walletAPI, userGameAPI, fetchAllGames, reviewAPI } from '../config/supabase-local.ts'
 import Layout from '../components/Layout.vue'
 
 const route = useRoute()
@@ -865,9 +916,54 @@ const loadData = async () => {
   }
 }
 
+// 返回：有历史记录就回（keep-alive 自动恢复列表页滚动位置），没有兜底去 CDK国区
+const handleBack = () => {
+  if (window.history.length > 1) router.back()
+  else router.push('/cdkey')
+}
+
+// ===== 评测 =====
+const reviews = ref<any[]>([])
+const recommendCount = computed(() => reviews.value.filter(r => r.recommend === 1).length)
+
+const loadReviews = async () => {
+  if (!game.value?.id) return
+  try {
+    reviews.value = await reviewAPI.listByGame(Number(game.value.id))
+  } catch { reviews.value = [] }
+}
+
+function goReviewPublish() {
+  if (!authAPI.getCurrentUser()) {
+    alert('请先登录后再评测')
+    router.push('/login')
+    return
+  }
+  router.push(`/game/${game.value!.id}/review`)
+}
+
+function formatTime(t: string) {
+  if (!t) return ''
+  const d = new Date(t)
+  if (isNaN(+d)) return t
+  const now = new Date()
+  const diff = (now.getTime() - d.getTime()) / 1000
+  if (diff < 60) return '刚刚'
+  if (diff < 3600) return Math.floor(diff / 60) + ' 分钟前'
+  if (diff < 86400) return Math.floor(diff / 3600) + ' 小时前'
+  if (diff < 7 * 86400) return Math.floor(diff / 86400) + ' 天前'
+  return d.toLocaleDateString()
+}
+
+function previewImg(src: string) {
+  const w = window.open('', '_blank')
+  if (w) { w.document.write(`<img src="${src}" style="max-width:100%;display:block;margin:auto;background:#000"/>`) }
+}
+
 // 生命周期
-onMounted(() => {
-  loadData()
+onMounted(async () => {
+  await loadData()
+  loadReviews()
 })
 </script>
 
@@ -876,6 +972,28 @@ onMounted(() => {
   background: #fff;
   border-radius: 8px;
   padding: 20px;
+}
+
+.cjx-detail-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  margin-bottom: 16px;
+  cursor: pointer;
+  color: #4a6cf7;
+  font-size: 14px;
+  border-radius: 6px;
+  background: #f0f4ff;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.cjx-detail-back:hover {
+  background: #e0e8ff;
+  color: #3a5ce5;
+}
+.cjx-detail-back:active {
+  transform: translateX(-2px);
 }
 
 .cjx-detail-container {
@@ -1872,5 +1990,137 @@ onMounted(() => {
 
 .cjx-btn-close:hover {
   background: #7f8c8d;
+}
+
+/* ===== 评测模块 ===== */
+.cjx-reviews {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #eee;
+}
+.cjx-reviews-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.cjx-reviews-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+  color: #222;
+}
+.cjx-reviews-summary {
+  display: flex;
+  gap: 8px;
+}
+.cjx-rec-pill {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.cjx-rec-pill.rec-pos { background: #e8f8ef; color: #27ae60; }
+.cjx-rec-pill.rec-neg { background: #fdecea; color: #c0392b; }
+
+.cjx-review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.cjx-review-item {
+  padding: 16px;
+  background: #fafafa;
+  border-radius: 10px;
+  border: 1px solid #f0f0f0;
+}
+.cjx-review-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.cjx-review-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cjx-review-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4a6cf7, #3a5ce5);
+  color: #fff;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+.cjx-review-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+.cjx-review-rec {
+  margin-left: 6px;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.cjx-review-rec.rec-pos { background: #e8f8ef; color: #27ae60; }
+.cjx-review-rec.rec-neg { background: #fdecea; color: #c0392b; }
+.cjx-review-time {
+  font-size: 12px;
+  color: #aaa;
+}
+.cjx-review-content {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #444;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.cjx-review-imgs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.cjx-review-img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 6px;
+  cursor: zoom-in;
+  transition: transform 0.15s;
+}
+.cjx-review-img:hover { transform: scale(1.05); }
+
+.cjx-review-empty {
+  text-align: center;
+  padding: 32px 0;
+  color: #aaa;
+  font-size: 13px;
+}
+
+.cjx-review-input {
+  margin-top: 8px;
+  padding: 14px 18px;
+  background: #f5f6f8;
+  border: 1px solid #e5e6e8;
+  border-radius: 10px;
+  cursor: text;
+  transition: all 0.15s;
+}
+.cjx-review-input:hover {
+  background: #eef0f4;
+  border-color: #4a6cf7;
+}
+.cjx-review-input-ph {
+  color: #bbb;
+  font-size: 14px;
 }
 </style>

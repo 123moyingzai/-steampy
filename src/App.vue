@@ -1,12 +1,18 @@
-﻿<template>
+<template>
   <div id="cjx-app">
-    <router-view />
+    <router-view v-slot="{ Component, route }">
+      <!-- 列表页缓存（CDK国区 / 礼物代购 / 余额购 / 首页）：进详情页再返回保留滚动位置 -->
+      <keep-alive :include="keepAliveNames">
+        <component :is="Component" />
+      </keep-alive>
+    </router-view>
     <div class="cjx-footer-text"></div>
   </div>
 </template>
 
 <script setup lang="ts">
-// 应用根组件 - 使用组合式API
+// 列表页组件名（Vue3 script setup 默认取文件名）
+const keepAliveNames = ['CDKeyMarket', 'GiftPurchase', 'BalancePurchase', 'Home']
 </script>
 
 <style scoped>

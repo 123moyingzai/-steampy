@@ -391,6 +391,28 @@ export const sellerAPI = {
   }
 }
 
+// ========== 评论/评测 ==========
+export const reviewAPI = {
+  async listByGame(gameId: number): Promise<any[]> {
+    try {
+      const r = await apiRequest<any>(`/api/reviews/game/${gameId}`, { method: 'GET' })
+      return r?.data || []
+    } catch { return [] }
+  },
+  async myReview(gameId: number, userId: string): Promise<any | null> {
+    try {
+      const r = await apiRequest<any>(`/api/reviews/my?gameId=${gameId}&userId=${encodeURIComponent(userId)}`, { method: 'GET' })
+      return r?.data || null
+    } catch { return null }
+  },
+  async save(body: { id?: string; gameId: number; userId: string; userName?: string; recommend: number; content: string; images?: string }): Promise<any> {
+    return await apiRequest<any>('/api/reviews', { method: 'POST', body })
+  },
+  async delete(id: string, userId: string): Promise<any> {
+    return await apiRequest<any>(`/api/reviews/${id}?userId=${encodeURIComponent(userId)}`, { method: 'DELETE' })
+  }
+}
+
 // ========== 上架/CDKey（listings）==========
 export const listingAPI = {
   async createListing(listing: any): Promise<ApiResponse<any>> {
