@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿<template>
   <Layout>
       <!-- 横幅轮播区 -->
       <div class="cjx-banner">

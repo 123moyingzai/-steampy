@@ -1,6 +1,32 @@
-﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <Layout>
     <div class="cjx-cdkey-page">
+      <!-- ========== 火热预售（单独一行）========== -->
+      <section class="cjx-presale-section" v-if="presaleGames.length > 0">
+        <h2 class="cjx-section-title cjx-presale-title">🔥 火热预售</h2>
+        <div class="cjx-presale-row">
+          <div 
+            class="cjx-game-card cjx-presale-card" 
+            v-for="item in presaleGames" 
+            :key="item.uid" 
+            @click="goToGame(item)"
+          >
+            <div class="cjx-card-img-wrapper">
+              <img :src="getImageUrl(item.image)" class="cjx-card-img" />
+              <span v-if="item.discount" class="cjx-card-discount">{{ item.discount }}</span>
+              <span class="cjx-presale-badge">预售</span>
+            </div>
+            <div class="cjx-card-info">
+              <div class="cjx-card-name">{{ item.name }}</div>
+              <div class="cjx-card-price-row">
+                <span class="cjx-card-original" v-if="item.original_price">¥{{ item.original_price }}</span>
+                <span class="cjx-card-price cjx-presale-price">¥{{ item.price.toFixed(2) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- CDKey市场 -->
       <section class="cjx-section">
         <h2 class="cjx-section-title">
@@ -101,7 +127,8 @@ const allGames = computed(() => {
       price: p,
       original_price: op || null,
       discount,
-      lowest_source: 'official'
+      lowest_source: 'official',
+      is_presale: !!g.is_presale
     })
   }
 
@@ -124,6 +151,8 @@ const allGames = computed(() => {
     if (official && info.minPrice < official.price) {
       official.price = info.minPrice
       official.lowest_source = 'seller'
+      // 继承预售标记（从官方）
+      if (!official.is_presale) official.is_presale = false
       // 有官方 original_price 就用官方的，没有就从 listings 找
       let op = official.original_price ? Number(official.original_price) : 0
       if (op === 0) {
@@ -162,8 +191,18 @@ const allGames = computed(() => {
   return result
 })
 
+// 预售游戏（单独一行，不带搜索过滤）
+const presaleGames = computed(() => {
+  return allGames.value.filter(g => g.is_presale)
+})
+
+// 普通游戏（排除预售）
+const normalGames = computed(() => {
+  return allGames.value.filter(g => !g.is_presale)
+})
+
 const displayGames = computed(() => {
-  let result = [...allGames.value]
+  let result = [...normalGames.value]
 
   // 搜索
   if (searchQuery.value) {
@@ -218,6 +257,25 @@ onMounted(loadData)
 
 <style scoped>
 .cjx-cdkey-page { background: #fff; border-radius: 8px; padding: 20px; }
+
+/* ======== 火热预售区（单独一行横条）======== */
+.cjx-presale-section { margin-bottom: 30px; }
+.cjx-presale-title { color: #e74c3c; border-left: 4px solid #e74c3c; padding-left: 12px; }
+.cjx-presale-row {
+  display: flex; flex-wrap: nowrap; gap: 16px;
+  overflow-x: auto; padding-bottom: 6px;
+}
+.cjx-presale-row::-webkit-scrollbar { height: 6px; }
+.cjx-presale-row::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
+.cjx-presale-card { flex: 0 0 220px; max-width: 220px; }
+.cjx-presale-badge {
+  position: absolute; top: 8px; right: 8px; z-index: 3;
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  color: #fff; font-size: 11px; font-weight: 600;
+  padding: 3px 8px; border-radius: 4px; letter-spacing: 1px;
+}
+.cjx-presale-price { color: #e74c3c !important; font-weight: 700; }
+
 .cjx-section { margin-bottom: 30px; }
 .cjx-section-title { font-size: 18px; font-weight: bold; margin-bottom: 18px; color: #333; display: flex; align-items: center; gap: 10px; }
 .cjx-count-badge { font-size: 12px; color: #888; font-weight: normal; background: #f0f0f0; padding: 2px 8px; border-radius: 10px; }
