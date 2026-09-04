@@ -347,8 +347,9 @@
           <button class="cjx-btn cjx-btn-close" @click="closeCdkeyModal">关闭</button>
         </div>
       </div>
+    </div>
 
-      <!-- ====== 评测模块 ====== -->
+    <!-- ====== 评测模块 ====== -->
       <div class="cjx-reviews" v-if="game">
         <div class="cjx-reviews-head">
           <h2 class="cjx-reviews-title">评测</h2>
