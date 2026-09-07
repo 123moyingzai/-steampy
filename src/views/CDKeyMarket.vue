@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <Layout>
     <div class="cjx-cdkey-page">
       <!-- ========== 火热预售（单独一行）========== -->
@@ -132,7 +132,11 @@ const allGames = computed(() => {
   for (const g of games.value) {
     const p = Number(g.current_price ?? g.price ?? 0)
     const op = Number(g.original_price ?? 0)
-    const discount = op > 0 && p > 0 ? '-' + Math.round((1 - p / op) * 100) + '%' : ''
+    // 优先用后端已算好的 discount（更准，DB 里正确存的），前端 fallback 再算
+    let discount = g.discount || ''
+    if (!discount && op > 0 && p > 0) {
+      discount = '-' + Math.round((1 - p / op) * 100) + '%'
+    }
     map.set(String(g.id), {
       uid: 'g-' + g.id,
       game_id: g.id,
