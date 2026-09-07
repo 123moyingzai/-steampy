@@ -566,15 +566,21 @@ const buyCDKey = async (cdkey) => {
   }
   // 设置选中行 → 右侧价格、订单弹窗全部跟这个行
   selectedRow.value = cdkey
-  activeRowSource.value = 'seller'
-  if (cdkey.listing_ids && cdkey.listing_ids.length > 0) {
+  activeRowSource.value = cdkey.isOfficial ? 'official' : 'seller'
+  if (cdkey.isOfficial) {
+    // 官方 S***y 行：走自造 cdkey 路径，不传 listing_id
+    activeListingIds.value = []
+    selectedListingId.value = null
+  } else if (cdkey.listing_ids && cdkey.listing_ids.length > 0) {
     activeListingIds.value = [...cdkey.listing_ids]
+    selectedListingId.value = activeListingIds.value[0]
   } else if (cdkey.id) {
     activeListingIds.value = [cdkey.id]
+    selectedListingId.value = cdkey.id
   } else {
     activeListingIds.value = []
+    selectedListingId.value = null
   }
-  selectedListingId.value = activeListingIds.value.length > 0 ? activeListingIds.value[0] : null
 
   // 打开订单弹窗前加载余额
   try {
@@ -696,6 +702,7 @@ const simulatePaySuccess = async () => {
       }
 
       // 卖家 listing 模式：后端自动发货 + 自动填 cdkey
+      // 官方 S***y 行 → activeRowSource='official' + activeListingIds=[] → 走自造 cdkey 路径
       if (activeListingIds.value.length > 0 && activeRowSource.value !== 'official') {
         const idx = Math.floor(Math.random() * activeListingIds.value.length)
         const picked = activeListingIds.value.splice(idx, 1)[0]
@@ -771,7 +778,7 @@ const fetchCdkeyList = async () => {
     return Math.round((1 - price / original) * 100)
   }
   const officialRow = {
-    _rowKey: 'official', source: 'seller', id: 'official',
+    _rowKey: 'official', source: 'seller', id: 'official', isOfficial: true,
     seller_name: 'S***y', avatar: '', price: currentPrice,
     stock: game.value.stock || 99, listing_ids: [],
     version: getVersionType(game.value.name),
@@ -874,7 +881,7 @@ const loadData = async () => {
 
   const calcDiscount = (p, o) => o > 0 ? Math.round((1 - p / o) * 100) : 0;
   const officialRow = {
-    _rowKey: 'official', source: 'seller', id: 'official',
+    _rowKey: 'official', source: 'seller', id: 'official', isOfficial: true,
     seller_name: 'S***y', avatar: '', price: currentPrice,
     stock: matched.stock || 99, listing_ids: [],
     version: '标准版',
