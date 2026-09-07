@@ -67,14 +67,17 @@ public class AdminController {
         m.put("todayOrderCount", todayOrders.size());
         m.put("todayRevenue", todayRevenue);
 
-        // 订单状态分布
+        // 订单状态分布 + 热销榜（需要 game_name 字段，不能只 select status）
         Map<String, Long> statusBreakdown = new HashMap<>();
+        Map<String, Long> gameCount = new HashMap<>();
         QueryWrapper<Order> allOq = new QueryWrapper<>();
-        allOq.select("status");
+        allOq.select("status", "game_name");
         List<Order> all = orderMapper.selectList(allOq);
         for (Order o : all) {
             String s = o.getStatus() == null ? "unknown" : o.getStatus();
             statusBreakdown.merge(s, 1L, Long::sum);
+            String name = o.getGameName();
+            if (name != null && !name.isBlank()) gameCount.merge(name, 1L, Long::sum);
         }
         m.put("orderStatusBreakdown", statusBreakdown);
 
@@ -84,12 +87,7 @@ public class AdminController {
         List<Order> recent = orderMapper.selectList(recentQw);
         m.put("recentOrders", recent);
 
-        // 热销 Top 5 游戏（聚合订单里 game_name）
-        Map<String, Long> gameCount = new HashMap<>();
-        for (Order o : all) {
-            String name = o.getGameName();
-            if (name != null && !name.isBlank()) gameCount.merge(name, 1L, Long::sum);
-        }
+        // 热销 Top 5 游戏（gameCount 已在上面 all 循环里聚合）
         List<Map<String, Object>> topGames = gameCount.entrySet().stream()
                 .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
                 .limit(5)
