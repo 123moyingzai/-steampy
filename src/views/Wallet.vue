@@ -317,7 +317,8 @@ async function submitWithdraw() {
   const res = await walletAPI.withdraw(u.id, withdrawAmount.value, {
     pay_method: payMethod.value,
     account: account.value,
-    real_name: realName.value
+    real_name: realName.value,
+    bank_name: bankName.value
   })
   if (res.error) {
     showToast('提现失败: ' + res.error)

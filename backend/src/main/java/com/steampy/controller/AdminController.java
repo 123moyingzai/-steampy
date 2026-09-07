@@ -22,6 +22,8 @@ public class AdminController {
     @Autowired private ReviewMapper reviewMapper;
     @Autowired private WithdrawRecordMapper withdrawMapper;
     @Autowired private AnnouncementMapper announcementMapper;
+    @Autowired private TransactionMapper transactionMapper;
+    @Autowired private WalletMapper walletMapper;
 
     // ======== 仪表盘统计 ========
     @GetMapping("/stats")
@@ -246,17 +248,43 @@ public class AdminController {
         w.setReviewedAt(now);
         w.setReviewRemark(remark);
 
+        // 找出本次提现关联的两条 Transaction
+        QueryWrapper<Transaction> tq = new QueryWrapper<>();
+        tq.eq("reference_type", "withdraw").eq("reference_id", w.getId());
+        List<Transaction> relatedTxns = transactionMapper.selectList(tq);
+
         if ("approve".equals(action)) {
             w.setStatus("success");
+            // 审核通过 → Transaction 改 completed（真的打款了）
+            for (Transaction tx : relatedTxns) { tx.setStatus("completed"); transactionMapper.updateById(tx); }
         } else if ("reject".equals(action)) {
             w.setStatus("failed");
-            // 拒绝 → 退回买家余额
+            // 审核拒绝 → 退回用户余额（原本冻结的扣回）
             Wallet ww = walletMapper.selectOne(new QueryWrapper<Wallet>().eq("user_id", w.getUserId()));
             if (ww != null) {
                 ww.setBalance(ww.getBalance().add(w.getAmount()));
                 ww.setUpdatedAt(now);
                 walletMapper.updateById(ww);
             }
+            // 退回时还了钱，需要记录一条 reversal Transaction
+            if (ww != null) {
+                Transaction rev = new Transaction();
+                rev.setId(java.util.UUID.randomUUID().toString());
+                rev.setTransactionNo("TXN" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
+                rev.setUserId(w.getUserId());
+                rev.setType("reversal");
+                rev.setTitle("提现审核拒绝 — 余额退回");
+                rev.setAmount(w.getAmount());
+                rev.setBalanceBefore(ww.getBalance().subtract(w.getAmount()));
+                rev.setBalanceAfter(ww.getBalance());
+                rev.setStatus("completed");
+                rev.setReferenceType("withdraw");
+                rev.setReferenceId(w.getId());
+                rev.setCreatedAt(now);
+                transactionMapper.insert(rev);
+            }
+            // 原两条 pending Transaction 也改 failed（状态同步）
+            for (Transaction tx : relatedTxns) { tx.setStatus("failed"); transactionMapper.updateById(tx); }
         }
         withdrawMapper.updateById(w);
         return Result.success(w);

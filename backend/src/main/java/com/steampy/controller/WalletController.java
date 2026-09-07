@@ -84,52 +84,60 @@ public class WalletController {
         String account = (String) body.getOrDefault("account", "");
         String realName = (String) body.getOrDefault("real_name", "");
 
-        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-            return Result.error("提现金额必须大于 0");
-        }
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) return Result.error("提现金额必须大于 0");
 
         // 格式校验
         if (account == null || account.isBlank()) return Result.error("请填写收款账号");
         if (realName == null || realName.isBlank()) return Result.error("请填写真实姓名");
 
         if ("alipay".equals(payMethod)) {
-            if (!account.matches("^1[3-9]\\d{9}$") && !account.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
+            if (!account.matches("^1[3-9]\\d{9}$") && !account.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"))
                 return Result.error("支付宝账号必须是 11 位手机号（1开头）或有效邮箱地址");
-            }
         } else if ("bank".equals(payMethod)) {
-            if (!account.matches("^\\d{16,19}$")) {
-                return Result.error("银行卡号必须为 16-19 位纯数字");
-            }
-            if (!luhnCheck(account)) {
-                return Result.error("银行卡号校验失败，请检查是否输入正确");
-            }
-            String bankName = (String) body.getOrDefault("bank_name", "");
-            if (bankName == null || bankName.isBlank()) return Result.error("请填写开户银行");
+            if (!account.matches("^\\d{16,19}$")) return Result.error("银行卡号必须为 16-19 位纯数字");
+            if (!luhnCheck(account)) return Result.error("银行卡号校验失败，请检查是否输入正确");
+            if (body.get("bank_name") == null || ((String) body.get("bank_name")).isBlank())
+                return Result.error("请填写开户银行");
         } else {
             return Result.error("不支持的提现方式: " + payMethod);
         }
 
-        if (!realName.matches("^[\\u4e00-\\u9fa5·]{2,20}$")) {
+        if (!realName.matches("^[\\u4e00-\\u9fa5·]{2,20}$"))
             return Result.error("真实姓名必须为 2-20 个中文字符");
-        }
 
         BigDecimal fee = amount.multiply(new BigDecimal("0.01")).setScale(2, BigDecimal.ROUND_HALF_UP);
         BigDecimal netAmount = amount.subtract(fee);
 
         Wallet w = getOrCreateWallet(userId);
-        if (w.getBalance().compareTo(amount) < 0) {
+        if (w.getBalance().compareTo(amount) < 0)
             return Result.error("余额不足，当前余额 ¥" + w.getBalance());
-        }
 
+        // ① 立即扣余额（冻结）
         BigDecimal before = w.getBalance();
         w.setBalance(before.subtract(amount));
         w.setUpdatedAt(LocalDateTime.now());
         walletMapper.updateById(w);
 
         LocalDateTime now = LocalDateTime.now();
+
+        // ② 先写 WithdrawRecord 拿到 id（reference）
+        WithdrawRecord wr = new WithdrawRecord();
+        wr.setOrderNo("WD" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0, 4).toUpperCase());
+        wr.setUserId(userId);
+        wr.setPayMethod(payMethod);
+        wr.setAccount(account);
+        wr.setRealName(realName);
+        wr.setAmount(amount);
+        wr.setFee(fee);
+        wr.setNetAmount(netAmount);
+        wr.setStatus("pending");
+        wr.setAppliedAt(now);
+        withdrawRecordMapper.insert(wr);
+        // insert 后 wr.getId() 有值了
+
+        // ③ 写两条 Transaction，referenceId 指向 WithdrawRecord（status=pending 等审核）
         String txnNo = "TXN" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase();
 
-        // 提现交易（支出，负数）
         Transaction t = new Transaction();
         t.setId(UUID.randomUUID().toString());
         t.setTransactionNo(txnNo);
@@ -139,12 +147,12 @@ public class WalletController {
         t.setAmount(amount.negate());
         t.setBalanceBefore(before);
         t.setBalanceAfter(w.getBalance());
-        t.setStatus("completed");
+        t.setStatus("pending");
         t.setReferenceType("withdraw");
+        t.setReferenceId(wr.getId());
         t.setCreatedAt(now);
         transactionMapper.insert(t);
 
-        // 手续费单独一条记录
         Transaction feeTx = new Transaction();
         feeTx.setId(UUID.randomUUID().toString());
         feeTx.setTransactionNo("TXN" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
@@ -154,25 +162,11 @@ public class WalletController {
         feeTx.setAmount(fee.negate());
         feeTx.setBalanceBefore(w.getBalance());
         feeTx.setBalanceAfter(w.getBalance());
-        feeTx.setStatus("completed");
+        feeTx.setStatus("pending");
         feeTx.setReferenceType("withdraw");
+        feeTx.setReferenceId(wr.getId());
         feeTx.setCreatedAt(now);
         transactionMapper.insert(feeTx);
-
-        // 提现记录（用于前端提现记录表格）
-        WithdrawRecord wr = new WithdrawRecord();
-        wr.setId(UUID.randomUUID().toString());
-        wr.setOrderNo("WD" + System.currentTimeMillis() + UUID.randomUUID().toString().substring(0, 4).toUpperCase());
-        wr.setUserId(userId);
-        wr.setPayMethod(payMethod);
-        wr.setAccount(account);
-        wr.setRealName(realName);
-        wr.setAmount(amount);
-        wr.setFee(fee);
-        wr.setNetAmount(netAmount);
-        wr.setStatus("success");
-        wr.setAppliedAt(now);
-        withdrawRecordMapper.insert(wr);
 
         return Result.success(Map.of(
             "balance", w.getBalance(),
