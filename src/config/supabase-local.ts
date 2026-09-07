@@ -237,14 +237,15 @@ export const walletAPI = {
   async withdraw(
     userId: string | number,
     amount: number,
-    extra: { pay_method?: string; account?: string; real_name?: string } = {}
+    extra: { pay_method?: string; account?: string; real_name?: string; bank_name?: string } = {}
   ): Promise<ApiResponse<any>> {
     try {
       const data = await apiRequest<any>(`/wallets/user/${userId}/withdraw`, 'POST', {
         amount,
         pay_method: extra.pay_method || 'alipay',
         account: extra.account || '',
-        real_name: extra.real_name || ''
+        real_name: extra.real_name || '',
+        bank_name: extra.bank_name || ''
       })
       return { data }
     } catch (e: any) {
