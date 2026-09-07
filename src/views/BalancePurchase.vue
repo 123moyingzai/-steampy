@@ -1,4 +1,4 @@
-﻿﻿﻿<template>
+﻿﻿﻿﻿<template>
   <Layout>
     <div class="cjx-list-header">
       <h2 class="cjx-list-title">余额购 · 平台热门游戏</h2>
@@ -57,7 +57,7 @@ const router = useRouter()
 const games = ref<any[]>([])
 const searchQuery = ref('')
 const page = ref(1)
-const pageSize = 24
+const pageSize = 70
 
 const getRawPrice = (p: any) => {
   if (typeof p === 'number') return p

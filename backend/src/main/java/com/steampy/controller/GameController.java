@@ -3,11 +3,14 @@ package com.steampy.controller;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.steampy.dto.Result;
 import com.steampy.entity.Game;
+import com.steampy.entity.Order;
 import com.steampy.mapper.GameMapper;
+import com.steampy.mapper.OrderMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/games")
@@ -15,17 +18,45 @@ public class GameController {
 
     @Autowired
     private GameMapper gameMapper;
+    @Autowired
+    private OrderMapper orderMapper;
 
-    // 获取所有游戏
+    // 获取所有游戏（带销量 sales_count）
     @GetMapping
-    public Result<List<Game>> getGames(@RequestParam(required = false) Boolean isPresale) {
+    public Result<List<Map<String, Object>>> getGames(@RequestParam(required = false) Boolean isPresale) {
         QueryWrapper<Game> qw = new QueryWrapper<>();
         if (isPresale != null) {
             qw.eq("is_presale", isPresale);
         }
         qw.orderByAsc("name");
-        List<Game> list = gameMapper.selectList(qw);
-        return Result.success(list);
+        List<Game> games = gameMapper.selectList(qw);
+
+        // 聚合每个游戏的已完成订单数（销量）
+        QueryWrapper<Order> oq = new QueryWrapper<>();
+        oq.eq("status", "completed");
+        List<Order> allOrders = orderMapper.selectList(oq);
+        Map<Long, Long> salesMap = allOrders.stream()
+            .filter(o -> o.getGameId() != null)
+            .collect(Collectors.groupingBy(Order::getGameId, Collectors.counting()));
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Game g : games) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", g.getId());
+            m.put("name", g.getName());
+            m.put("developer", g.getDeveloper());
+            m.put("price", g.getPrice());
+            m.put("original_price", g.getOriginalPrice());
+            m.put("discount", g.getDiscount());
+            m.put("image", g.getImage());
+            m.put("description", g.getDescription());
+            m.put("release_date", g.getReleaseDate());
+            m.put("is_presale", g.getIsPresale());
+            m.put("stock", g.getStock());
+            m.put("sales_count", salesMap.getOrDefault(g.getId(), 0L));
+            result.add(m);
+        }
+        return Result.success(result);
     }
 
     // 按 ID 获取游戏

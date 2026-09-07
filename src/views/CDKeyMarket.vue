@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <Layout>
     <div class="cjx-cdkey-page">
       <!-- ========== 火热预售（单独一行）========== -->
@@ -104,14 +104,14 @@ const searchQuery = ref('')
 const sortBy = ref('newest')       // newest / week-sales / sales / discount / price
 const loading = ref(false)
 const page = ref(1)
-const pageSize = 24
+const pageSize = 70
 
 const sortOptions = [
-  { value: 'newest', label: '最新' },
-  { value: 'week-sales', label: '周销量' },
-  { value: 'sales', label: '销量' },
-  { value: 'discount', label: '折扣' },
-  { value: 'price', label: '价格' }
+  { value: 'sales', label: '销量热度' },
+  { value: 'newest', label: '最新上架' },
+  { value: 'discount', label: '折扣力度' },
+  { value: 'price-asc', label: '价格升序' },
+  { value: 'price-desc', label: '价格降序' }
 ]
 
 const getImageUrl = (path: string) => {
@@ -142,7 +142,8 @@ const allGames = computed(() => {
       original_price: op || null,
       discount,
       lowest_source: 'official',
-      is_presale: !!g.is_presale
+      is_presale: !!g.is_presale,
+      sales_count: Number(g.sales_count || 0)
     })
   }
 
@@ -192,7 +193,8 @@ const allGames = computed(() => {
           price: info.minPrice,
           original_price: op || null,
           discount: d,
-          lowest_source: 'seller'
+          lowest_source: 'seller',
+          sales_count: 0
         })
       }
     }
@@ -226,16 +228,17 @@ const displayGames = computed(() => {
 
   // 排序
   switch (sortBy.value) {
-    case 'price': result.sort((a, b) => a.price - b.price); break
-    case 'discount': result.sort((a, b) => {
+    case 'sales': result.sort((a, b) => Number(b.sales_count || 0) - Number(a.sales_count || 0)); break
+    case 'price-asc': result.sort((a, b) => a.price - b.price); break
+    case 'price-desc': result.sort((a, b) => b.price - a.price); break
+    case 'discount': {
       const da = parseInt(a.discount?.replace(/[^0-9]/g, '') || 0)
       const db = parseInt(b.discount?.replace(/[^0-9]/g, '') || 0)
-      return da - db // 折扣大的在前（绝对值大）
-    }); break
+      result.sort((a, b) => db - da)
+      break
+    }
     case 'newest':
-    case 'week-sales':
-    case 'sales':
-    default: break // 保持原顺序
+    default: break
   }
   return result
 })
