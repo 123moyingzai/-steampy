@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="admin-games">
     <!-- 工具栏 -->
     <div class="toolbar">
@@ -36,7 +36,7 @@
             <td class="mono">{{ game.id }}</td>
             <td>
               <div class="game-thumb">
-                <img :src="game.image_url || game.image || '/picture/安魂曲.jpg'" :alt="game.name">
+                <img :src="game.image || '/picture/安魂曲.jpg'" :alt="game.name">
               </div>
             </td>
             <td class="game-name">{{ game.name }}</td>
@@ -113,12 +113,7 @@
 
           <div class="form-group">
             <label>封面图片URL</label>
-            <input type="text" v-model="formData.image_url" placeholder="https://... 或 /picture/xxx.jpg">
-          </div>
-
-          <div class="form-group">
-            <label>跳转链接</label>
-            <input type="text" v-model="formData.link" placeholder="点击游戏时跳转的路由或URL">
+            <input type="text" v-model="formData.image" placeholder="https://... 或 /picture/xxx.jpg">
           </div>
 
           <div class="form-group">
@@ -144,7 +139,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { adminGameAPI } from '../../config/admin-api'
+import axios from 'axios'
 
 const games = ref<any[]>([])
 const filteredGames = ref<any[]>([])
@@ -154,139 +149,74 @@ const editingGame = ref<any>(null)
 const saving = ref(false)
 
 const formData = reactive({
-  name: '',
-  developer: '',
-  price: 0,
-  original_price: 0,
-  discount: 0,
-  stock: null as number | null,
-  is_presale: false,
-  image_url: '',
-  link: '',
-  description: '',
-  release_date: ''
+  name: '', developer: '', price: 0, original_price: 0, discount: 0,
+  stock: null as number | null, is_presale: false, image: '',
+  description: '', release_date: ''
 })
 
 const resetForm = () => {
-  Object.assign(formData, {
-    name: '',
-    developer: '',
-    price: 0,
-    original_price: 0,
-    discount: 0,
-    stock: null,
-    is_presale: false,
-    image_url: '',
-    link: '',
-    description: '',
-    release_date: ''
-  })
+  Object.assign(formData, { name: '', developer: '', price: 0, original_price: 0, discount: 0,
+    stock: null, is_presale: false, image: '', description: '', release_date: '' })
 }
 
 const loadGames = async () => {
-  games.value = await adminGameAPI.getGames()
-  filteredGames.value = [...games.value]
+  try {
+    const r = await axios.get('/api/admin/games')
+    games.value = r.data?.data || []
+    filteredGames.value = [...games.value]
+  } catch (e) { console.error('加载游戏失败', e) }
 }
 
 const filterGames = () => {
   const kw = searchKeyword.value.trim().toLowerCase()
-  if (!kw) {
-    filteredGames.value = [...games.value]
-    return
-  }
-  filteredGames.value = games.value.filter(g =>
-    (g.name || '').toLowerCase().includes(kw)
-  )
+  filteredGames.value = kw ? games.value.filter(g => (g.name || '').toLowerCase().includes(kw)) : [...games.value]
 }
 
-const openCreateModal = () => {
-  editingGame.value = null
-  resetForm()
-  showModal.value = true
-}
-
+const openCreateModal = () => { editingGame.value = null; resetForm(); showModal.value = true }
 const openEditModal = (game: any) => {
   editingGame.value = game
   Object.assign(formData, {
-    name: game.name,
-    developer: game.developer || '',
-    price: game.price || 0,
-    original_price: game.original_price || 0,
-    discount: game.discount || 0,
-    stock: game.stock ?? null,
-    is_presale: !!game.is_presale,
-    image_url: game.image_url || game.image || '',
-    link: game.link || '',
+    name: game.name, developer: game.developer || '',
+    price: Number(game.price || 0), original_price: Number(game.original_price || 0),
+    discount: Number(game.discount || 0), stock: game.stock ?? null,
+    is_presale: !!game.is_presale, image: game.image || '',
     description: game.description || '',
     release_date: game.release_date ? game.release_date.slice(0, 10) : ''
   })
   showModal.value = true
 }
-
-const closeModal = () => {
-  showModal.value = false
-  resetForm()
-}
+const closeModal = () => { showModal.value = false; resetForm() }
 
 const handleSave = async () => {
-  if (!formData.name.trim()) {
-    alert('请输入游戏名称')
-    return
-  }
-  if (!formData.price || formData.price < 0) {
-    alert('请输入有效的价格')
-    return
-  }
-
+  if (!formData.name.trim()) { alert('请输入游戏名称'); return }
+  if (formData.price < 0) { alert('价格不能为负'); return }
   saving.value = true
   try {
     const payload: any = {
-      name: formData.name,
-      developer: formData.developer,
-      price: formData.price,
-      original_price: formData.original_price || null,
-      discount: formData.discount || 0,
-      stock: formData.stock,
-      is_presale: formData.is_presale,
-      image_url: formData.image_url,
-      link: formData.link,
-      description: formData.description,
-      release_date: formData.release_date || null
+      name: formData.name, developer: formData.developer,
+      price: formData.price, original_price: formData.original_price || null,
+      discount: formData.discount || 0, stock: formData.stock,
+      is_presale: formData.is_presale, image: formData.image,
+      description: formData.description, release_date: formData.release_date || null
     }
-
     if (editingGame.value) {
-      const result = await adminGameAPI.updateGame(editingGame.value.id, payload)
-      if (result.error) {
-        alert('更新失败: ' + result.error)
-      } else {
-        alert('更新成功')
-        closeModal()
-        await loadGames()
-      }
+      await axios.put(`/api/admin/games/${editingGame.value.id}`, payload)
+      alert('更新成功')
     } else {
-      const result = await adminGameAPI.createGame(payload)
-      if (result.error) {
-        alert('创建失败: ' + result.error)
-      } else {
-        alert('创建成功')
-        closeModal()
-        await loadGames()
-      }
+      await axios.post('/api/admin/games', payload)
+      alert('创建成功')
     }
-  } finally {
-    saving.value = false
-  }
+    closeModal(); await loadGames()
+  } catch (e: any) { alert('保存失败: ' + (e?.response?.data?.message || e.message)) }
+  finally { saving.value = false }
 }
 
 const handleDelete = async (game: any) => {
   if (!confirm(`确定删除游戏 "${game.name}" 吗？此操作不可恢复！`)) return
-  const result = await adminGameAPI.deleteGame(game.id)
-  if (result.error) {
-    alert('删除失败: ' + result.error)
-  } else {
-    alert('删除成功')
-    await loadGames()
-  }
+  try {
+    await axios.delete(`/api/admin/games/${game.id}`)
+    alert('删除成功'); await loadGames()
+  } catch (e: any) { alert('删除失败: ' + (e?.response?.data?.message || e.message)) }
 }
 
 const stripYuan = (val: any): string => {
@@ -294,9 +224,7 @@ const stripYuan = (val: any): string => {
   return String(val).replace(/[¥$￥]/g, '').trim()
 }
 
-onMounted(() => {
-  loadGames()
-})
+onMounted(loadGames)
 </script>
 
 <style scoped>

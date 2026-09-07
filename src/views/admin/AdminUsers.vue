@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="admin-users">
     <!-- 工具栏 -->
     <div class="toolbar">
@@ -113,7 +113,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { adminUserAPI } from '../../config/admin-api'
+import axios from 'axios'
 
 const users = ref<any[]>([])
 const filteredUsers = ref<any[]>([])
@@ -132,25 +132,29 @@ const formData = reactive({
 })
 
 const resetForm = () => {
-  formData.username = ''
-  formData.nickname = ''
-  formData.phone = ''
-  formData.password = ''
-  formData.user_type = '普通用户'
-  formData.wallet_balance = 0
+  formData.username = ''; formData.nickname = ''; formData.phone = ''
+  formData.password = ''; formData.user_type = '普通用户'; formData.wallet_balance = 0
 }
 
 const loadUsers = async () => {
-  users.value = await adminUserAPI.getUsers()
-  filteredUsers.value = [...users.value]
+  try {
+    const r = await axios.get('/api/admin/users')
+    const list = r.data?.data || []
+    // 并行查每个用户的钱包余额
+    const withWallets = await Promise.all(list.map(async (u: any) => {
+      try {
+        const wr = await axios.get(`/api/wallets/user/${u.id}`)
+        return { ...u, wallet_balance: wr.data?.data?.balance ?? 0 }
+      } catch { return { ...u, wallet_balance: 0 } }
+    }))
+    users.value = withWallets
+    filteredUsers.value = [...withWallets]
+  } catch (e) { console.error('加载用户失败', e) }
 }
 
 const filterUsers = () => {
   const kw = searchKeyword.value.trim().toLowerCase()
-  if (!kw) {
-    filteredUsers.value = [...users.value]
-    return
-  }
+  if (!kw) { filteredUsers.value = [...users.value]; return }
   filteredUsers.value = users.value.filter(u =>
     (u.username || '').toLowerCase().includes(kw) ||
     (u.nickname || '').toLowerCase().includes(kw) ||
@@ -158,89 +162,47 @@ const filterUsers = () => {
   )
 }
 
-const openCreateModal = () => {
-  editingUser.value = null
-  resetForm()
-  showModal.value = true
-}
-
+const openCreateModal = () => { editingUser.value = null; resetForm(); showModal.value = true }
 const openEditModal = (user: any) => {
   editingUser.value = user
   Object.assign(formData, {
-    username: user.username,
-    nickname: user.nickname || '',
-    phone: user.phone || '',
-    password: '',
-    user_type: user.user_type || '普通用户',
-    wallet_balance: user.wallet_balance || 0
+    username: user.username, nickname: user.nickname || '', phone: user.phone || '',
+    password: '', user_type: user.user_type || '普通用户', wallet_balance: user.wallet_balance || 0
   })
   showModal.value = true
 }
-
-const closeModal = () => {
-  showModal.value = false
-  resetForm()
-}
+const closeModal = () => { showModal.value = false; resetForm() }
 
 const handleSave = async () => {
-  if (!formData.username.trim()) {
-    alert('请输入用户名')
-    return
-  }
-
+  if (!formData.username.trim()) { alert('请输入用户名'); return }
   saving.value = true
   try {
     if (editingUser.value) {
-      const updateData: any = {
-        nickname: formData.nickname,
-        phone: formData.phone,
-        user_type: formData.user_type,
-        wallet_balance: formData.wallet_balance
-      }
-      if (formData.password) {
-        updateData.password_hash = formData.password
-      }
-      const result = await adminUserAPI.updateUser(editingUser.value.id, updateData)
-      if (result.error) {
-        alert('更新失败: ' + result.error)
-      } else {
-        alert('更新成功')
-        closeModal()
-        await loadUsers()
-      }
+      // 只有角色通过 ban 端点能改；其他字段暂时后端没 admin update user 端点
+      const action = formData.user_type === '管理员' ? 'admin'
+                   : formData.user_type === '已封禁' ? 'ban'
+                   : 'normal'
+      await axios.put(`/api/admin/users/${editingUser.value.id}/ban`, { action })
+      alert('更新成功')
+      closeModal(); await loadUsers()
     } else {
-      if (!formData.password || formData.password.length < 6) {
-        alert('密码至少6位')
-        return
-      }
-      const result = await adminUserAPI.createUser({
-        username: formData.username,
-        password_hash: formData.password,
-        nickname: formData.nickname || formData.username,
-        phone: formData.phone,
-        user_type: formData.user_type,
-        wallet_balance: formData.wallet_balance
+      if (!formData.password || formData.password.length < 6) { alert('密码至少6位'); return }
+      await axios.post('/api/auth/register', {
+        username: formData.username, password: formData.password,
+        nickname: formData.nickname || formData.username, phone: formData.phone
       })
-      if (result.error) {
-        alert('创建失败: ' + result.error)
-      } else {
-        alert('创建成功')
-        closeModal()
-        await loadUsers()
-      }
+      alert('创建成功')
+      closeModal(); await loadUsers()
     }
-  } finally {
-    saving.value = false
-  }
+  } catch (e: any) { alert('保存失败: ' + (e?.response?.data?.message || e.message)) }
+  finally { saving.value = false }
 }
 
 const isUserBanned = (user: any) => user.user_type === '已封禁'
-
 const getUserBadgeText = (user: any) => {
   if (user.user_type === '已封禁') return '已封禁'
   return user.user_type || '普通用户'
 }
-
 const getUserBadgeClass = (user: any) => {
   if (user.user_type === '已封禁') return 'banned'
   if (user.user_type === '管理员') return 'admin'
@@ -248,26 +210,18 @@ const getUserBadgeClass = (user: any) => {
 }
 
 const handleBan = async (user: any) => {
-  if (!confirm(`确定封禁用户 "${user.username}" 吗？封禁后该用户将无法登录。`)) return
-  const result = await adminUserAPI.updateUser(user.id, { user_type: '已封禁' })
-  if (result.error) {
-    alert('封禁失败: ' + result.error)
-  } else {
-    alert('封禁成功')
-    await loadUsers()
-  }
+  if (!confirm(`确定封禁用户 "${user.username}" 吗？`)) return
+  try {
+    await axios.put(`/api/admin/users/${user.id}/ban`, { action: 'ban' })
+    alert('封禁成功'); await loadUsers()
+  } catch (e: any) { alert('封禁失败: ' + (e?.response?.data?.message || e.message)) }
 }
-
 const handleUnban = async (user: any) => {
   if (!confirm(`确定解禁用户 "${user.username}" 吗？`)) return
-  // 解禁后默认恢复为普通用户
-  const result = await adminUserAPI.updateUser(user.id, { user_type: '普通用户' })
-  if (result.error) {
-    alert('解禁失败: ' + result.error)
-  } else {
-    alert('解禁成功')
-    await loadUsers()
-  }
+  try {
+    await axios.put(`/api/admin/users/${user.id}/ban`, { action: 'normal' })
+    alert('解禁成功'); await loadUsers()
+  } catch (e: any) { alert('解禁失败: ' + (e?.response?.data?.message || e.message)) }
 }
 
 const formatTime = (timeStr: string) => {
@@ -275,14 +229,10 @@ const formatTime = (timeStr: string) => {
   try {
     const d = new Date(timeStr)
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-  } catch {
-    return timeStr
-  }
+  } catch { return timeStr }
 }
 
-onMounted(() => {
-  loadUsers()
-})
+onMounted(loadUsers)
 </script>
 
 <style scoped>

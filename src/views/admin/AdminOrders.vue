@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="admin-orders">
     <!-- 工具栏 -->
     <div class="toolbar">
@@ -109,7 +109,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { adminOrderAPI } from '../../config/admin-api'
+import axios from 'axios'
 
 const orders = ref<any[]>([])
 const filteredOrders = ref<any[]>([])
@@ -129,10 +129,11 @@ const pendingCount = computed(() =>
 )
 
 const loadOrders = async () => {
-  const data = await adminOrderAPI.getOrders()
-  // 给每条订单加一个 _status 用于下拉框绑定
-  orders.value = data.map(o => ({ ...o, _status: '' }))
-  filterOrders()
+  try {
+    const r = await axios.get('/api/admin/orders')
+    orders.value = (r.data?.data || []).map((o: any) => ({ ...o, _status: '' }))
+    filterOrders()
+  } catch (e) { console.error('加载订单失败', e) }
 }
 
 const filterOrders = () => {
@@ -153,24 +154,20 @@ const filterOrders = () => {
 
 const handleStatusChange = async (order: any) => {
   if (!order._status) return
-  const result = await adminOrderAPI.updateOrderStatus(order.id, order._status)
-  if (result.error) {
-    alert('更新失败: ' + result.error)
-  } else {
+  try {
+    await axios.put(`/api/admin/orders/${order.id}/status`, { status: order._status })
     order.status = order._status
     order._status = ''
-  }
+  } catch (e: any) { alert('更新失败: ' + (e?.response?.data?.message || e.message)) }
 }
 
 const handleDelete = async (order: any) => {
   if (!confirm(`确定删除订单 "${order.order_no || order.id}" 吗？`)) return
-  const result = await adminOrderAPI.deleteOrder(order.id)
-  if (result.error) {
-    alert('删除失败: ' + result.error)
-  } else {
+  try {
+    await axios.delete(`/api/orders/${order.id}`)
     alert('删除成功')
     await loadOrders()
-  }
+  } catch (e: any) { alert('删除失败: ' + (e?.response?.data?.message || e.message)) }
 }
 
 const getStatusClass = (status: string) => {
