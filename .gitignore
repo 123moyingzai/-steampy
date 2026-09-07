@@ -7,12 +7,13 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Node
 node_modules
 dist
 dist-ssr
 *.local
 
-# Editor directories and files
+# Editor
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -33,6 +34,9 @@ backend/HELP.md
 backend/mvnw
 backend/mvnw.cmd
 settings.xml
+
+# SECURITY — API keys / credentials
+backend/src/main/resources/application.properties
 
 # MySQL migration temp
 *.sql.bak

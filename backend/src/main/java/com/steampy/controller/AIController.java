@@ -16,6 +16,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -125,10 +126,10 @@ public class AIController {
             String body = om.writeValueAsString(payload);
             HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(endpoint))
-                    .header("Content-Type", "application/json")
+                    .header("Content-Type", "application/json; charset=UTF-8")
                     .header("Authorization", "Bearer " + apiKey.trim())
-                    .timeout(Duration.ofSeconds(30))
-                    .POST(HttpRequest.BodyPublishers.ofString(body))
+                    .timeout(Duration.ofSeconds(60))
+                    .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                     .build();
 
             HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
@@ -242,19 +243,25 @@ public class AIController {
 
     // ==================== 工具方法 ====================
 
-    /** 模糊搜游戏：名称包含 / 中文名包含 / 开发商包含 */
+    /** 模糊搜游戏：名称包含 / 中文名包含（忽略标点）/ 开发商包含 */
     private List<Game> fuzzySearchGames(String query, int limit) {
         if (query == null || query.isBlank()) return List.of();
-        String q = query.trim().toLowerCase();
+        // 归一化：去标点空格，统一小写
+        String q = query.replaceAll("[\\s\\p{Punct}：:·\\-—]", "").toLowerCase();
         List<Game> all = gameMapper.selectList(null);
         return all.stream()
                 .filter(g -> {
                     String name = g.getName() == null ? "" : g.getName().toLowerCase();
-                    String cn = g.getNameCn() == null ? "" : g.getNameCn().toLowerCase();
+                    String cnRaw = g.getNameCn() == null ? "" : g.getNameCn();
+                    String cn = cnRaw.replaceAll("[\\s\\p{Punct}：:·\\-—]", "").toLowerCase();
                     String dev = g.getDeveloper() == null ? "" : g.getDeveloper().toLowerCase();
-                    return name.contains(q) || q.contains(name)
-                            || cn.contains(q) || q.contains(cn)
+                    // 直接包含 OR 归一化后包含
+                    boolean hit = name.contains(q) || q.contains(name)
                             || dev.contains(q);
+                    if (!hit && !cn.isBlank()) {
+                        hit = cn.contains(q) || q.contains(cn);
+                    }
+                    return hit;
                 })
                 .limit(limit)
                 .collect(Collectors.toList());
