@@ -43,14 +43,64 @@ public class AdminController {
         wq.eq("status", "pending");
         m.put("pendingWithdrawals", withdrawMapper.selectCount(wq));
 
-        QueryWrapper<Order> oq = new QueryWrapper<>();
-        oq.eq("status", "completed");
-        List<Order> completed = orderMapper.selectList(oq);
+        // 总收入（已完成订单）
+        QueryWrapper<Order> completedQw = new QueryWrapper<>();
+        completedQw.eq("status", "completed");
+        List<Order> completed = orderMapper.selectList(completedQw);
         BigDecimal totalRevenue = BigDecimal.ZERO;
         for (Order o : completed) {
             if (o.getTotalPrice() != null) totalRevenue = totalRevenue.add(o.getTotalPrice());
         }
         m.put("totalRevenue", totalRevenue);
+
+        // 今日订单 / 今日收入
+        LocalDateTime todayStart = LocalDateTime.now().toLocalDate().atStartOfDay();
+        QueryWrapper<Order> todayQw = new QueryWrapper<>();
+        todayQw.ge("created_at", todayStart);
+        List<Order> todayOrders = orderMapper.selectList(todayQw);
+        BigDecimal todayRevenue = BigDecimal.ZERO;
+        for (Order o : todayOrders) {
+            if ("completed".equals(o.getStatus()) && o.getTotalPrice() != null) {
+                todayRevenue = todayRevenue.add(o.getTotalPrice());
+            }
+        }
+        m.put("todayOrderCount", todayOrders.size());
+        m.put("todayRevenue", todayRevenue);
+
+        // 订单状态分布
+        Map<String, Long> statusBreakdown = new HashMap<>();
+        QueryWrapper<Order> allOq = new QueryWrapper<>();
+        allOq.select("status");
+        List<Order> all = orderMapper.selectList(allOq);
+        for (Order o : all) {
+            String s = o.getStatus() == null ? "unknown" : o.getStatus();
+            statusBreakdown.merge(s, 1L, Long::sum);
+        }
+        m.put("orderStatusBreakdown", statusBreakdown);
+
+        // 最近 8 条订单（完整字段）
+        QueryWrapper<Order> recentQw = new QueryWrapper<>();
+        recentQw.orderByDesc("created_at").last("LIMIT 8");
+        List<Order> recent = orderMapper.selectList(recentQw);
+        m.put("recentOrders", recent);
+
+        // 热销 Top 5 游戏（聚合订单里 game_name）
+        Map<String, Long> gameCount = new HashMap<>();
+        for (Order o : all) {
+            String name = o.getGameName();
+            if (name != null && !name.isBlank()) gameCount.merge(name, 1L, Long::sum);
+        }
+        List<Map<String, Object>> topGames = gameCount.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .limit(5)
+                .map(e -> {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("gameName", e.getKey());
+                    row.put("orderCount", e.getValue());
+                    return row;
+                }).toList();
+        m.put("topGames", topGames);
+
         return Result.success(m);
     }
 
