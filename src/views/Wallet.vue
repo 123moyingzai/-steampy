@@ -69,16 +69,20 @@
             <input
               v-model="account"
               class="cjx-wallet-input"
-              placeholder="请输入支付宝账号（手机号或邮箱）"
+              :class="{ 'cjx-input-error': accountError }"
+              placeholder="11位手机号 或 name@example.com"
             />
+            <div v-if="accountError" class="cjx-form-error">{{ accountError }}</div>
           </div>
           <div class="cjx-form-row">
             <label>支付宝真实姓名</label>
             <input
               v-model="realName"
               class="cjx-wallet-input"
-              placeholder="请输入与支付宝账号一致的真实姓名"
+              :class="{ 'cjx-input-error': nameError }"
+              placeholder="2-20 个中文字符"
             />
+            <div v-if="nameError" class="cjx-form-error">{{ nameError }}</div>
           </div>
         </template>
 
@@ -89,7 +93,7 @@
             <input
               v-model="bankName"
               class="cjx-wallet-input"
-              placeholder="请输入开户银行（如中国工商银行）"
+              placeholder="如：中国工商银行"
             />
           </div>
           <div class="cjx-form-row">
@@ -97,16 +101,21 @@
             <input
               v-model="account"
               class="cjx-wallet-input"
-              placeholder="请输入银行卡号"
+              :class="{ 'cjx-input-error': accountError }"
+              placeholder="16-19 位纯数字（支持 Luhn 校验）"
+              @input="account = account.replace(/\D/g, '')"
             />
+            <div v-if="accountError" class="cjx-form-error">{{ accountError }}</div>
           </div>
           <div class="cjx-form-row">
             <label>持卡人姓名</label>
             <input
               v-model="realName"
               class="cjx-wallet-input"
-              placeholder="请输入与银行卡一致的持卡人姓名"
+              :class="{ 'cjx-input-error': nameError }"
+              placeholder="2-20 个中文字符"
             />
+            <div v-if="nameError" class="cjx-form-error">{{ nameError }}</div>
           </div>
         </template>
 
@@ -223,12 +232,58 @@ const fee = computed(() => {
 const netAmount = computed(() => Math.max(0, withdrawAmount.value - fee.value))
 
 const canSubmit = computed(() => {
-  return withdrawAmount.value > 0
-    && withdrawAmount.value <= balance.value
-    && account.value.trim()
-    && realName.value.trim()
-    && (payMethod.value !== 'bank' || bankName.value.trim())
+  if (withdrawAmount.value <= 0) return false
+  if (withdrawAmount.value > balance.value) return false
+  if (!account.value.trim()) return false
+  if (!realName.value.trim()) return false
+  if (payMethod.value === 'bank' && !bankName.value.trim()) return false
+  if (accountError.value) return false
+  if (nameError.value) return false
+  return true
 })
+
+// ==== 格式校验 ====
+const phoneRegex = /^1[3-9]\d{9}$/
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const bankCardRegex = /^\d{16,19}$/
+const chineseNameRegex = /^[\u4e00-\u9fa5·]{2,20}$/
+
+const accountError = computed(() => {
+  const v = account.value.trim()
+  if (!v) return ''
+  if (payMethod.value === 'alipay') {
+    if (!phoneRegex.test(v) && !emailRegex.test(v))
+      return '支付宝账号必须是 11 位手机号（1开头）或有效邮箱地址'
+  } else {
+    if (!bankCardRegex.test(v))
+      return '银行卡号必须为 16-19 位纯数字'
+    if (!luhnCheck(v))
+      return '银行卡号校验失败，请检查是否输入正确'
+  }
+  return ''
+})
+
+const nameError = computed(() => {
+  const v = realName.value.trim()
+  if (!v) return ''
+  if (!chineseNameRegex.test(v))
+    return '真实姓名必须为 2-20 个中文字符'
+  return ''
+})
+
+// Luhn 算法校验银行卡号（基础校验，不判具体银行）
+function luhnCheck(num: string): boolean {
+  if (!/^\d+$/.test(num)) return false
+  let sum = 0
+  let even = false
+  for (let i = num.length - 1; i >= 0; i--) {
+    let d = Number(num[i])
+    if (even) { d *= 2; if (d > 9) d -= 9 }
+    sum += d
+    even = !even
+  }
+  return sum % 10 === 0
+}
 
 const formatDate = (t: any) => {
   if (!t) return ''
@@ -317,17 +372,19 @@ onMounted(loadBalance)
 
 /* 表单行 */
 .cjx-form-row {
-  display: flex; align-items: center; gap: 16px;
-  margin-bottom: 20px;
+  display: flex; flex-direction: column; gap: 6px;
+  margin-bottom: 16px;
 }
 .cjx-form-row label {
-  width: 140px; font-size: 14px; color: #555; text-align: right; flex-shrink: 0;
+  font-size: 14px; color: #555; text-align: left;
 }
 .cjx-wallet-input {
-  flex: 1; padding: 10px 14px; border: 1px solid #ddd; border-radius: 4px;
-  font-size: 14px; outline: none; transition: border-color .2s;
+  width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 6px;
+  font-size: 14px; outline: none; transition: border-color .2s; box-sizing: border-box;
 }
 .cjx-wallet-input:focus { border-color: #3498db; }
+.cjx-input-error { border-color: #e74c3c !important; background: #fef6f6; }
+.cjx-form-error { color: #e74c3c; font-size: 12px; line-height: 1.4; }
 .cjx-input-with-btn {
   flex: 1; display: flex; gap: 8px;
 }

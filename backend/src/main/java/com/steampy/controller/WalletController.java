@@ -84,12 +84,37 @@ public class WalletController {
         String account = (String) body.getOrDefault("account", "");
         String realName = (String) body.getOrDefault("real_name", "");
 
-        BigDecimal fee = amount.multiply(new BigDecimal("0.01")).setScale(2, BigDecimal.ROUND_HALF_UP);
-        BigDecimal netAmount = amount.subtract(fee);
-
         if (amount.compareTo(BigDecimal.ZERO) <= 0) {
             return Result.error("提现金额必须大于 0");
         }
+
+        // 格式校验
+        if (account == null || account.isBlank()) return Result.error("请填写收款账号");
+        if (realName == null || realName.isBlank()) return Result.error("请填写真实姓名");
+
+        if ("alipay".equals(payMethod)) {
+            if (!account.matches("^1[3-9]\\d{9}$") && !account.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")) {
+                return Result.error("支付宝账号必须是 11 位手机号（1开头）或有效邮箱地址");
+            }
+        } else if ("bank".equals(payMethod)) {
+            if (!account.matches("^\\d{16,19}$")) {
+                return Result.error("银行卡号必须为 16-19 位纯数字");
+            }
+            if (!luhnCheck(account)) {
+                return Result.error("银行卡号校验失败，请检查是否输入正确");
+            }
+            String bankName = (String) body.getOrDefault("bank_name", "");
+            if (bankName == null || bankName.isBlank()) return Result.error("请填写开户银行");
+        } else {
+            return Result.error("不支持的提现方式: " + payMethod);
+        }
+
+        if (!realName.matches("^[\\u4e00-\\u9fa5·]{2,20}$")) {
+            return Result.error("真实姓名必须为 2-20 个中文字符");
+        }
+
+        BigDecimal fee = amount.multiply(new BigDecimal("0.01")).setScale(2, BigDecimal.ROUND_HALF_UP);
+        BigDecimal netAmount = amount.subtract(fee);
 
         Wallet w = getOrCreateWallet(userId);
         if (w.getBalance().compareTo(amount) < 0) {
@@ -165,6 +190,20 @@ public class WalletController {
         qw.eq("user_id", userId).orderByDesc("applied_at");
         List<WithdrawRecord> list = withdrawRecordMapper.selectList(qw);
         return Result.success(list != null ? list : new ArrayList<>());
+    }
+
+    // Luhn 算法校验银行卡号
+    private static boolean luhnCheck(String num) {
+        if (num == null || !num.matches("^\\d+$")) return false;
+        int sum = 0;
+        boolean even = false;
+        for (int i = num.length() - 1; i >= 0; i--) {
+            int d = num.charAt(i) - '0';
+            if (even) { d *= 2; if (d > 9) d -= 9; }
+            sum += d;
+            even = !even;
+        }
+        return sum % 10 == 0;
     }
 
     private Wallet getOrCreateWallet(String userId) {
