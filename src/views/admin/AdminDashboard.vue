@@ -1,6 +1,5 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="admin-dashboard">
-    <!-- 统计卡片 -->
     <div class="stats-grid">
       <div class="stat-card" v-for="stat in statsCards" :key="stat.label">
         <div class="stat-icon" :style="{ background: stat.bg }">
@@ -82,82 +81,48 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { adminStatsAPI } from '../../config/admin-api'
+import axios from 'axios'
 
-const stats = ref({
-  totalUsers: 0,
-  totalGames: 0,
-  totalOrders: 0,
-  totalAnnouncements: 0,
-  totalRevenue: 0,
-  recentOrders: [] as any[]
+const stats = ref<any>({
+  userCount: 0, gameCount: 0, orderCount: 0,
+  availableListings: 0, pendingReviews: 0, pendingWithdrawals: 0,
+  totalRevenue: 0, recentOrders: []
 })
 
 const statsCards = [
-  {
-    label: '总用户数',
-    get value() { return stats.value.totalUsers },
-    icon: '<path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5z"/>',
-    bg: '#3498db'
-  },
-  {
-    label: '游戏数量',
-    get value() { return stats.value.totalGames },
-    icon: '<path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V10h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>',
-    bg: '#27ae60'
-  },
-  {
-    label: '总订单数',
-    get value() { return stats.value.totalOrders },
-    icon: '<path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>',
-    bg: '#f39c12'
-  },
-  {
-    label: '总收入 (¥)',
-    get value() { return stats.value.totalRevenue.toFixed(2) },
-    icon: '<path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>',
-    bg: '#e74c3c'
-  }
+  { label: '总用户数',          get value() { return stats.value.userCount },           bg: '#3498db', icon: '<path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5z"/>' },
+  { label: '游戏数量',          get value() { return stats.value.gameCount },           bg: '#27ae60', icon: '<path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V10h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/>' },
+  { label: '在售上架',          get value() { return stats.value.availableListings },   bg: '#1abc9c', icon: '<path d="M3 3h18v4H3V3zm0 5h18v13H3V8zm3 3v2h12v-2H6zm0 4v2h8v-2H6z"/>' },
+  { label: '总收入 (¥)',        get value() { return Number(stats.value.totalRevenue || 0).toFixed(2) }, bg: '#e74c3c', icon: '<path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>' },
+  { label: '总订单数',          get value() { return stats.value.orderCount },          bg: '#f39c12', icon: '<path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>' },
+  { label: '待审核提现',        get value() { return stats.value.pendingWithdrawals },  bg: '#e67e22', icon: '<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>' },
+  { label: '待审核评测',        get value() { return stats.value.pendingReviews },      bg: '#9b59b6', icon: '<path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 12h-2v-2h2v2zm0-4h-2V6h2v4z"/>' }
 ]
 
 const getStatusClass = (status: string) => {
-  const map: Record<string, string> = {
-    completed: 'success',
-    pending: 'warning',
-    cancelled: 'danger',
-    failed: 'danger'
-  }
+  const map: Record<string, string> = { completed: 'success', pending: 'warning', cancelled: 'danger', failed: 'danger' }
   return map[status] || 'default'
 }
-
 const getStatusText = (status: string) => {
-  const map: Record<string, string> = {
-    completed: '已完成',
-    pending: '处理中',
-    cancelled: '已取消',
-    failed: '失败'
-  }
+  const map: Record<string, string> = { completed: '已完成', pending: '处理中', cancelled: '已取消', failed: '失败' }
   return map[status] || status || '未知'
 }
-
 const formatTime = (timeStr: string) => {
   if (!timeStr) return '-'
   try {
     const d = new Date(timeStr)
     return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-  } catch {
-    return timeStr
-  }
+  } catch { return timeStr }
 }
 
 const loadStats = async () => {
-  const result = await adminStatsAPI.getDashboardStats()
-  stats.value = result
+  try {
+    const r = await axios.get('/api/admin/stats')
+    stats.value = r.data?.data || stats.value
+  } catch (e) { console.error('加载统计失败', e) }
 }
 
-onMounted(() => {
-  loadStats()
-})
+onMounted(loadStats)
 </script>
 
 <style scoped>

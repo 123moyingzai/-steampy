@@ -21,6 +21,8 @@ public class WithdrawRecord {
     private BigDecimal amount;
     private BigDecimal fee;
     private BigDecimal netAmount;
-    private String status;
+    private String status;       // pending / success / failed
     private LocalDateTime appliedAt;
+    private LocalDateTime reviewedAt;
+    private String reviewRemark;
 }
