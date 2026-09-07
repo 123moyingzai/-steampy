@@ -50,7 +50,7 @@
         <!-- 批量操作条（仅在有选中时显示）-->
         <div class="cjx-batch-bar" v-if="selectedIds.size > 0">
           <span class="cjx-batch-info">已选 {{ selectedIds.size }} 个</span>
-          <button class="cjx-btn cjx-btn-quick" @click="openBatchPrice">⚡ 批量改价</button>
+          <button class="cjx-btn cjx-btn-quick" @click="openBatchPrice">批量改价</button>
           <button class="cjx-btn cjx-btn-small" @click="toggleSelectAll">全选/全不选</button>
           <button class="cjx-btn cjx-btn-small cjx-btn-danger-outline" @click="clearSelection">取消</button>
         </div>
@@ -94,7 +94,7 @@
               <td>
                 <!-- 在售 → 下架(变成待激活) + 定价 -->
                 <template v-if="l.status === 'available'">
-                  <button class="cjx-btn cjx-btn-small cjx-btn-quick" @click="openQuickPrice(l)">⚡定价</button>
+                  <button class="cjx-btn cjx-btn-small cjx-btn-quick" @click="openQuickPrice(l)">定价</button>
                   <button class="cjx-btn cjx-btn-small cjx-btn-danger" @click="softDeleteListing(l)">下架</button>
                 </template>
                 <!-- 已售 → 不可操作 -->
@@ -120,7 +120,7 @@
         <div class="cjx-modal-mask" v-if="showBatchPriceModal" @click.self="closeBatchPrice">
           <div class="cjx-modal">
             <div class="cjx-modal-header">
-              <h3>⚡ 批量改价（{{ batchPriceGroups.length }} 款游戏）</h3>
+              <h3>批量改价（{{ batchPriceGroups.length }} 款游戏）</h3>
               <button class="cjx-btn-icon" @click="closeBatchPrice">✕</button>
             </div>
             <div class="cjx-modal-body">
@@ -138,7 +138,7 @@
                 </div>
                 <div class="cjx-batch-input-row">
                   <input type="number" step="0.01" v-model.number="g.price" class="cjx-input" placeholder="输入新价格" />
-                  <button class="cjx-btn cjx-btn-quick" @click="g.price = batchOneClickPrice(g)">⚡一键定价 ¥{{ batchOneClickPrice(g).toFixed(2) }}</button>
+                  <button class="cjx-btn cjx-btn-quick" @click="g.price = batchOneClickPrice(g)">一键定价 ¥{{ batchOneClickPrice(g).toFixed(2) }}</button>
                 </div>
               </div>
             </div>
@@ -153,13 +153,13 @@
         <div class="cjx-modal-mask" v-if="showQuickPriceModal" @click.self="showQuickPriceModal = false">
           <div class="cjx-modal" style="max-width:360px">
             <div class="cjx-modal-header">
-              <h3>⚡ 改价 — {{ quickPriceTarget?.game_name }}</h3>
+              <h3>改价 — {{ quickPriceTarget?.game_name }}</h3>
               <button class="cjx-btn-icon" @click="showQuickPriceModal = false">✕</button>
             </div>
             <div class="cjx-modal-body">
               <div class="cjx-batch-input-row">
                 <input type="number" step="0.01" v-model.number="quickPriceValue" class="cjx-input" />
-                <button class="cjx-btn cjx-btn-quick" @click="quickPriceValue = quickPriceOneClick">⚡¥{{ quickPriceOneClick.toFixed(2) }}</button>
+                <button class="cjx-btn cjx-btn-quick" @click="quickPriceValue = quickPriceOneClick">¥{{ quickPriceOneClick.toFixed(2) }}</button>
               </div>
             </div>
             <div class="cjx-modal-footer">
@@ -231,7 +231,7 @@
               @click="quickPrice"
               :disabled="currentMinPrice == null || currentMinPrice <= 0"
             >
-              ⚡ 一键定价 ¥{{ listingQuickPriceValue.toFixed(2) }}
+              一键定价 ¥{{ listingQuickPriceValue.toFixed(2) }}
             </button>
           </div>
 
@@ -712,7 +712,7 @@ const listingQuickPriceValue = computed(() => {
 const quickPrice = () => {
   if (currentMinPrice.value == null) return
   newForm.value.price = listingQuickPriceValue.value
-  showToast(`⚡ 已一键定价 ¥${listingQuickPriceValue.value.toFixed(2)}`)
+  showToast(`已一键定价 ¥${listingQuickPriceValue.value.toFixed(2)}`)
 }
 
 const getImageUrl = (src?: string) => {
