@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <Layout>
     <div class="cjx-cdkey-page">
       <!-- ========== 火热预售（单独一行）========== -->
@@ -205,9 +205,6 @@ const allGames = computed(() => {
   }
 
   const result = Array.from(map.values())
-  // 诊断 log — 只看 game_id=8 三更
-  const sg = result.find((x: any) => String(x.game_id) === '8')
-  if (sg) console.log('[catalog] 三更:', JSON.stringify(sg))
   return result
 })
 
@@ -235,12 +232,13 @@ const displayGames = computed(() => {
     case 'sales': result.sort((a, b) => Number(b.sales_count || 0) - Number(a.sales_count || 0)); break
     case 'price-asc': result.sort((a, b) => a.price - b.price); break
     case 'price-desc': result.sort((a, b) => b.price - a.price); break
-    case 'discount': {
-      const da = parseInt(a.discount?.replace(/[^0-9]/g, '') || 0)
-      const db = parseInt(b.discount?.replace(/[^0-9]/g, '') || 0)
-      result.sort((a, b) => db - da)
+    case 'discount':
+      result.sort((a, b) => {
+        const da = parseInt((a.discount || '').replace(/[^0-9]/g, '') || '0')
+        const db = parseInt((b.discount || '').replace(/[^0-9]/g, '') || '0')
+        return db - da   // 折扣绝对值大的在前
+      })
       break
-    }
     case 'newest':
     default: break
   }
