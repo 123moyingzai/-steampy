@@ -243,7 +243,7 @@ interface Game {
 interface Message {
   role: 'user' | 'assistant'
   content?: string
-  games?: Game[]
+  games?: any[]
   noGameHint?: string
 }
 
@@ -283,16 +283,26 @@ const quickPrompts = [
   'CDKey 怎么激活？'
 ]
 
-// ========== 游戏数据加载（预售 + CDKey 市场） ==========
+// ========== 游戏数据加载（从后端 /api/games） ==========
 onMounted(async () => {
   try {
-    const resp = await axios.get('/cdk_games.json')
-    const data = resp.data
-    const preSale = (data.preSaleItems || []).map((g: Game) => ({ ...g, isPresale: true }))
-    const normal = data.gameItems || []
-    games.value = [...preSale, ...normal]
+    const resp = await axios.get('/api/games')
+    const list = resp.data?.data || resp.data || []
+    games.value = list.map((g: any) => ({
+      id: g.id,
+      name: g.name,
+      price: String(g.price ?? 0),
+      originalPrice: g.original_price != null ? String(g.original_price) : undefined,
+      discount: g.discount,
+      image: g.image,
+      description: g.description,
+      releaseDate: g.release_date,
+      developer: g.developer,
+      isPresale: !!g.is_presale,
+      stock: g.stock ?? 0
+    }))
   } catch (e) {
-    console.warn('加载游戏数据失败，使用空列表', e)
+    console.warn('加载游戏数据失败', e)
     games.value = []
   }
 })
@@ -313,9 +323,9 @@ const handleImgError = (e: Event) => {
 }
 
 // ========== 路由跳转 ==========
-const goToGame = (game: Game) => {
-  const gameId = encodeURIComponent(game.name)
-  router.push(`/game/${gameId}`)
+const goToGame = (game: any) => {
+  const gameId = game.game_id || game.id
+  router.push({ path: `/game/${encodeURIComponent(game.name)}`, query: { game_id: gameId } })
 }
 
 // ========== 意图识别 + 路由分发 ==========
@@ -637,10 +647,46 @@ async function sendMessage(text?: string) {
   isTyping.value = true
   scrollToBottom()
 
-  await new Promise(r => setTimeout(r, 500 + Math.random() * 600))
+  try {
+    // 构造多轮历史（只传 role + content，最多最近 10 条）
+    const history = messages.value.slice(-10).map(m => ({
+      role: m.role,
+      content: m.content || ''
+    }))
 
-  const reply = buildAssistantReply(content)
-  messages.value.push(reply)
+    const resp = await axios.post('/api/ai/chat', {
+      userId: localStorage.getItem('userId') || 'guest',
+      messages: history
+    }, { timeout: 30000 })
+
+    const data = resp.data?.data || resp.data
+    const reply: Message = {
+      role: 'assistant',
+      content: data.reply || '收到！不过我这边暂时没理解你的问题 😅'
+    }
+    // 附带游戏卡片（如果有）
+    if (data.games && data.games.length > 0) {
+      reply.games = data.games.map((g: any) => ({
+        id: g.id,
+        name: g.name,
+        price: String(g.price ?? 0),
+        originalPrice: g.original_price != null ? String(g.original_price) : undefined,
+        discount: g.discount,
+        image: g.image,
+        developer: g.developer,
+        isPresale: !!g.is_presale,
+        stock: g.stock ?? 0
+      }))
+    }
+
+    messages.value.push(reply)
+  } catch (e: any) {
+    messages.value.push({
+      role: 'assistant',
+      content: '抱歉，AI 服务暂时不可用 😅\n你可以试试直接问我游戏名（如「黑神话悟空」）或者加 QQ群 807662430 找人工客服。'
+    })
+  }
+
   isTyping.value = false
   scrollToBottom()
 }

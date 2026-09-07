@@ -11,6 +11,7 @@ public class Game {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String name;
+    private String nameCn;
     private BigDecimal price;
     private BigDecimal originalPrice;
     private String discount;

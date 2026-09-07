@@ -330,7 +330,6 @@ public class AdminController {
     @PostMapping("/announcements")
     public Result<Announcement> createAnnouncement(@RequestBody Announcement a) {
         a.setCreatedAt(LocalDateTime.now());
-        a.setUpdatedAt(LocalDateTime.now());
         announcementMapper.insert(a);
         return Result.success(a);
     }
@@ -338,7 +337,6 @@ public class AdminController {
     @PutMapping("/announcements/{id}")
     public Result<Announcement> updateAnnouncement(@PathVariable Long id, @RequestBody Announcement body) {
         body.setId(id);
-        body.setUpdatedAt(LocalDateTime.now());
         announcementMapper.updateById(body);
         return Result.success(body);
     }
