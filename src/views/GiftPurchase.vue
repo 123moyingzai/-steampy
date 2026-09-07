@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <Layout>
     <div class="cjx-gift-page">
 
@@ -175,7 +175,7 @@ const selectedGame = ref<any>(null)
 const games = ref<any[]>([])
 const listings = ref<any[]>([])
 const page = ref(1)
-const pageSize = 70
+const pageSize = 24
 const sortKey = ref<string>('price')
 const searchQuery = ref('')
 

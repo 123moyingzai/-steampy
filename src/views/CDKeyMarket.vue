@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <Layout>
     <div class="cjx-cdkey-page">
       <!-- ========== 火热预售（单独一行）========== -->
@@ -41,9 +41,9 @@
             v-for="opt in sortOptions" :key="opt.value"
             class="cjx-sort-btn"
             :class="{ 'cjx-sort-active': sortBy === opt.value }"
-            @click="sortBy = opt.value"
+            @click="sortBy = opt.value; page = 1"
           >{{ opt.label }}</button>
-          <input v-model="searchQuery" placeholder="游戏全称搜索" class="cjx-search-input" />
+          <input v-model="searchQuery" placeholder="游戏全称搜索" class="cjx-search-input" @input="page = 1" />
           <span class="cjx-magnifier">🔍</span>
         </div>
 
@@ -51,11 +51,11 @@
         <div v-if="loading" class="cjx-loading">加载中...</div>
         <div v-else-if="displayGames.length === 0" class="cjx-empty">暂无商品</div>
 
-        <!-- 游戏卡片网格（图2） -->
+        <!-- 游戏卡片网格 -->
         <div class="cjx-game-grid" v-else>
           <div 
             class="cjx-game-card" 
-            v-for="item in displayGames" 
+            v-for="item in paginatedDisplayGames" 
             :key="item.uid" 
             @click="goToGame(item)"
           >
@@ -71,6 +71,18 @@
               </div>
             </div>
           </div>
+        </div>
+
+        <!-- 分页 -->
+        <div class="cjx-pagination" v-if="totalPages > 1">
+          <button class="cjx-page-btn" :disabled="page <= 1" @click="page--">上一页</button>
+          <button 
+            v-for="p in totalPages" :key="p" 
+            class="cjx-page-btn" 
+            :class="{ active: p === page }"
+            @click="page = p"
+          >{{ p }}</button>
+          <button class="cjx-page-btn" :disabled="page >= totalPages" @click="page++">下一页</button>
         </div>
       </section>
     </div>
@@ -91,6 +103,8 @@ const listings = ref<any[]>([])    // 卖家上架
 const searchQuery = ref('')
 const sortBy = ref('newest')       // newest / week-sales / sales / discount / price
 const loading = ref(false)
+const page = ref(1)
+const pageSize = 24
 
 const sortOptions = [
   { value: 'newest', label: '最新' },
@@ -226,6 +240,13 @@ const displayGames = computed(() => {
   return result
 })
 
+const totalPages = computed(() => Math.max(1, Math.ceil(displayGames.value.length / pageSize)))
+
+const paginatedDisplayGames = computed(() => {
+  const start = (page.value - 1) * pageSize
+  return displayGames.value.slice(start, start + pageSize)
+})
+
 const goToGame = (item: any) => {
   router.push({
     path: `/game/${encodeURIComponent(item.name)}`,
@@ -327,4 +348,11 @@ onMounted(loadData)
 .cjx-card-price { font-size: 17px; color: #e74c3c; font-weight: 700; }
 
 .cjx-loading, .cjx-empty { text-align: center; padding: 60px; color: #999; }
+
+/* 分页 */
+.cjx-pagination { display: flex; justify-content: center; align-items: center; gap: 6px; margin-top: 24px; }
+.cjx-page-btn { padding: 6px 12px; border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; font-size: 13px; transition: all .15s; }
+.cjx-page-btn:hover:not(:disabled) { border-color: #1890ff; color: #1890ff; }
+.cjx-page-btn.active { background: #1890ff; color: #fff; border-color: #1890ff; }
+.cjx-page-btn:disabled { opacity: .4; cursor: not-allowed; }
 </style>
