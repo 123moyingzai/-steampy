@@ -393,24 +393,38 @@ export const sellerAPI = {
 }
 
 // ========== 评论/评测 ==========
+// snake_case → camelCase 辅助（Jackson 返回 snake_case，前端用 camelCase）
+function snakeToCamel<T = any>(obj: any): T {
+  if (Array.isArray(obj)) return obj.map(snakeToCamel) as any
+  if (obj && typeof obj === 'object') {
+    const out: any = {}
+    for (const k of Object.keys(obj)) {
+      const camel = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
+      out[camel] = snakeToCamel(obj[k])
+    }
+    return out as T
+  }
+  return obj
+}
+
 export const reviewAPI = {
   async listByGame(gameId: number): Promise<any[]> {
     try {
-      const r = await apiRequest<any>(`/api/reviews/game/${gameId}`, { method: 'GET' })
-      return r?.data || []
+      const r = await apiRequest<any>(`/reviews/game/${gameId}`, 'GET')
+      return snakeToCamel(r || [])
     } catch { return [] }
   },
   async myReview(gameId: number, userId: string): Promise<any | null> {
     try {
-      const r = await apiRequest<any>(`/api/reviews/my?gameId=${gameId}&userId=${encodeURIComponent(userId)}`, { method: 'GET' })
-      return r?.data || null
+      const r = await apiRequest<any>(`/reviews/my?gameId=${gameId}&userId=${encodeURIComponent(userId)}`, 'GET')
+      return snakeToCamel(r) || null
     } catch { return null }
   },
   async save(body: { id?: string; gameId: number; userId: string; userName?: string; recommend: number; content: string; images?: string }): Promise<any> {
-    return await apiRequest<any>('/api/reviews', { method: 'POST', body })
+    return await apiRequest<any>('/reviews', 'POST', body)
   },
   async delete(id: string, userId: string): Promise<any> {
-    return await apiRequest<any>(`/api/reviews/${id}?userId=${encodeURIComponent(userId)}`, { method: 'DELETE' })
+    return await apiRequest<any>(`/reviews/${id}?userId=${encodeURIComponent(userId)}`, 'DELETE')
   }
 }
 
@@ -563,6 +577,78 @@ export const listingAPI = {
   async selfActivate(id: string): Promise<ApiResponse<any>> {
     try {
       const data = await apiRequest<any>(`/listings/${id}/self-activate`, 'PUT')
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  }
+}
+
+// ========== Steam 绑定 & 库存 ==========
+export const steamAPI = {
+  /** 模拟绑定 Steam（后端生成假数据 + 假库存） */
+  async bind(userId: string): Promise<ApiResponse<any>> {
+    try {
+      const data = await apiRequest<any>(`/steam/bind/${userId}`, 'POST')
+      // 绑定成功后刷新 sessionStorage 里的用户信息
+      const current = authAPI.getCurrentUser()
+      if (current) {
+        const merged = { ...current, ...data, steam_bound: true }
+        sessionStorage.setItem('steampy_user', JSON.stringify(merged))
+      }
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+
+  /** 解绑 Steam */
+  async unbind(userId: string): Promise<ApiResponse<any>> {
+    try {
+      await apiRequest<any>(`/steam/unbind/${userId}`, 'DELETE')
+      // 刷新 sessionStorage
+      const current = authAPI.getCurrentUser()
+      if (current) {
+        const cleared: any = { ...current }
+        ;['steam_id', 'steam_name', 'steam_avatar_url', 'steam_region',
+          'steam_level', 'steam_game_count', 'steam_account_value',
+          'steam_playtime', 'steam_bound', 'steam_bound_at'].forEach(k => delete cleared[k])
+        cleared.steam_bound = false
+        sessionStorage.setItem('steampy_user', JSON.stringify(cleared))
+      }
+      return { data: null }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+
+  /** 获取 Steam 账号信息 */
+  async getInfo(userId: string): Promise<ApiResponse<any>> {
+    try {
+      const data = await apiRequest<any>(`/steam/info/${userId}`)
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+
+  /** 获取 Steam 游戏库 */
+  async getLibrary(userId: string): Promise<ApiResponse<any[]>> {
+    try {
+      const data = await apiRequest<any[]>(`/steam/library/${userId}`)
+      return { data }
+    } catch (e: any) {
+      return { data: [] }
+    }
+  },
+
+  /** 查重：用户 Steam 库中是否已有该游戏 */
+  async checkOwnership(userId: string, gameId?: number | string, gameName?: string): Promise<ApiResponse<{ owned: boolean; steam_bound: boolean; owned_game_name?: string }>> {
+    try {
+      const qs = new URLSearchParams({ userId })
+      if (gameId != null) qs.set('gameId', String(gameId))
+      if (gameName) qs.set('gameName', gameName)
+      const data = await apiRequest<any>(`/steam/check-ownership?${qs.toString()}`)
       return { data }
     } catch (e: any) {
       return { error: e.message }

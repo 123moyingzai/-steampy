@@ -179,7 +179,7 @@ async function submit() {
       userName: currentUser.username || currentUser.nickname || '匿名用户',
       recommend: form.recommend,
       content: form.content.trim(),
-      images: form.imagesList.join(',')
+      images: form.imagesList.join('|||')
     })
     if (res?.code === 200 || !res?.code) {
       alert(existingId.value ? '修改成功' : '发布成功，评论稍后展示')

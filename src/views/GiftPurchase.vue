@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <Layout>
     <div class="cjx-gift-page">
 
@@ -165,7 +165,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Layout from '../components/Layout.vue'
-import { fetchAllGames, listingAPI, orderAPI, authAPI, walletAPI } from '../config/supabase-local.ts'
+import { fetchAllGames, listingAPI, orderAPI, authAPI, walletAPI, steamAPI } from '../config/supabase-local.ts'
 
 const router = useRouter()
 
@@ -351,11 +351,30 @@ const alipayAmount = computed(() => {
 })
 const selectedBuyer = ref<any>(null) // 当前弹窗选中的卖家
 
-const showBuyDialog = (s: any) => {
+const showBuyDialog = async (s: any) => {
   const user = authAPI.getCurrentUser()
   if (!user) { showToast('请先登录'); router.push('/login'); return }
   // 不能买自己的
   if (s.sellerId === user.id) { showToast('不能购买您自己上架的商品'); return }
+  // Steam 绑定预检查
+  const bound = user.steam_bound === true || !!user.steamId || !!user.steam_id
+  if (!bound) {
+    const go = confirm('请先绑定 Steam 账号后才能代购。\n\n是否前往绑定页面？')
+    if (go) router.push('/settings')
+    return
+  }
+  // 前置查重
+  try {
+    const ownership = await steamAPI.checkOwnership(
+      user.id,
+      selectedGame.value?.game_id,
+      selectedGame.value?.name
+    )
+    if (ownership.data && ownership.data.owned) {
+      alert(`您的 Steam 库存中已拥有《${ownership.data.owned_game_name || selectedGame.value?.name}》，无法重复购买。`)
+      return
+    }
+  } catch (e) { console.warn('查重失败:', e) }
   selectedBuyer.value = s
   balanceCheck.value = false
   buyerBalance.value = 0

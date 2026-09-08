@@ -374,7 +374,7 @@
             <p class="cjx-review-content">{{ r.content }}</p>
             <div class="cjx-review-imgs" v-if="r.images">
               <img
-                v-for="(img, i) in (r.images || '').split(',').filter(Boolean)"
+                v-for="(img, i) in (r.images?.includes('|||') ? r.images.split('|||').filter(Boolean) : (r.images ? [r.images] : []))"
                 :key="i"
                 :src="img"
                 class="cjx-review-img"
@@ -400,7 +400,7 @@
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
-import { authAPI, orderAPI, transactionAPI, walletAPI, userGameAPI, fetchAllGames, reviewAPI } from '../config/supabase-local.ts'
+import { authAPI, orderAPI, transactionAPI, walletAPI, userGameAPI, fetchAllGames, reviewAPI, steamAPI } from '../config/supabase-local.ts'
 import Layout from '../components/Layout.vue'
 
 const route = useRoute()
@@ -563,6 +563,32 @@ const buyCDKey = async (cdkey) => {
   if (cdkey.source === 'seller' && cdkey.seller_id === currentUser.id) {
     alert('不能购买您自己上架的 CDKey')
     return
+  }
+  // Steam 绑定预检查（sessionStorage 标志，不请求后端）
+  const bound = currentUser.steam_bound === true || !!currentUser.steamId || !!currentUser.steam_id
+  if (!bound) {
+    const go = confirm('请先绑定 Steam 账号后才能购买游戏。\n\n是否前往绑定页面？')
+    if (go) router.push('/settings')
+    return
+  }
+  // ===== 前置查重：调用后端确认是否已拥有 =====
+  try {
+    const ownership = await steamAPI.checkOwnership(
+      currentUser.id,
+      game.value.id,
+      game.value.name
+    )
+    if (ownership.data && ownership.data.owned) {
+      alert(`您的 Steam 库存中已拥有《${ownership.data.owned_game_name || game.value.name}》，无法重复购买。`)
+      return
+    }
+    if (ownership.data && ownership.data.steam_bound === false) {
+      alert('Steam 账号绑定状态异常，请重新绑定后再试。')
+      router.push('/settings')
+      return
+    }
+  } catch (e: any) {
+    console.warn('查重请求失败，但仍允许继续购买:', e)
   }
   // 设置选中行 → 右侧价格、订单弹窗全部跟这个行
   selectedRow.value = cdkey

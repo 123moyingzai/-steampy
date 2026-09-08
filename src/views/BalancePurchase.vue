@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿<template>
   <Layout>
     <div class="cjx-list-header">
       <h2 class="cjx-list-title">余额购 · 平台热门游戏</h2>

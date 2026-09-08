@@ -2,23 +2,31 @@ package com.steampy.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.steampy.dto.Result;
+import com.steampy.entity.Game;
 import com.steampy.entity.Listing;
 import com.steampy.entity.Order;
+import com.steampy.entity.SteamLibrary;
 import com.steampy.entity.Transaction;
+import com.steampy.entity.User;
 import com.steampy.entity.UserGame;
 import com.steampy.entity.Wallet;
 import com.steampy.mapper.ListingMapper;
 import com.steampy.mapper.OrderMapper;
+import com.steampy.mapper.SteamLibraryMapper;
 import com.steampy.mapper.TransactionMapper;
 import com.steampy.mapper.UserGameMapper;
+import com.steampy.mapper.UserMapper;
 import com.steampy.mapper.WalletMapper;
+import com.steampy.service.SteamService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Random;
 import java.util.UUID;
 
 @RestController
@@ -35,11 +43,34 @@ public class OrderController {
     private ListingMapper listingMapper;
     @Autowired
     private WalletMapper walletMapper;
+    @Autowired
+    private SteamLibraryMapper steamLibraryMapper;
+    @Autowired
+    private UserMapper userMapper;
+    @Autowired
+    private SteamService steamService;
 
     @PostMapping
     @Transactional
     public Result<Order> createOrder(@RequestBody Order order,
                                      @RequestParam(required = false) BigDecimal balance_amount) {
+        // ===== Steam 绑定检查：未绑定禁止购买 =====
+        User buyer = userMapper.selectById(order.getBuyerId());
+        if (buyer == null) {
+            return Result.error("用户不存在");
+        }
+        if (!Boolean.TRUE.equals(buyer.getSteamBound())) {
+            return Result.error("请先绑定 Steam 账号后再购买");
+        }
+
+        // ===== Steam 库存查重：已拥有禁止重复购买 =====
+        Long accountId = buyer.getSteamAccountId();
+        if (accountId != null
+                && order.getGameName() != null && !order.getGameName().isBlank()
+                && steamService.isGameOwned(accountId, order.getGameId(), order.getGameName())) {
+            return Result.error("您的 Steam 库存中已拥有该游戏，无法重复购买");
+        }
+
         order.setId(UUID.randomUUID().toString());
         order.setOrderNo("ORD" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
         if (order.getStatus() == null) order.setStatus("completed");
@@ -180,6 +211,22 @@ public class OrderController {
             st.setOrderId(order.getId());
             st.setCreatedAt(LocalDateTime.now());
             transactionMapper.insert(st);
+        }
+
+        // ===== 购买后自动激活到 Steam 账号（steam_libraries） =====
+        if ("cdkey".equals(order.getOrderType()) && order.getCdkey() != null && !order.getCdkey().isEmpty()
+                && order.getGameName() != null && !order.getGameName().isBlank() && accountId != null) {
+            if (!steamService.isGameOwned(accountId, order.getGameId(), order.getGameName())) {
+                SteamLibrary sl = new SteamLibrary();
+                sl.setUserId(order.getBuyerId());
+                sl.setSteamAccountId(accountId);
+                sl.setGameId(order.getGameId());
+                sl.setGameName(order.getGameName());
+                sl.setGameImage(order.getGameImage());
+                sl.setPlaytime(new Random().nextInt(50) + 1);
+                steamLibraryMapper.insert(sl);
+            }
+            steamService.refreshUserSteamStats(order.getBuyerId());
         }
 
         return Result.success(order);
