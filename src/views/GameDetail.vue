@@ -960,7 +960,10 @@ const fetchCdkeyList = async () => {
 
 // 加载数据
 const loadData = async () => {
-  const gameId = Number(route.query.game_id || 0);
+  // 优先从 path params 取 ID（路由是 /game/:id），其次从 query.game_id 取，最后用名称
+  const paramId = Number(route.params.id) || 0;
+  const queryGameId = Number(route.query.game_id || 0);
+  const gameId = paramId || queryGameId;
   const gameNameFromRoute = decodeURIComponent(String(route.params.id || ''));
 
   let allGames = [];
