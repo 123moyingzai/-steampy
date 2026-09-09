@@ -268,7 +268,7 @@ const markAnnAllRead = async () => {
   await loadUnread()
 }
 
-// 点击信封面板里的一条通知 → 标记已读 + 跳转到游戏详情
+// 点击信封面板里的一条通知 → 标记已读 + 跳转到游戏详情并定位评论
 const openNotification = async (n: any) => {
   if (!n.is_read && currentUser.value?.id) {
     await notificationAPI.markRead(n.id)
@@ -276,7 +276,8 @@ const openNotification = async (n: any) => {
   }
   showMsgPanel.value = false
   if (n.game_id) {
-    router.push('/game/' + n.game_id)
+    // target_id 是 review ID 或 reply ID，GameDetail 会自动展开父评论
+    router.push({ path: '/game/' + n.game_id, query: { highlight: n.target_id, hlType: n.target_type } })
   }
 }
 

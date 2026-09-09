@@ -360,7 +360,7 @@
 
         <!-- 评论列表 -->
         <div class="cjx-review-list" v-if="reviews.length">
-          <div class="cjx-review-item" v-for="r in reviews" :key="r.id">
+          <div class="cjx-review-item" v-for="r in reviews" :key="r.id" :data-review-id="r.id">
             <div class="cjx-review-top">
               <div class="cjx-review-user">
                 <span class="cjx-review-avatar">{{ (r.userName || '匿').slice(0, 1) }}</span>
@@ -407,7 +407,7 @@
             <!-- 楼中楼展开区 -->
             <div class="cjx-replies-wrap" v-if="expandedReviews[r.id]" @click.stop>
               <div class="cjx-replies-list" v-if="r._replies?.length">
-                <div class="cjx-reply-item" v-for="rp in r._replies" :key="rp.id">
+                <div class="cjx-reply-item" v-for="rp in r._replies" :key="rp.id" :data-reply-id="rp.id">
                   <div class="cjx-reply-head">
                     <span class="cjx-reply-avatar">{{ (rp.userName || '匿').slice(0, 1) }}</span>
                     <span class="cjx-reply-name">{{ rp.userName || '匿名' }}</span>
@@ -518,7 +518,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import { authAPI, orderAPI, transactionAPI, walletAPI, userGameAPI, fetchAllGames, reviewAPI, steamAPI } from '../config/supabase-local.ts'
@@ -1289,8 +1289,64 @@ function previewImg(src: string) {
 // 生命周期
 onMounted(async () => {
   await loadData()
-  loadReviews()
+  await loadReviews()
+  // 通知跳转过来的，自动展开 + 定位
+  const hid = route.query.highlight as string
+  const hlType = route.query.hlType as string
+  if (hid) scrollToHighlight(hid, hlType)
 })
+
+// 监听 query 变化（同页面内点通知，Vue 不 remount）
+watch(() => route.query, (q) => {
+  if (q?.highlight) scrollToHighlight(q.highlight as string, q.hlType as string)
+})
+
+// 通知跳转定位：找到并展开对应的 review/reply
+async function scrollToHighlight(targetId: string, hlType?: string) {
+  // 先看看是不是 review
+  const review = reviews.value.find((r: any) => r.id === targetId)
+  if (review || hlType === 'review') {
+    if (review) {
+      expandedReviews.value[review.id] = true
+      await nextTick()
+      // 首次展开拉 replies
+      if (!review._replies) {
+        const u = authAPI.getCurrentUser()
+        review._replies = await reviewAPI.listReplies(review.id, u?.id)
+      }
+      scrollAndFlash(`[data-review-id="${review.id}"]`)
+    }
+    return
+  }
+  // 是 reply：遍历所有 review 查它的 replies，找到后展开父 review 再 scroll
+  for (const r of reviews.value) {
+    if (!r._replies) {
+      expandedReviews.value[r.id] = true
+      const u = authAPI.getCurrentUser()
+      r._replies = await reviewAPI.listReplies(r.id, u?.id)
+    }
+    const found = r._replies?.find((rp: any) => rp.id === targetId)
+    if (found) {
+      expandedReviews.value[r.id] = true
+      await nextTick()
+      scrollAndFlash(`[data-reply-id="${targetId}"]`)
+      return
+    }
+  }
+}
+
+function scrollAndFlash(selector: string) {
+  nextTick(() => {
+    const el = document.querySelector(selector) as HTMLElement | null
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.style.transition = 'box-shadow 0.5s'
+    el.style.boxShadow = '0 0 0 3px #3498db'
+    setTimeout(() => {
+      el.style.boxShadow = ''
+    }, 2500)
+  })
+}
 </script>
 
 <style scoped>

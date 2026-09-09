@@ -125,7 +125,7 @@ const openNotification = async (n: any) => {
     n.is_read = true
     msgUnread.value = Math.max(0, msgUnread.value - 1)
   }
-  if (n.game_id) router.push('/game/' + n.game_id)
+  if (n.game_id) router.push({ path: '/game/' + n.game_id, query: { highlight: n.target_id, hlType: n.target_type } })
 }
 
 onMounted(loadData)
