@@ -1110,19 +1110,13 @@ let _replyInputEl: HTMLInputElement | null = null
 const setReplyInputRef = (el: any) => { _replyInputEl = el }
 const focusReplyInputField = () => nextTick(() => _replyInputEl?.focus())
 
-/** 点父评论 💬：展开子评论 + 切换回复目标为这条父评论 */
+/** 点父评论 💬：确保展开 + 设置回复目标为这条父评论（展开不可逆） */
 async function onReviewReplyClick(r: any) {
-  // 切换展开
-  const cur = expandedReviews.value[r.id]
-  expandedReviews.value[r.id] = !cur
-  // 切换回复目标（再次点同一个就取消 target）
-  if (replyTarget.value?.type === 'review' && replyTarget.value.review.id === r.id) {
-    replyTarget.value = null
-  } else {
-    replyTarget.value = { type: 'review', review: r }
-  }
-  // 展开时拉子评论
-  if (!cur) {
+  const wasExpanded = expandedReviews.value[r.id]
+  expandedReviews.value[r.id] = true
+  replyTarget.value = { type: 'review', review: r }
+  // 首次展开才拉子评论
+  if (!wasExpanded) {
     const u = authAPI.getCurrentUser()
     r._replies = await reviewAPI.listReplies(r.id, u?.id)
   }
