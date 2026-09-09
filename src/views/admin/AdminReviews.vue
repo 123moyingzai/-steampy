@@ -39,7 +39,7 @@
             <td class="td-content">
               <div class="content-text">{{ r.content }}</div>
               <div class="content-imgs" v-if="r.images">
-                <img v-for="(img, i) in (r.images || '').split(',').filter(Boolean)" :key="i" :src="img" class="content-img" />
+                <img v-for="(img, i) in (r.images?.includes('|||') ? r.images.split('|||').filter(Boolean) : (r.images ? [r.images] : []))" :key="i" :src="img" class="content-img" />
               </div>
             </td>
             <td>

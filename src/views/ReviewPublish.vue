@@ -217,7 +217,9 @@ onMounted(async () => {
       existingId.value = r.id
       form.recommend = r.recommend
       form.content = r.content || ''
-      form.imagesList = (r.images || '').split(',').filter(Boolean)
+      form.imagesList = r.images
+        ? (r.images.includes('|||') ? r.images.split('|||').filter(Boolean) : [r.images])
+        : []
     }
   }
 })
