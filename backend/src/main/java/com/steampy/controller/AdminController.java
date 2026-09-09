@@ -5,6 +5,7 @@ import com.steampy.dto.Result;
 import com.steampy.entity.*;
 import com.steampy.mapper.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -24,6 +25,7 @@ public class AdminController {
     @Autowired private AnnouncementMapper announcementMapper;
     @Autowired private TransactionMapper transactionMapper;
     @Autowired private WalletMapper walletMapper;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     // ======== 仪表盘统计 ========
     @GetMapping("/stats")
@@ -304,7 +306,7 @@ public class AdminController {
         return Result.success(reviewMapper.selectList(qw));
     }
 
-    /** 管理员审核后决定：status=1 保留（通过），status=2 删除（拒绝）。保留时 report_count 清零 */
+    /** 管理员审核后决定：status=1 保留，status=2 拒绝。任何处理都清零 report_count + 清空 reports 记录 */
     @PutMapping("/reviews/{id}/review")
     public Result<Review> reviewReview(@PathVariable String id, @RequestBody Map<String, Object> body) {
         Review r = reviewMapper.selectById(id);
@@ -312,10 +314,9 @@ public class AdminController {
         Integer status = Integer.valueOf(body.get("status").toString());
         r.setStatus(status);
         r.setUpdatedAt(LocalDateTime.now());
-        if (status == 1) {
-            // 保留 → 清零举报数，下次再被举报才会重新进入队列
-            r.setReportCount(0);
-        }
+        // 不管保留还是拒绝 → 清零举报数 + 清空 reports 记录，彻底出队
+        r.setReportCount(0);
+        jdbcTemplate.update("DELETE FROM reports WHERE target_type = 'review' AND target_id = ?", id);
         reviewMapper.updateById(r);
         return Result.success(r);
     }
