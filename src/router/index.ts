@@ -78,6 +78,11 @@ const routes: RouteRecordRaw[] = [
     name: 'HelpCenter',
     component: () => import('../views/HelpCenter.vue')
   },
+  {
+    path: '/messages',
+    name: 'MessageCenter',
+    component: () => import('../views/MessageCenter.vue')
+  },
 
   // ========== 管理员路由 ==========
   {

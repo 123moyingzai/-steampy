@@ -160,6 +160,7 @@ interface UserNotification {
   actor_name: string | null
   target_type: 'review' | 'reply'
   target_id: string
+  game_id: string | null
   content_snippet: string
   is_read: boolean
   created_at: string

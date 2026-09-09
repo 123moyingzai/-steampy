@@ -83,7 +83,7 @@
               </div>
               <div class="cjx-popover-body">
                 <div v-if="msgList.length === 0" class="cjx-popover-empty">暂无消息</div>
-                <div v-for="n in msgList" :key="n.id" class="cjx-popover-item" :class="{ unread: !n.is_read }">
+                <div v-for="n in msgList.slice(0, 8)" :key="n.id" class="cjx-popover-item" :class="{ unread: !n.is_read }" @click="openNotification(n)">
                   <div class="cjx-popover-title">
                     <span class="cjx-popover-type">{{ n.type === 'reply' ? '💬 回复了你' : n.type === 'like_review' ? '👍 赞了你的评论' : '👍 赞了你的回复' }}</span>
                     <span v-if="n.actor_name" class="cjx-popover-actor">{{ n.actor_name }}</span>
@@ -92,6 +92,7 @@
                   <div class="cjx-popover-time">{{ formatTime(n.created_at) }}</div>
                 </div>
               </div>
+              <div v-if="msgList.length > 8" class="cjx-popover-footer" @click="goMessages">查看全部 →</div>
             </div>
           </div>
 
@@ -256,6 +257,7 @@ const markMsgAllRead = async () => {
   await notificationAPI.markAllRead(currentUser.value.id)
   msgList.value.forEach(n => n.is_read = true)
   msgUnread.value = 0
+  await loadUnread()
 }
 
 const markAnnAllRead = async () => {
@@ -263,10 +265,25 @@ const markAnnAllRead = async () => {
   await announcementAPI.markAllRead(currentUser.value.id)
   annList.value.forEach(a => a.is_read = true)
   annUnread.value = 0
+  await loadUnread()
 }
 
-const goToTarget = (n: any) => {
+// 点击信封面板里的一条通知 → 标记已读 + 跳转到游戏详情
+const openNotification = async (n: any) => {
+  if (!n.is_read && currentUser.value?.id) {
+    await notificationAPI.markRead(n.id)
+    await loadUnread()
+  }
   showMsgPanel.value = false
+  if (n.game_id) {
+    router.push('/game/' + n.game_id)
+  }
+}
+
+// 查看全部
+const goMessages = () => {
+  showMsgPanel.value = false
+  router.push('/messages')
 }
 
 const formatTime = (t: string) => {
@@ -662,6 +679,16 @@ onUnmounted(() => {
   color: #aaa;
   margin-top: 4px;
 }
+
+.cjx-popover-footer {
+  padding: 10px 16px;
+  border-top: 1px solid #eee;
+  text-align: center;
+  font-size: 13px;
+  color: #3498db;
+  cursor: pointer;
+}
+.cjx-popover-footer:hover { background: #f8f9fa; }
 
 .cjx-avatar-menu-container {
   position: relative;

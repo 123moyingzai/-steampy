@@ -21,6 +21,8 @@ public class Notification {
     /** review | reply */
     private String targetType;
     private String targetId;
+    /** 用于前端跳转 GameDetail */
+    private String gameId;
     /** 内容片段，最多 200 字 */
     private String contentSnippet;
     private Boolean isRead;
