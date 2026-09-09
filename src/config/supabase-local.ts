@@ -144,10 +144,10 @@ export const announcementAPI = {
     } catch { return 0 }
   },
   async markRead(id: number, userId: string) {
-    return apiRequest(`/announcements/${id}/read?userId=${userId}`, { method: 'POST' })
+    return apiRequest(`/announcements/${id}/read?userId=${userId}`, 'POST')
   },
   async markAllRead(userId: string) {
-    return apiRequest(`/announcements/read-all?userId=${userId}`, { method: 'POST' })
+    return apiRequest(`/announcements/read-all?userId=${userId}`, 'POST')
   }
 }
 
@@ -181,10 +181,10 @@ export const notificationAPI = {
     } catch { return 0 }
   },
   async markRead(id: string) {
-    return apiRequest(`/notifications/${id}/read`, { method: 'POST' })
+    return apiRequest(`/notifications/${id}/read`, 'POST')
   },
   async markAllRead(userId: string) {
-    return apiRequest(`/notifications/read-all?userId=${userId}`, { method: 'POST' })
+    return apiRequest(`/notifications/read-all?userId=${userId}`, 'POST')
   }
 }
 
