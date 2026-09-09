@@ -150,7 +150,7 @@ public class ReviewController {
             if (!r.getUserId().equals(userId)) {
                 NotificationController.createNotification(notificationMapper,
                         r.getUserId(), "like_review", userId, null,
-                        "review", id, r.getGameId(), r.getContent());
+                        "review", id, r.getGameId() == null ? null : String.valueOf(r.getGameId()), r.getContent());
             }
         } else {
             liked = true; // 已经点过了，不算错误
@@ -245,14 +245,14 @@ public class ReviewController {
         if (!parent.getUserId().equals(userId)) {
             NotificationController.createNotification(notificationMapper,
                     parent.getUserId(), "reply", userId, userName,
-                    "review", reviewId, parent.getGameId(), content);
+                    "review", reviewId, parent.getGameId() == null ? null : String.valueOf(parent.getGameId()), content);
         }
         // 如果回复的是某条子评论，额外通知那条子评论的作者
         if (replyToUserId != null && !replyToUserId.equals(userId)
                 && !replyToUserId.equals(parent.getUserId())) {
             NotificationController.createNotification(notificationMapper,
                     replyToUserId, "reply", userId, userName,
-                    "reply", parentReplyId, parent.getGameId(), content);
+                    "reply", parentReplyId, parent.getGameId() == null ? null : String.valueOf(parent.getGameId()), content);
         }
 
         r.setLiked(false);
@@ -278,7 +278,8 @@ public class ReviewController {
             // 通知子评论作者
             if (!r.getUserId().equals(userId)) {
                 Review parentReview = reviewMapper.selectById(r.getReviewId());
-                String gameId = parentReview != null ? parentReview.getGameId() : null;
+                String gameId = parentReview != null && parentReview.getGameId() != null
+                        ? String.valueOf(parentReview.getGameId()) : null;
                 NotificationController.createNotification(notificationMapper,
                         r.getUserId(), "like_reply", userId, null,
                         "reply", replyId, gameId, r.getContent());
