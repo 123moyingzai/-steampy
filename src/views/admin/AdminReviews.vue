@@ -50,9 +50,9 @@
             </td>
             <td>{{ formatTime(r.created_at) }}</td>
             <td class="td-actions">
-              <button v-if="r.status !== 1" class="btn btn-small btn-primary" @click="review(r, 1)">保留</button>
-              <button v-if="r.status !== 2" class="btn btn-small btn-warn" @click="review(r, 2)">拒绝</button>
-              <button class="btn btn-small btn-danger" @click="del(r)">删除</button>
+              <button class="btn btn-small btn-primary" @click="review(r, 1)">放行</button>
+              <button class="btn btn-small btn-warn" @click="review(r, 2)">下架</button>
+              <button class="btn btn-small btn-danger" @click="del(r)">彻底删除</button>
             </td>
           </tr>
           <tr v-if="filteredList.length === 0">
@@ -82,9 +82,11 @@ async function loadReviews() {
 }
 
 async function review(r: any, newStatus: number) {
+  const action = newStatus === 1 ? '放行（保留内容，用户可继续看到，举报计数清零）' : '下架（用户端不再显示）'
+  if (!confirm(`确定${action}？`)) return
   try {
     await axios.put(`/api/admin/reviews/${r.id}/review`, { status: newStatus })
-    alert(newStatus === 1 ? '已保留该评测（举报数清零）' : '已拒绝该评测')
+    alert(newStatus === 1 ? '已放行该评论' : '已下架该评论')
     loadReviews()
   } catch (e: any) { alert('操作失败: ' + (e?.response?.data?.message || e.message)) }
 }
