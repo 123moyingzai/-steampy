@@ -398,6 +398,11 @@
                 <span>💬</span>
                 <span class="cjx-reply-count">{{ r.repliesCount || 0 }}</span>
               </button>
+              <button
+                class="cjx-more-btn"
+                @click.stop="openMoreMenu($event, 'review', r)"
+                title="更多"
+              >⋯</button>
             </div>
             <!-- 楼中楼展开区 -->
             <div class="cjx-replies-wrap" v-if="expandedReviews[r.id]" @click.stop>
@@ -428,6 +433,11 @@
                       class="cjx-reply-del"
                       @click="deleteReply(r, rp)"
                     >删除</button>
+                    <button
+                      class="cjx-more-btn small"
+                      @click.stop="openMoreMenu($event, 'reply', rp)"
+                      title="更多"
+                    >⋯</button>
                   </div>
                 </div>
               </div>
@@ -480,6 +490,37 @@
         </div>
       </div>
     </div>
+
+    <!-- 全局 ⋯ 弹层（复制 / 举报） -->
+    <Teleport to="body">
+      <div
+        class="cjx-more-mask"
+        v-if="moreMenu"
+        @click="closeMoreMenu"
+      >
+        <div
+          class="cjx-more-popover"
+          :style="{ left: moreMenu.x + 'px', top: moreMenu.y + 'px' }"
+          @click.stop
+        >
+          <div class="cjx-more-item" @click="onCopyContent">
+            <span class="cjx-more-icon">📋</span>
+            <span>复制内容</span>
+          </div>
+          <div class="cjx-more-item danger" @click="onReport">
+            <span class="cjx-more-icon">⚠️</span>
+            <span>举报</span>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 全局 Toast -->
+    <Teleport to="body">
+      <Transition name="cjx-toast">
+        <div v-if="toastMsg" class="cjx-toast">{{ toastMsg }}</div>
+      </Transition>
+    </Teleport>
   </Layout>
 </template>
 
@@ -1070,6 +1111,69 @@ async function toggleLike(r: any) {
   } catch (e: any) {
     alert(e?.message || '操作失败')
   }
+}
+
+// ⋯ 更多菜单
+interface MoreMenu { type: 'review' | 'reply'; target: any; x: number; y: number }
+const moreMenu = ref<MoreMenu | null>(null)
+
+function openMoreMenu(e: MouseEvent, type: 'review' | 'reply', target: any) {
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  moreMenu.value = {
+    type,
+    target,
+    x: rect.right - 120,   // 弹出框左边对齐按钮左边缘（大致）
+    y: rect.bottom + 6
+  }
+  // 边界保护
+  const mw = 130, mh = 80
+  if (moreMenu.value.x + mw > window.innerWidth) moreMenu.value.x = window.innerWidth - mw - 8
+  if (moreMenu.value.y + mh > window.innerHeight) moreMenu.value.y = rect.top - mh - 6
+}
+function closeMoreMenu() { moreMenu.value = null }
+
+/** 复制评论内容 */
+async function onCopyContent() {
+  if (!moreMenu.value) return
+  const text = (moreMenu.value.target.content || '').trim()
+  try {
+    await navigator.clipboard.writeText(text)
+    showToast('已复制到剪贴板')
+  } catch {
+    // 降级方案
+    const ta = document.createElement('textarea')
+    ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'
+    document.body.appendChild(ta); ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+    showToast('已复制到剪贴板')
+  }
+  closeMoreMenu()
+}
+
+/** 举报 */
+function onReport() {
+  if (!authAPI.getCurrentUser()) { alert('请先登录后举报'); closeMoreMenu(); return }
+  const reason = prompt('请输入举报理由（色情/广告/辱骂/违法...）：')
+  if (!reason || !reason.trim()) { closeMoreMenu(); return }
+  // 占位：后端可加 /api/reports 接口；前端先给反馈
+  console.log('[report]', {
+    type: moreMenu.value?.type,
+    targetId: moreMenu.value?.target.id,
+    reason: reason.trim(),
+    reporterId: authAPI.getCurrentUser()?.id
+  })
+  showToast('举报已提交，感谢反馈')
+  closeMoreMenu()
+}
+
+// Toast（极简自实现）
+const toastMsg = ref('')
+let _toastTimer: any = null
+function showToast(msg: string) {
+  toastMsg.value = msg
+  if (_toastTimer) clearTimeout(_toastTimer)
+  _toastTimer = setTimeout(() => { toastMsg.value = '' }, 1800)
 }
 
 async function toggleReplyLike(rp: any) {
@@ -2523,6 +2627,75 @@ onMounted(async () => {
   background: #eef2ff;
   color: #4a6cf7;
 }
+
+/* ⋯ 更多按钮 */
+.cjx-more-btn {
+  background: transparent;
+  border: none;
+  color: #999;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+  margin-left: auto;
+}
+.cjx-more-btn:hover { color: #333; background: #f0f0f0; }
+.cjx-more-btn.small { font-size: 15px; padding: 2px 4px; }
+
+/* ⋯ 弹层遮罩 */
+.cjx-more-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+}
+.cjx-more-popover {
+  position: fixed;
+  z-index: 9999;
+  min-width: 130px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+  padding: 4px 0;
+  overflow: hidden;
+  animation: cjx-pop 0.12s ease-out;
+}
+@keyframes cjx-pop {
+  from { opacity: 0; transform: scale(0.96) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.cjx-more-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.cjx-more-item:hover { background: #f2f4f8; }
+.cjx-more-item.danger { color: #c0392b; }
+.cjx-more-item.danger:hover { background: #fdecea; }
+.cjx-more-icon { font-size: 14px; }
+
+/* Toast */
+.cjx-toast {
+  position: fixed;
+  top: 40%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 10px 22px;
+  background: rgba(0,0,0,0.78);
+  color: #fff;
+  font-size: 14px;
+  border-radius: 8px;
+  z-index: 10000;
+  pointer-events: none;
+}
+.cjx-toast-enter-active, .cjx-toast-leave-active { transition: opacity 0.18s; }
+.cjx-toast-enter-from, .cjx-toast-leave-to { opacity: 0; }
 
 .cjx-review-empty {
   text-align: center;
