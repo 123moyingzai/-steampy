@@ -22,6 +22,8 @@ public class Reply {
     private String userName;
     private String content;
     private Integer likesCount;
+    /** 被举报次数 */
+    private Integer reportCount;
     private Integer status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

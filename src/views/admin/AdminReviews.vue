@@ -2,18 +2,8 @@
   <div class="admin-reviews">
     <div class="toolbar">
       <div class="filter-bar">
-        <select v-model="filterStatus" @change="loadReviews">
-          <option value="-1">全部状态</option>
-          <option value="0">待审核</option>
-          <option value="1">已通过</option>
-          <option value="2">已拒绝</option>
-        </select>
-        <select v-model="filterRecommend" @change="loadReviews">
-          <option value="">全部评价</option>
-          <option value="1">👍 推荐</option>
-          <option value="0">👎 不推荐</option>
-        </select>
         <span class="stat-pill">待审核 <strong>{{ pendingCount }}</strong> 条</span>
+        <span class="stat-pill stat-report">累计被举报 <strong>{{ totalReportCount }}</strong> 次</span>
       </div>
       <button class="btn btn-outline" @click="loadReviews">刷新</button>
     </div>
@@ -26,6 +16,7 @@
             <th>用户</th>
             <th>评价</th>
             <th>内容</th>
+            <th>🔥 举报</th>
             <th>状态</th>
             <th>时间</th>
             <th>操作</th>
@@ -52,17 +43,20 @@
               </div>
             </td>
             <td>
+              <span class="report-count">🔥 {{ r.report_count || 0 }}</span>
+            </td>
+            <td>
               <span :class="['badge', statusBadge(r.status)]">{{ statusLabel(r.status) }}</span>
             </td>
             <td>{{ formatTime(r.created_at) }}</td>
             <td class="td-actions">
-              <button v-if="r.status !== 1" class="btn btn-small btn-primary" @click="review(r, 1)">通过</button>
+              <button v-if="r.status !== 1" class="btn btn-small btn-primary" @click="review(r, 1)">保留</button>
               <button v-if="r.status !== 2" class="btn btn-small btn-warn" @click="review(r, 2)">拒绝</button>
               <button class="btn btn-small btn-danger" @click="del(r)">删除</button>
             </td>
           </tr>
           <tr v-if="filteredList.length === 0">
-            <td colspan="7" class="td-empty">暂无评测</td>
+            <td colspan="8" class="td-empty">暂无被举报的评测</td>
           </tr>
         </tbody>
       </table>
@@ -75,17 +69,10 @@ import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 
 const all = ref<any[]>([])
-const filterStatus = ref(-1)
-const filterRecommend = ref('')
 
-const filteredList = computed(() => {
-  return all.value.filter(r => {
-    if (filterStatus.value !== -1 && r.status !== filterStatus.value) return false
-    if (filterRecommend.value !== '' && String(r.recommend) !== filterRecommend.value) return false
-    return true
-  })
-})
-const pendingCount = computed(() => all.value.filter(r => r.status === 0).length)
+const filteredList = computed(() => all.value)
+const pendingCount = computed(() => all.value.filter(r => r.status !== 1).length)
+const totalReportCount = computed(() => all.value.reduce((s, r) => s + (r.report_count || 0), 0))
 
 async function loadReviews() {
   try {
@@ -97,7 +84,7 @@ async function loadReviews() {
 async function review(r: any, newStatus: number) {
   try {
     await axios.put(`/api/admin/reviews/${r.id}/review`, { status: newStatus })
-    alert(newStatus === 1 ? '已通过评测' : '已拒绝评测')
+    alert(newStatus === 1 ? '已保留该评测（举报数清零）' : '已拒绝该评测')
     loadReviews()
   } catch (e: any) { alert('操作失败: ' + (e?.response?.data?.message || e.message)) }
 }
@@ -166,4 +153,16 @@ onMounted(loadReviews)
 .badge-default { background: #f0f0f0; color: #888; }
 .badge-pos { background: #e8f8ef; color: #27ae60; }
 .badge-neg { background: #fdecea; color: #c0392b; }
+.report-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: #ffeaea;
+  color: #c0392b;
+}
+.stat-report { background: #fef3e7; color: #e67e22; margin-left: 8px; }
 </style>

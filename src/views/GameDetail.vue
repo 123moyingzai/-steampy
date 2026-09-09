@@ -1145,18 +1145,22 @@ async function onCopyContent() {
 }
 
 /** 举报 */
-function onReport() {
+async function onReport() {
   if (!authAPI.getCurrentUser()) { alert('请先登录后举报'); closeMoreMenu(); return }
   const reason = prompt('请输入举报理由（色情/广告/辱骂/违法...）：')
   if (!reason || !reason.trim()) { closeMoreMenu(); return }
-  // 占位：后端可加 /api/reports 接口；前端先给反馈
-  console.log('[report]', {
-    type: moreMenu.value?.type,
-    targetId: moreMenu.value?.target.id,
-    reason: reason.trim(),
-    reporterId: authAPI.getCurrentUser()?.id
-  })
-  showToast('举报已提交，感谢反馈')
+  try {
+    const u = authAPI.getCurrentUser()!
+    await reviewAPI.report(
+      moreMenu.value!.type,
+      moreMenu.value!.target.id,
+      u.id,
+      reason.trim()
+    )
+    showToast('举报已提交，感谢反馈')
+  } catch (e: any) {
+    alert(e?.message || '举报失败')
+  }
   closeMoreMenu()
 }
 

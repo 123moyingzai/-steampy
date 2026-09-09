@@ -25,6 +25,8 @@ public class Review {
     private Integer status;
     private Integer likesCount;
     private Integer repliesCount;
+    /** 被举报次数，达到阈值进入审核队列 */
+    private Integer reportCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 

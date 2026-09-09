@@ -290,18 +290,21 @@ public class AdminController {
         return Result.success(w);
     }
 
-    // ======== 评测审核 Reviews ========
+    // ======== 评测审核 Reviews（仅显示被举报过的） ========
     @GetMapping("/reviews")
     public Result<List<Review>> getAllReviews(
             @RequestParam(required = false) Integer status,
             @RequestParam(required = false) Long gameId) {
         QueryWrapper<Review> qw = new QueryWrapper<>();
+        // 只显示被举报过的（report_count > 0）
+        qw.gt("report_count", 0);
         if (status != null) qw.eq("status", status);
         if (gameId != null) qw.eq("game_id", gameId);
-        qw.orderByDesc("created_at");
+        qw.orderByDesc("report_count").orderByDesc("created_at");
         return Result.success(reviewMapper.selectList(qw));
     }
 
+    /** 管理员审核后决定：status=1 保留（通过），status=2 删除（拒绝）。保留时 report_count 清零 */
     @PutMapping("/reviews/{id}/review")
     public Result<Review> reviewReview(@PathVariable String id, @RequestBody Map<String, Object> body) {
         Review r = reviewMapper.selectById(id);
@@ -309,6 +312,10 @@ public class AdminController {
         Integer status = Integer.valueOf(body.get("status").toString());
         r.setStatus(status);
         r.setUpdatedAt(LocalDateTime.now());
+        if (status == 1) {
+            // 保留 → 清零举报数，下次再被举报才会重新进入队列
+            r.setReportCount(0);
+        }
         reviewMapper.updateById(r);
         return Result.success(r);
     }

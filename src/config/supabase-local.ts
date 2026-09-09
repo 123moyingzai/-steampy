@@ -452,6 +452,12 @@ export const reviewAPI = {
   },
   async deleteReply(replyId: string, userId: string): Promise<any> {
     return await apiRequest<any>(`/reviews/replies/${replyId}?userId=${encodeURIComponent(userId)}`, 'DELETE')
+  },
+  /** 举报评论/子评论（独立路径避免 Spring 路径冲突） */
+  async report(targetType: 'review' | 'reply', targetId: string, reporterId: string, reason?: string): Promise<any> {
+    const params = new URLSearchParams({ targetType, targetId, reporterId })
+    if (reason) params.set('reason', reason)
+    return await apiRequest<any>(`/content/report?${params.toString()}`, 'POST')
   }
 }
 
