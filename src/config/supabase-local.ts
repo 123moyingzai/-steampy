@@ -124,7 +124,6 @@ export const announcementAPI = {
   async getAnnouncements(limit: number = 10): Promise<ApiResponse<Announcement[]>> {
     try {
       const data = await apiRequest<any[]>('/announcements')
-      // 把 snake_case 转成原有前端期望的字段名
       const mapped: Announcement[] = data.map((a: any) => ({
         id: a.id,
         title: a.title,
@@ -135,17 +134,56 @@ export const announcementAPI = {
       }))
       return { data: mapped }
     } catch (e: any) {
-      return {
-        data: [{
-          id: 1,
-          title: '欢迎使用 SteamPY 平台',
-          content: '这是一个安全可靠的 Steam 游戏交易平台',
-          publish_date: new Date().toISOString(),
-          is_top: true,
-          is_active: true
-        }]
-      }
+      return { data: [] }
     }
+  },
+  async unreadCount(userId: string): Promise<number> {
+    try {
+      const c = await apiRequest<any>('/announcements/unread-count?userId=' + userId)
+      return Number(c) || 0
+    } catch { return 0 }
+  },
+  async markRead(id: number, userId: string) {
+    return apiRequest(`/announcements/${id}/read?userId=${userId}`, { method: 'POST' })
+  },
+  async markAllRead(userId: string) {
+    return apiRequest(`/announcements/read-all?userId=${userId}`, { method: 'POST' })
+  }
+}
+
+// ========== 用户交互通知（被回复 / 被点赞） ==========
+interface UserNotification {
+  id: string
+  user_id: string
+  type: 'reply' | 'like_review' | 'like_reply'
+  actor_id: string | null
+  actor_name: string | null
+  target_type: 'review' | 'reply'
+  target_id: string
+  content_snippet: string
+  is_read: boolean
+  created_at: string
+}
+
+export const notificationAPI = {
+  async list(userId: string): Promise<UserNotification[]> {
+    try {
+      const list = await apiRequest<UserNotification[]>(
+        '/notifications?userId=' + userId)
+      return list || []
+    } catch { return [] }
+  },
+  async unreadCount(userId: string): Promise<number> {
+    try {
+      const c = await apiRequest<any>('/notifications/unread-count?userId=' + userId)
+      return Number(c) || 0
+    } catch { return 0 }
+  },
+  async markRead(id: string) {
+    return apiRequest(`/notifications/${id}/read`, { method: 'POST' })
+  },
+  async markAllRead(userId: string) {
+    return apiRequest(`/notifications/read-all?userId=${userId}`, { method: 'POST' })
   }
 }
 

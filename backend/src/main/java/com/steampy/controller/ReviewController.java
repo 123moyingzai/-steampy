@@ -6,6 +6,7 @@ import com.steampy.entity.Game;
 import com.steampy.entity.Reply;
 import com.steampy.entity.Review;
 import com.steampy.mapper.GameMapper;
+import com.steampy.mapper.NotificationMapper;
 import com.steampy.mapper.ReplyMapper;
 import com.steampy.mapper.ReviewMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,11 +23,9 @@ import java.util.UUID;
 @RequestMapping("/api/reviews")
 public class ReviewController {
 
-    @Autowired
-    private ReviewMapper reviewMapper;
-
-    @Autowired
-    private ReplyMapper replyMapper;
+    @Autowired private ReviewMapper reviewMapper;
+    @Autowired private ReplyMapper replyMapper;
+    @Autowired private NotificationMapper notificationMapper;
 
     @Autowired
     private GameMapper gameMapper;
@@ -147,6 +146,12 @@ public class ReviewController {
                     "INSERT INTO review_likes (review_id, user_id) VALUES (?, ?)", id, userId);
             reviewMapper.incrementLikesCount(id, 1);
             liked = true;
+            // 通知原作者
+            if (!r.getUserId().equals(userId)) {
+                NotificationController.createNotification(notificationMapper,
+                        r.getUserId(), "like_review", userId, null,
+                        "review", id, r.getContent());
+            }
         } else {
             liked = true; // 已经点过了，不算错误
         }
@@ -236,6 +241,22 @@ public class ReviewController {
         jdbcTemplate.update(
                 "UPDATE reviews SET replies_count = replies_count + 1 WHERE id = ?", reviewId);
 
+        // 通知父评论作者（不能通知自己）
+        if (!parent.getUserId().equals(userId)) {
+            NotificationController.createNotification(notificationMapper,
+                    parent.getUserId(), "reply", userId, userName,
+                    "review", reviewId, content);
+        }
+        // 如果回复的是某条子评论，额外通知那条子评论的作者
+        if (replyToUserId != null && !replyToUserId.equals(userId)
+                && !replyToUserId.equals(parent.getUserId())) {
+            Reply targetReply = replyMapper.selectById(parentReplyId);
+            String targetName = targetReply != null ? targetReply.getUserName() : null;
+            NotificationController.createNotification(notificationMapper,
+                    replyToUserId, "reply", userId, userName,
+                    "reply", parentReplyId, content);
+        }
+
         r.setLiked(false);
         return Result.success(r);
     }
@@ -256,6 +277,12 @@ public class ReviewController {
             jdbcTemplate.update(
                     "UPDATE review_replies SET likes_count = likes_count + 1 WHERE id = ?", replyId);
             r.setLikesCount((r.getLikesCount() == null ? 0 : r.getLikesCount()) + 1);
+            // 通知子评论作者
+            if (!r.getUserId().equals(userId)) {
+                NotificationController.createNotification(notificationMapper,
+                        r.getUserId(), "like_reply", userId, null,
+                        "reply", replyId, r.getContent());
+            }
         }
         return Result.success(Map.of("liked", true, "likesCount", r.getLikesCount()));
     }

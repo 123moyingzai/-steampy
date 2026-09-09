@@ -66,14 +66,64 @@
           <button class="cjx-top-btn cjx-details" @click="$router.push('/transactions')">明细</button>
         </div>
         <div class="cjx-user-actions">
-          <svg class="cjx-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-            <polyline points="22,6 12,13 2,6"></polyline>
-          </svg>
-          <svg class="cjx-action-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-          </svg>
+          <!-- 信封：用户交互通知 -->
+          <div class="cjx-action-wrapper" v-if="isLoggedIn">
+            <div class="cjx-icon-btn" @click="toggleMsg" :class="{ active: showMsgPanel }">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                <polyline points="22,6 12,13 2,6"/>
+              </svg>
+              <span v-if="msgUnread > 0" class="cjx-badge">{{ msgUnread > 99 ? '99+' : msgUnread }}</span>
+            </div>
+            <!-- 信封 popover -->
+            <div v-if="showMsgPanel" class="cjx-popover">
+              <div class="cjx-popover-header">
+                <span>消息通知</span>
+                <button v-if="msgUnread > 0" class="cjx-popover-mark" @click="markMsgAllRead">全部已读</button>
+              </div>
+              <div class="cjx-popover-body">
+                <div v-if="msgList.length === 0" class="cjx-popover-empty">暂无消息</div>
+                <div v-for="n in msgList" :key="n.id" class="cjx-popover-item" :class="{ unread: !n.is_read }">
+                  <div class="cjx-popover-title">
+                    <span class="cjx-popover-type">{{ n.type === 'reply' ? '💬 回复了你' : n.type === 'like_review' ? '👍 赞了你的评论' : '👍 赞了你的回复' }}</span>
+                    <span v-if="n.actor_name" class="cjx-popover-actor">{{ n.actor_name }}</span>
+                  </div>
+                  <div class="cjx-popover-content">{{ n.content_snippet }}</div>
+                  <div class="cjx-popover-time">{{ formatTime(n.created_at) }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 铃铛：官方公告 -->
+          <div class="cjx-action-wrapper" v-if="isLoggedIn">
+            <div class="cjx-icon-btn" @click="toggleAnn" :class="{ active: showAnnPanel }">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+              </svg>
+              <span v-if="annUnread > 0" class="cjx-badge">{{ annUnread > 99 ? '99+' : annUnread }}</span>
+            </div>
+            <!-- 铃铛 popover -->
+            <div v-if="showAnnPanel" class="cjx-popover">
+              <div class="cjx-popover-header">
+                <span>官方公告</span>
+                <button v-if="annUnread > 0" class="cjx-popover-mark" @click="markAnnAllRead">全部已读</button>
+              </div>
+              <div class="cjx-popover-body">
+                <div v-if="annList.length === 0" class="cjx-popover-empty">暂无公告</div>
+                <div v-for="a in annList" :key="a.id" class="cjx-popover-item">
+                  <div class="cjx-popover-title">
+                    <span class="cjx-popover-actor">📢 {{ a.title }}</span>
+                    <span v-if="a.is_top" class="cjx-popover-top">置顶</span>
+                  </div>
+                  <div class="cjx-popover-content">{{ a.content }}</div>
+                  <div class="cjx-popover-time">{{ a.publish_date || a.publishDate }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="cjx-avatar-menu-container">
             <div class="cjx-user-avatar" @click="toggleMenu">{{ avatarText }}</div>
             <div class="cjx-dropdown-menu" :class="{ active: showMenu }">
@@ -112,7 +162,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { authAPI, walletAPI } from '../config/supabase-local.ts'
+import { authAPI, walletAPI, notificationAPI, announcementAPI } from '../config/supabase-local.ts'
 
 const router = useRouter()
 
@@ -120,6 +170,15 @@ const router = useRouter()
 const currentUser = ref(null)
 const walletBalance = ref(0)
 const showMenu = ref(false)
+
+// 通知面板
+const showMsgPanel = ref(false)     // 信封（用户交互）
+const showAnnPanel = ref(false)     // 铃铛（官方公告）
+const msgUnread = ref(0)
+const annUnread = ref(0)
+const msgList = ref<any[]>([])
+const annList = ref<any[]>([])
+let msgTimer: any = null
 
 // 计算属性
 const avatarText = computed(() => {
@@ -153,6 +212,75 @@ const closeMenu = (e) => {
   if (!e.target.closest('.cjx-avatar-menu-container')) {
     showMenu.value = false
   }
+  // 点击外部也关闭通知面板
+  if (!e.target.closest('.cjx-action-wrapper')) {
+    showMsgPanel.value = false
+    showAnnPanel.value = false
+  }
+}
+
+// 加载未读数
+const loadUnread = async () => {
+  if (!currentUser.value?.id) { msgUnread.value = 0; annUnread.value = 0; return }
+  try {
+    const [m, a] = await Promise.all([
+      notificationAPI.unreadCount(currentUser.value.id),
+      announcementAPI.unreadCount(currentUser.value.id)
+    ])
+    msgUnread.value = m
+    annUnread.value = a
+  } catch {}
+}
+
+// 打开信封面板（加载列表）
+const toggleMsg = async () => {
+  showAnnPanel.value = false
+  showMsgPanel.value = !showMsgPanel.value
+  if (showMsgPanel.value && currentUser.value?.id) {
+    msgList.value = await notificationAPI.list(currentUser.value.id)
+  }
+}
+
+// 打开铃铛面板
+const toggleAnn = async () => {
+  showMsgPanel.value = false
+  showAnnPanel.value = !showAnnPanel.value
+  if (showAnnPanel.value && currentUser.value?.id) {
+    const r = await announcementAPI.getAnnouncements(10)
+    annList.value = r.data || []
+  }
+}
+
+const markMsgAllRead = async () => {
+  if (!currentUser.value?.id) return
+  await notificationAPI.markAllRead(currentUser.value.id)
+  msgList.value.forEach(n => n.is_read = true)
+  msgUnread.value = 0
+}
+
+const markAnnAllRead = async () => {
+  if (!currentUser.value?.id) return
+  await announcementAPI.markAllRead(currentUser.value.id)
+  annList.value.forEach(a => a.is_read = true)
+  annUnread.value = 0
+}
+
+const goToTarget = (n: any) => {
+  showMsgPanel.value = false
+}
+
+const formatTime = (t: string) => {
+  if (!t) return ''
+  try {
+    const d = new Date(t)
+    const now = new Date()
+    const diff = (now.getTime() - d.getTime()) / 1000
+    if (diff < 60) return '刚刚'
+    if (diff < 3600) return Math.floor(diff / 60) + ' 分钟前'
+    if (diff < 86400) return Math.floor(diff / 3600) + ' 小时前'
+    if (diff < 7 * 86400) return Math.floor(diff / 86400) + ' 天前'
+    return d.toLocaleDateString('zh-CN')
+  } catch { return t }
 }
 
 // 从后端加载真实钱包余额
@@ -193,6 +321,7 @@ onMounted(() => {
       currentUser.value = authAPI.getCurrentUser()
       if (currentUser.value) {
         loadBalance()
+        loadUnread()
       } else {
         walletBalance.value = 0
       }
@@ -204,12 +333,19 @@ onMounted(() => {
     currentUser.value = authAPI.getCurrentUser()
     if (currentUser.value) {
       loadBalance()
+      loadUnread()
     }
   })
+
+  // 每 30 秒轮询未读数
+  msgTimer = setInterval(() => {
+    if (currentUser.value?.id) loadUnread()
+  }, 30000)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', closeMenu)
+  if (msgTimer) clearInterval(msgTimer)
 })
 </script>
 
@@ -378,16 +514,153 @@ onUnmounted(() => {
   gap: 1rem;
 }
 
-.cjx-action-icon {
-  width: 20px;
-  height: 20px;
+.cjx-icon-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   color: #bdc3c7;
-  transition: color 0.2s;
+  border-radius: 6px;
+  transition: all 0.2s;
+  position: relative;
 }
 
-.cjx-action-icon:hover {
-  color: #ecf0f1;
+.cjx-icon-btn:hover,
+.cjx-icon-btn.active {
+  color: #fff;
+  background-color: #34495e;
+}
+
+.cjx-icon-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.cjx-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  background: #e74c3c;
+  color: #fff;
+  font-size: 10px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.cjx-action-wrapper {
+  position: relative;
+}
+
+/* Popover 面板 */
+.cjx-popover {
+  position: absolute;
+  top: 44px;
+  right: 0;
+  width: 340px;
+  max-height: 440px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.18);
+  z-index: 300;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: fadeUp 0.15s ease-out;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.cjx-popover-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 14px;
+  color: #2c3e50;
+}
+
+.cjx-popover-mark {
+  background: none;
+  border: none;
+  color: #3498db;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+.cjx-popover-mark:hover { text-decoration: underline; }
+
+.cjx-popover-body {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.cjx-popover-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: #aaa;
+  font-size: 13px;
+}
+
+.cjx-popover-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.cjx-popover-item:hover { background: #f8f9fa; }
+.cjx-popover-item.unread { background: #eef5ff; }
+.cjx-popover-item.unread .cjx-popover-title { font-weight: 600; }
+
+.cjx-popover-item:last-child { border-bottom: none; }
+
+.cjx-popover-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #2c3e50;
+  margin-bottom: 4px;
+}
+
+.cjx-popover-type { color: #34495e; }
+.cjx-popover-actor { color: #3498db; font-weight: 500; }
+
+.cjx-popover-top {
+  background: #e74c3c;
+  color: #fff;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.cjx-popover-content {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cjx-popover-time {
+  font-size: 11px;
+  color: #aaa;
+  margin-top: 4px;
 }
 
 .cjx-avatar-menu-container {
