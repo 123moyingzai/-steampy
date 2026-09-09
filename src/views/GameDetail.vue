@@ -514,13 +514,6 @@
         </div>
       </div>
     </Teleport>
-
-    <!-- 全局 Toast -->
-    <Teleport to="body">
-      <Transition name="cjx-toast">
-        <div v-if="toastMsg" class="cjx-toast">{{ toastMsg }}</div>
-      </Transition>
-    </Teleport>
   </Layout>
 </template>
 
@@ -1165,15 +1158,6 @@ function onReport() {
   })
   showToast('举报已提交，感谢反馈')
   closeMoreMenu()
-}
-
-// Toast（极简自实现）
-const toastMsg = ref('')
-let _toastTimer: any = null
-function showToast(msg: string) {
-  toastMsg.value = msg
-  if (_toastTimer) clearTimeout(_toastTimer)
-  _toastTimer = setTimeout(() => { toastMsg.value = '' }, 1800)
 }
 
 async function toggleReplyLike(rp: any) {
@@ -2679,23 +2663,6 @@ onMounted(async () => {
 .cjx-more-item.danger { color: #c0392b; }
 .cjx-more-item.danger:hover { background: #fdecea; }
 .cjx-more-icon { font-size: 14px; }
-
-/* Toast */
-.cjx-toast {
-  position: fixed;
-  top: 40%;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 10px 22px;
-  background: rgba(0,0,0,0.78);
-  color: #fff;
-  font-size: 14px;
-  border-radius: 8px;
-  z-index: 10000;
-  pointer-events: none;
-}
-.cjx-toast-enter-active, .cjx-toast-leave-active { transition: opacity 0.18s; }
-.cjx-toast-enter-from, .cjx-toast-leave-to { opacity: 0; }
 
 .cjx-review-empty {
   text-align: center;
