@@ -408,9 +408,10 @@ function snakeToCamel<T = any>(obj: any): T {
 }
 
 export const reviewAPI = {
-  async listByGame(gameId: number): Promise<any[]> {
+  async listByGame(gameId: number, userId?: string): Promise<any[]> {
     try {
-      const r = await apiRequest<any>(`/reviews/game/${gameId}`, 'GET')
+      const uid = userId ? `?userId=${encodeURIComponent(userId)}` : ''
+      const r = await apiRequest<any>(`/reviews/game/${gameId}${uid}`, 'GET')
       return snakeToCamel(r || [])
     } catch { return [] }
   },
@@ -425,6 +426,32 @@ export const reviewAPI = {
   },
   async delete(id: string, userId: string): Promise<any> {
     return await apiRequest<any>(`/reviews/${id}?userId=${encodeURIComponent(userId)}`, 'DELETE')
+  },
+  async like(id: string, userId: string): Promise<any> {
+    return await apiRequest<any>(`/reviews/${id}/like?userId=${encodeURIComponent(userId)}`, 'POST')
+  },
+  async unlike(id: string, userId: string): Promise<any> {
+    return await apiRequest<any>(`/reviews/${id}/like?userId=${encodeURIComponent(userId)}`, 'DELETE')
+  },
+  // ========== 子评论 ==========
+  async listReplies(reviewId: string, userId?: string): Promise<any[]> {
+    try {
+      const uid = userId ? `?userId=${encodeURIComponent(userId)}` : ''
+      const r = await apiRequest<any>(`/reviews/${reviewId}/replies${uid}`, 'GET')
+      return snakeToCamel(r || [])
+    } catch { return [] }
+  },
+  async createReply(reviewId: string, body: any): Promise<any> {
+    return await apiRequest<any>(`/reviews/${reviewId}/replies`, 'POST', body)
+  },
+  async likeReply(replyId: string, userId: string): Promise<any> {
+    return await apiRequest<any>(`/reviews/replies/${replyId}/like?userId=${encodeURIComponent(userId)}`, 'POST')
+  },
+  async unlikeReply(replyId: string, userId: string): Promise<any> {
+    return await apiRequest<any>(`/reviews/replies/${replyId}/like?userId=${encodeURIComponent(userId)}`, 'DELETE')
+  },
+  async deleteReply(replyId: string, userId: string): Promise<any> {
+    return await apiRequest<any>(`/reviews/replies/${replyId}?userId=${encodeURIComponent(userId)}`, 'DELETE')
   }
 }
 

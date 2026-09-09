@@ -381,10 +381,94 @@
                 @click="previewImg(img)"
               />
             </div>
+            <div class="cjx-review-actions">
+              <button
+                class="cjx-like-btn"
+                :class="{ liked: r.liked, disabled: !authAPI.getCurrentUser() }"
+                @click.stop="toggleLike(r)"
+              >
+                <span class="cjx-like-icon">{{ r.liked ? '❤️' : '🤍' }}</span>
+                <span class="cjx-like-count">{{ r.likesCount || 0 }}</span>
+              </button>
+              <button
+                class="cjx-reply-btn"
+                :class="{ active: replyTarget?.type === 'review' && replyTarget?.review?.id === r.id }"
+                @click.stop="onReviewReplyClick(r)"
+              >
+                <span>💬</span>
+                <span class="cjx-reply-count">{{ r.repliesCount || 0 }}</span>
+              </button>
+            </div>
+            <!-- 楼中楼展开区 -->
+            <div class="cjx-replies-wrap" v-if="expandedReviews[r.id]" @click.stop>
+              <div class="cjx-replies-list" v-if="r._replies?.length">
+                <div class="cjx-reply-item" v-for="rp in r._replies" :key="rp.id">
+                  <div class="cjx-reply-head">
+                    <span class="cjx-reply-avatar">{{ (rp.userName || '匿').slice(0, 1) }}</span>
+                    <span class="cjx-reply-name">{{ rp.userName || '匿名' }}</span>
+                    <template v-if="rp.replyToUserName">
+                      <span class="cjx-reply-to">回复</span>
+                      <span class="cjx-reply-to-name">@{{ rp.replyToUserName }}</span>
+                    </template>
+                    <span class="cjx-reply-time">{{ formatTime(rp.createdAt) }}</span>
+                  </div>
+                  <p class="cjx-reply-content">{{ rp.content }}</p>
+                  <div class="cjx-reply-actions">
+                    <button
+                      class="cjx-like-btn small"
+                      :class="{ liked: rp.liked, disabled: !authAPI.getCurrentUser() }"
+                      @click="toggleReplyLike(rp)"
+                    >
+                      <span>{{ rp.liked ? '❤️' : '🤍' }}</span>
+                      <span>{{ rp.likesCount || 0 }}</span>
+                    </button>
+                    <button class="cjx-reply-link" @click="focusReplyInput(r, rp)">回复</button>
+                    <button
+                      v-if="rp.userId === authAPI.getCurrentUser()?.id"
+                      class="cjx-reply-del"
+                      @click="deleteReply(r, rp)"
+                    >删除</button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="cjx-review-empty" v-else>
           <p>还没有任何评测，来做第一个评价的人吧 👇</p>
+        </div>
+
+        <!-- 共享回复输入框（全评测区仅此一个） -->
+        <div class="cjx-reply-input-global">
+          <template v-if="!authAPI.getCurrentUser()">
+            <div class="cjx-reply-input-ph-disabled" @click="router.push('/login')">请先登录后回复</div>
+          </template>
+          <template v-else>
+            <div class="cjx-reply-input-bar" v-if="replyTarget">
+              <span class="cjx-reply-input-hint">
+                回复
+                <template v-if="replyTarget.type === 'review'">
+                  <b>{{ replyTarget.review.userName || '匿名' }}</b> 的评论
+                </template>
+                <template v-else-if="replyTarget.type === 'reply'">
+                  <b>@{{ replyTarget.reply.userName || '匿名' }}</b>
+                </template>
+              </span>
+              <span class="cjx-reply-input-clear" @click="clearReplyTarget">× 取消</span>
+            </div>
+            <div class="cjx-reply-input-row">
+              <input
+                ref="replyInputRef"
+                v-model="replyText"
+                class="cjx-reply-input-field"
+                :placeholder="replyTarget
+                  ? (replyTarget.type === 'review' ? `回复评论...` : `回复 @${replyTarget.reply.userName || ''}...`)
+                  : '选择一条评论或子评论，在这里回复'"
+                @keyup.enter="submitReplyGlobal"
+              />
+              <button class="cjx-reply-send" @click="submitReplyGlobal" :disabled="!replyText.trim()">发送</button>
+            </div>
+          </template>
         </div>
 
         <!-- 底部输入框 → 点击跳发布页 -->
@@ -962,8 +1046,126 @@ const recommendCount = computed(() => reviews.value.filter(r => r.recommend === 
 const loadReviews = async () => {
   if (!game.value?.id) return
   try {
-    reviews.value = await reviewAPI.listByGame(Number(game.value.id))
+    const u = authAPI.getCurrentUser()
+    reviews.value = await reviewAPI.listByGame(Number(game.value.id), u?.id)
   } catch { reviews.value = [] }
+}
+
+async function toggleLike(r: any) {
+  const u = authAPI.getCurrentUser()
+  if (!u) { alert('请先登录'); return }
+  try {
+    if (r.liked) {
+      const res = await reviewAPI.unlike(r.id, u.id)
+      r.liked = res?.liked ?? false
+      r.likesCount = res?.likesCount ?? Math.max(0, (r.likesCount || 1) - 1)
+    } else {
+      const res = await reviewAPI.like(r.id, u.id)
+      r.liked = res?.liked ?? true
+      r.likesCount = res?.likesCount ?? (r.likesCount || 0) + 1
+    }
+  } catch (e: any) {
+    alert(e?.message || '操作失败')
+  }
+}
+
+async function toggleReplyLike(rp: any) {
+  const u = authAPI.getCurrentUser()
+  if (!u) { alert('请先登录'); return }
+  try {
+    if (rp.liked) {
+      const res = await reviewAPI.unlikeReply(rp.id, u.id)
+      rp.liked = res?.liked ?? false
+      rp.likesCount = res?.likesCount ?? Math.max(0, (rp.likesCount || 1) - 1)
+    } else {
+      const res = await reviewAPI.likeReply(rp.id, u.id)
+      rp.liked = res?.liked ?? true
+      rp.likesCount = res?.likesCount ?? (rp.likesCount || 0) + 1
+    }
+  } catch (e: any) { alert(e?.message || '操作失败') }
+}
+
+async function deleteReply(r: any, rp: any) {
+  if (!confirm('确定删除这条回复？')) return
+  const u = authAPI.getCurrentUser()
+  try {
+    await reviewAPI.deleteReply(rp.id, u.id)
+    r._replies = r._replies.filter((x: any) => x.id !== rp.id)
+    r.repliesCount = Math.max(0, (r.repliesCount || 1) - 1)
+    // 如果删的是当前回复目标，清除 target
+    if (replyTarget.value?.type === 'reply' && replyTarget.value.reply.id === rp.id) {
+      replyTarget.value = { type: 'review', review: r }
+    }
+  } catch (e: any) { alert(e?.message || '删除失败') }
+}
+
+// 楼中楼（共享输入框模式）
+const expandedReviews = ref<Record<string, boolean>>({})
+const replyTarget = ref<any>(null)   // { type: 'review'|'reply', review: 父评论, reply?: 子评论 }
+const replyText = ref('')
+const replyInputRef = ref<HTMLInputElement | null>(null)
+
+/** 点父评论 💬：展开子评论 + 切换回复目标为这条父评论 */
+async function onReviewReplyClick(r: any) {
+  // 切换展开
+  const cur = expandedReviews.value[r.id]
+  expandedReviews.value[r.id] = !cur
+  // 切换回复目标（再次点同一个就取消 target）
+  if (replyTarget.value?.type === 'review' && replyTarget.value.review.id === r.id) {
+    replyTarget.value = null
+  } else {
+    replyTarget.value = { type: 'review', review: r }
+  }
+  // 展开时拉子评论
+  if (!cur) {
+    const u = authAPI.getCurrentUser()
+    r._replies = await reviewAPI.listReplies(r.id, u?.id)
+  }
+  // 聚焦输入框
+  nextTick(() => replyInputRef.value?.focus())
+}
+
+/** 点子评论的"回复" */
+function focusReplyInput(r: any, rp: any) {
+  if (!authAPI.getCurrentUser()) { alert('请先登录'); return }
+  // 确保父评论展开
+  expandedReviews.value[r.id] = true
+  replyTarget.value = { type: 'reply', review: r, reply: rp }
+  nextTick(() => replyInputRef.value?.focus())
+}
+
+function clearReplyTarget() {
+  replyTarget.value = null
+  replyText.value = ''
+}
+
+async function submitReplyGlobal() {
+  const u = authAPI.getCurrentUser()
+  if (!u) { alert('请先登录'); return }
+  if (!replyTarget.value) { alert('请先选择要回复的评论'); return }
+  const content = replyText.value.trim()
+  if (content.length < 2) { alert('不少于两个字'); return }
+
+  try {
+    const r = replyTarget.value.review  // 父评论
+    const body: any = {
+      userId: u.id,
+      userName: u.username || u.name || '匿名',
+      content
+    }
+    if (replyTarget.value.type === 'reply') {
+      const rp = replyTarget.value.reply
+      body.parentReplyId = rp.id
+      body.replyToUserId = rp.userId
+      body.replyToUserName = rp.userName
+    }
+    const saved = await reviewAPI.createReply(r.id, body)
+    // 乐观更新
+    if (!r._replies) r._replies = []
+    r._replies.push({ ...saved, liked: false })
+    r.repliesCount = (r.repliesCount || 0) + 1
+    replyText.value = ''
+  } catch (e: any) { alert(e?.message || '发送失败') }
 }
 
 function goReviewPublish() {
@@ -2131,6 +2333,197 @@ onMounted(async () => {
   transition: transform 0.15s;
 }
 .cjx-review-img:hover { transform: scale(1.05); }
+
+.cjx-review-actions {
+  margin-top: 10px;
+  display: flex;
+  gap: 12px;
+}
+.cjx-like-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border: 1px solid #e5e6e8;
+  border-radius: 16px;
+  background: #fff;
+  color: #666;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cjx-like-btn:hover:not(.disabled) {
+  border-color: #ff6b81;
+  color: #ff6b81;
+}
+.cjx-like-btn.liked {
+  border-color: #ff6b81;
+  background: #fff0f3;
+  color: #ff4757;
+}
+.cjx-like-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.cjx-like-icon { font-size: 14px; }
+.cjx-like-count { font-variant-numeric: tabular-nums; }
+.cjx-like-btn.small { padding: 2px 10px; font-size: 12px; }
+
+/* ===== 回复按钮 ===== */
+.cjx-reply-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border: 1px solid #e5e6e8;
+  border-radius: 16px;
+  background: #fff;
+  color: #666;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cjx-reply-btn:hover { border-color: #4a6cf7; color: #4a6cf7; }
+.cjx-reply-count { font-variant-numeric: tabular-nums; }
+
+/* ===== 楼中楼 ===== */
+.cjx-replies-wrap {
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: #f7f8fa;
+  border-radius: 8px;
+}
+.cjx-replies-list { display: flex; flex-direction: column; gap: 10px; }
+.cjx-reply-item {
+  padding: 10px 12px;
+  background: #fff;
+  border-radius: 6px;
+  border: 1px solid #eef0f4;
+}
+.cjx-reply-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 4px;
+}
+.cjx-reply-avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #4a6cf7;
+  color: #fff;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.cjx-reply-name { color: #333; font-weight: 600; }
+.cjx-reply-to { color: #999; font-size: 12px; }
+.cjx-reply-to-name { color: #4a6cf7; font-size: 12px; }
+.cjx-reply-time { margin-left: auto; color: #bbb; font-size: 11px; }
+.cjx-reply-content {
+  margin: 0 0 6px 0;
+  font-size: 13px;
+  color: #333;
+  line-height: 1.5;
+}
+.cjx-reply-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.cjx-reply-link {
+  background: none;
+  border: none;
+  color: #666;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 2px 4px;
+}
+.cjx-reply-link:hover { color: #4a6cf7; }
+.cjx-reply-del {
+  background: none;
+  border: none;
+  color: #c0392b;
+  cursor: pointer;
+  font-size: 12px;
+  margin-left: auto;
+  padding: 2px 4px;
+}
+.cjx-reply-del:hover { text-decoration: underline; }
+
+/* 共享回复输入框（全评测区仅此一个） */
+.cjx-reply-input-global {
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: #f0f2f5;
+  border-radius: 10px;
+  border: 1px solid #e5e6e8;
+}
+.cjx-reply-input-ph-disabled {
+  color: #999;
+  font-size: 13px;
+  padding: 6px 0;
+  cursor: pointer;
+}
+.cjx-reply-input-ph-disabled:hover { color: #4a6cf7; }
+.cjx-reply-input-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #4a6cf7;
+  padding: 0 2px 8px;
+  border-bottom: 1px solid #e5e6e8;
+  margin-bottom: 8px;
+}
+.cjx-reply-input-hint b { color: #333; }
+.cjx-reply-input-clear {
+  margin-left: auto;
+  cursor: pointer;
+  color: #999;
+  font-size: 12px;
+}
+.cjx-reply-input-clear:hover { color: #c0392b; }
+.cjx-reply-input-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.cjx-reply-input-field {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #d5d6d8;
+  border-radius: 6px;
+  font-size: 13px;
+  outline: none;
+  background: #fff;
+  transition: border-color 0.15s;
+}
+.cjx-reply-input-field:focus { border-color: #4a6cf7; }
+.cjx-reply-send {
+  padding: 6px 18px;
+  background: #4a6cf7;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.cjx-reply-send:hover:not(:disabled) { background: #3a56d4; }
+.cjx-reply-send:disabled { background: #ccc; cursor: not-allowed; }
+
+/* 💬 激活态 */
+.cjx-reply-btn.active {
+  border-color: #4a6cf7;
+  background: #eef2ff;
+  color: #4a6cf7;
+}
 
 .cjx-review-empty {
   text-align: center;

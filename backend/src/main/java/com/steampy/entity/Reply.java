@@ -9,28 +9,24 @@ import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-@TableName("reviews")
-public class Review {
+@TableName("review_replies")
+public class Reply {
     @TableId(type = IdType.INPUT)
     private String id;
-    private Long gameId;
+    private String reviewId;
+    /** 非空时表示回复的是某条子评论（也展示在父评论下，保持扁平） */
+    private String parentReplyId;
+    private String replyToUserId;
+    private String replyToUserName;
     private String userId;
     private String userName;
-    /** 1=推荐 0=不推荐 */
-    private Integer recommend;
     private String content;
-    /** 逗号分隔的图片 URL 列表 */
-    private String images;
-    /** 0=待审核 1=已通过 2=被拒 */
-    private Integer status;
     private Integer likesCount;
-    private Integer repliesCount;
+    private Integer status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
     @TableField(exist = false)
-    private String gameName;
-    /** 当前登录用户是否已点赞（仅查询时填充，不映射 DB） */
-    @TableField(exist = false)
+    /** 当前登录用户是否已点赞 */
     private Boolean liked;
 }

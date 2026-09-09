@@ -3,10 +3,14 @@ package com.steampy.controller;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.steampy.dto.Result;
 import com.steampy.entity.Game;
+import com.steampy.entity.Reply;
 import com.steampy.entity.Review;
 import com.steampy.mapper.GameMapper;
+import com.steampy.mapper.ReplyMapper;
 import com.steampy.mapper.ReviewMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -22,16 +26,34 @@ public class ReviewController {
     private ReviewMapper reviewMapper;
 
     @Autowired
+    private ReplyMapper replyMapper;
+
+    @Autowired
     private GameMapper gameMapper;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    /**
+     * 查询游戏评论列表
+     * @param userId 可选，传了就返回每条评论当前用户是否已点赞
+     */
     @GetMapping("/game/{gameId}")
-    public Result<List<Review>> listByGame(@PathVariable Long gameId) {
+    public Result<List<Review>> listByGame(@PathVariable Long gameId,
+                                            @RequestParam(required = false) String userId) {
         QueryWrapper<Review> qw = new QueryWrapper<>();
         qw.eq("game_id", gameId).eq("status", 1).orderByDesc("created_at");
         List<Review> list = reviewMapper.selectList(qw);
         Game g = gameMapper.selectById(gameId);
         String name = g != null ? g.getName() : "";
-        list.forEach(r -> r.setGameName(name));
+        for (Review r : list) {
+            r.setGameName(name);
+            if (userId != null && !userId.isBlank()) {
+                r.setLiked(reviewMapper.countLike(r.getId(), userId) > 0);
+            } else {
+                r.setLiked(false);
+            }
+        }
         return Result.success(list);
     }
 
@@ -40,6 +62,7 @@ public class ReviewController {
         QueryWrapper<Review> qw = new QueryWrapper<>();
         qw.eq("game_id", gameId).eq("user_id", userId).last("LIMIT 1");
         Review r = reviewMapper.selectOne(qw);
+        if (r != null) r.setLiked(false);
         return Result.success(r);
     }
 
@@ -88,10 +111,12 @@ public class ReviewController {
             review.setContent(content.trim());
             review.setImages(images);
             review.setStatus(1);
+            review.setLikesCount(0);
             review.setCreatedAt(LocalDateTime.now());
             review.setUpdatedAt(LocalDateTime.now());
             reviewMapper.insert(review);
         }
+        review.setLiked(false);
         return Result.success(review);
     }
 
@@ -101,7 +126,178 @@ public class ReviewController {
         if (r == null || !r.getUserId().equals(userId)) {
             return Result.error("评论不存在或无权限删除");
         }
+        // 连点赞记录一起清
+        jdbcTemplate.update("DELETE FROM review_likes WHERE review_id = ?", id);
         reviewMapper.deleteById(id);
+        return Result.success();
+    }
+
+    /** 点赞（幂等：已点赞则返回成功但不加数） */
+    @PostMapping("/{id}/like")
+    @Transactional
+    public Result<Map<String, Object>> like(@PathVariable String id, @RequestParam String userId) {
+        Review r = reviewMapper.selectById(id);
+        if (r == null) return Result.error("评论不存在");
+        if (r.getUserId().equals(userId)) return Result.error("不能给自己点赞");
+
+        int existing = reviewMapper.countLike(id, userId);
+        boolean liked;
+        if (existing == 0) {
+            jdbcTemplate.update(
+                    "INSERT INTO review_likes (review_id, user_id) VALUES (?, ?)", id, userId);
+            reviewMapper.incrementLikesCount(id, 1);
+            liked = true;
+        } else {
+            liked = true; // 已经点过了，不算错误
+        }
+        int count = r.getLikesCount() == null ? 0 : r.getLikesCount();
+        if (liked && existing == 0) count++;
+        return Result.success(Map.of("liked", liked, "likesCount", count));
+    }
+
+    /** 取消点赞 */
+    @DeleteMapping("/{id}/like")
+    @Transactional
+    public Result<Map<String, Object>> unlike(@PathVariable String id, @RequestParam String userId) {
+        Review r = reviewMapper.selectById(id);
+        if (r == null) return Result.error("评论不存在");
+
+        int existing = reviewMapper.countLike(id, userId);
+        boolean liked;
+        int count = r.getLikesCount() == null ? 0 : r.getLikesCount();
+        if (existing > 0) {
+            jdbcTemplate.update(
+                    "DELETE FROM review_likes WHERE review_id = ? AND user_id = ?", id, userId);
+            reviewMapper.incrementLikesCount(id, -1);
+            count = Math.max(0, count - 1);
+            liked = false;
+        } else {
+            liked = false;
+        }
+        return Result.success(Map.of("liked", liked, "likesCount", count));
+    }
+
+    // ========== 子评论（Reply） ==========
+
+    /** 查某评论下的所有子评论（扁平列表，按时间排） */
+    @GetMapping("/{reviewId}/replies")
+    public Result<List<Reply>> listReplies(@PathVariable String reviewId,
+                                            @RequestParam(required = false) String userId) {
+        QueryWrapper<Reply> qw = new QueryWrapper<>();
+        qw.eq("review_id", reviewId).eq("status", 1).orderByAsc("created_at");
+        List<Reply> list = replyMapper.selectList(qw);
+        for (Reply r : list) {
+            if (userId != null && !userId.isBlank()) {
+                r.setLiked(replyMapper.countLike(r.getId(), userId) > 0);
+            } else {
+                r.setLiked(false);
+            }
+        }
+        return Result.success(list);
+    }
+
+    /** 发布子评论（支持回复某条子评论：传 parentReplyId + replyToUserId/Name） */
+    @PostMapping("/{reviewId}/replies")
+    @Transactional
+    public Result<Reply> createReply(@PathVariable String reviewId,
+                                      @RequestBody Map<String, Object> body) {
+        Review parent = reviewMapper.selectById(reviewId);
+        if (parent == null) return Result.error("评论不存在");
+
+        String userId = (String) body.get("userId");
+        String userName = (String) body.getOrDefault("userName", "");
+        String content = (String) body.get("content");
+        if (content == null || content.trim().length() < 2) {
+            return Result.error("回复内容不少于两个字");
+        }
+
+        Reply r = new Reply();
+        r.setId(UUID.randomUUID().toString());
+        r.setReviewId(reviewId);
+        r.setUserId(userId);
+        r.setUserName(userName);
+        r.setContent(content.trim());
+        r.setLikesCount(0);
+        r.setStatus(1);
+
+        // 回复某条子评论（子评论的回复也还是子评论，只是记录了 parentReplyId 便于前端显示 "@xxx"）
+        String parentReplyId = (String) body.get("parentReplyId");
+        String replyToUserId = (String) body.get("replyToUserId");
+        String replyToUserName = (String) body.get("replyToUserName");
+        r.setParentReplyId(parentReplyId);
+        r.setReplyToUserId(replyToUserId);
+        r.setReplyToUserName(replyToUserName);
+
+        r.setCreatedAt(LocalDateTime.now());
+        r.setUpdatedAt(LocalDateTime.now());
+        replyMapper.insert(r);
+
+        // 父评论 replies_count +1
+        jdbcTemplate.update(
+                "UPDATE reviews SET replies_count = replies_count + 1 WHERE id = ?", reviewId);
+
+        r.setLiked(false);
+        return Result.success(r);
+    }
+
+    /** 子评论点赞 */
+    @PostMapping("/replies/{replyId}/like")
+    @Transactional
+    public Result<Map<String, Object>> likeReply(@PathVariable String replyId,
+                                                  @RequestParam String userId) {
+        Reply r = replyMapper.selectById(replyId);
+        if (r == null) return Result.error("回复不存在");
+        if (r.getUserId().equals(userId)) return Result.error("不能给自己点赞");
+
+        int existing = replyMapper.countLike(replyId, userId);
+        if (existing == 0) {
+            jdbcTemplate.update(
+                    "INSERT INTO review_reply_likes (reply_id, user_id) VALUES (?, ?)", replyId, userId);
+            jdbcTemplate.update(
+                    "UPDATE review_replies SET likes_count = likes_count + 1 WHERE id = ?", replyId);
+            r.setLikesCount((r.getLikesCount() == null ? 0 : r.getLikesCount()) + 1);
+        }
+        return Result.success(Map.of("liked", true, "likesCount", r.getLikesCount()));
+    }
+
+    /** 子评论取消点赞 */
+    @DeleteMapping("/replies/{replyId}/like")
+    @Transactional
+    public Result<Map<String, Object>> unlikeReply(@PathVariable String replyId,
+                                                     @RequestParam String userId) {
+        Reply r = replyMapper.selectById(replyId);
+        if (r == null) return Result.error("回复不存在");
+
+        int existing = replyMapper.countLike(replyId, userId);
+        boolean liked;
+        int count = r.getLikesCount() == null ? 0 : r.getLikesCount();
+        if (existing > 0) {
+            jdbcTemplate.update(
+                    "DELETE FROM review_reply_likes WHERE reply_id = ? AND user_id = ?", replyId, userId);
+            jdbcTemplate.update(
+                    "UPDATE review_replies SET likes_count = likes_count - 1 WHERE id = ?", replyId);
+            count = Math.max(0, count - 1);
+            liked = false;
+        } else {
+            liked = false;
+        }
+        return Result.success(Map.of("liked", liked, "likesCount", count));
+    }
+
+    /** 删除子评论（发布人或父评论作者可删） */
+    @DeleteMapping("/replies/{replyId}")
+    @Transactional
+    public Result<?> deleteReply(@PathVariable String replyId, @RequestParam String userId) {
+        Reply r = replyMapper.selectById(replyId);
+        if (r == null) return Result.error("回复不存在");
+        // 只有自己能删
+        if (!r.getUserId().equals(userId)) return Result.error("无权限删除");
+
+        jdbcTemplate.update("DELETE FROM review_reply_likes WHERE reply_id = ?", replyId);
+        replyMapper.deleteById(replyId);
+        jdbcTemplate.update(
+                "UPDATE reviews SET replies_count = GREATEST(replies_count - 1, 0) WHERE id = ?",
+                r.getReviewId());
         return Result.success();
     }
 }
