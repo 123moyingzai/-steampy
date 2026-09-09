@@ -171,7 +171,7 @@ export const notificationAPI = {
     try {
       const list = await apiRequest<UserNotification[]>(
         '/notifications?userId=' + userId)
-      return list || []
+      return snakeToCamel(list || [])
     } catch { return [] }
   },
   async unreadCount(userId: string): Promise<number> {
@@ -481,7 +481,8 @@ export const reviewAPI = {
     } catch { return [] }
   },
   async createReply(reviewId: string, body: any): Promise<any> {
-    return await apiRequest<any>(`/reviews/${reviewId}/replies`, 'POST', body)
+    const r = await apiRequest<any>(`/reviews/${reviewId}/replies`, 'POST', body)
+    return snakeToCamel(r)
   },
   async likeReply(replyId: string, userId: string): Promise<any> {
     return await apiRequest<any>(`/reviews/replies/${replyId}/like?userId=${encodeURIComponent(userId)}`, 'POST')

@@ -83,13 +83,13 @@
               </div>
               <div class="cjx-popover-body">
                 <div v-if="msgList.length === 0" class="cjx-popover-empty">暂无消息</div>
-                <div v-for="n in msgList.slice(0, 8)" :key="n.id" class="cjx-popover-item" :class="{ unread: !n.is_read }" @click="openNotification(n)">
+                <div v-for="n in msgList.slice(0, 8)" :key="n.id" class="cjx-popover-item" :class="{ unread: !n.isRead }" @click="openNotification(n)">
                   <div class="cjx-popover-title">
                     <span class="cjx-popover-type">{{ n.type === 'reply' ? '💬 回复了你' : n.type === 'like_review' ? '👍 赞了你的评论' : '👍 赞了你的回复' }}</span>
-                    <span v-if="n.actor_name" class="cjx-popover-actor">{{ n.actor_name }}</span>
+                    <span v-if="n.actorName" class="cjx-popover-actor">{{ n.actorName }}</span>
                   </div>
-                  <div class="cjx-popover-content">{{ n.content_snippet }}</div>
-                  <div class="cjx-popover-time">{{ formatTime(n.created_at) }}</div>
+                  <div class="cjx-popover-content">{{ n.contentSnippet }}</div>
+                  <div class="cjx-popover-time">{{ formatTime(n.createdAt) }}</div>
                 </div>
               </div>
               <div v-if="msgList.length > 8" class="cjx-popover-footer" @click="goMessages">查看全部 →</div>
@@ -255,7 +255,7 @@ const toggleAnn = async () => {
 const markMsgAllRead = async () => {
   if (!currentUser.value?.id) return
   await notificationAPI.markAllRead(currentUser.value.id)
-  msgList.value.forEach(n => n.is_read = true)
+  msgList.value.forEach(n => n.isRead = true)
   msgUnread.value = 0
   await loadUnread()
 }
@@ -270,14 +270,14 @@ const markAnnAllRead = async () => {
 
 // 点击信封面板里的一条通知 → 标记已读 + 跳转到游戏详情并定位评论
 const openNotification = async (n: any) => {
-  if (!n.is_read && currentUser.value?.id) {
+  if (!n.isRead && currentUser.value?.id) {
     await notificationAPI.markRead(n.id)
     await loadUnread()
   }
   showMsgPanel.value = false
-  if (n.game_id) {
+  if (n.gameId) {
     // target_id 是 review ID 或 reply ID，GameDetail 会自动展开父评论
-    router.push({ path: '/game/' + n.game_id, query: { highlight: n.target_id, hlType: n.target_type } })
+    router.push({ path: '/game/' + n.gameId, query: { highlight: n.targetId, hlType: n.targetType } })
   }
 }
 

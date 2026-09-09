@@ -16,22 +16,22 @@
     <!-- 交互消息列表 -->
     <div v-if="tab === 'msg'" class="cjx-msg-list">
       <div v-if="msgList.length === 0" class="cjx-empty">暂无消息，去评论区互动吧～</div>
-      <div v-for="n in msgList" :key="n.id" class="cjx-msg-item" :class="{ unread: !n.is_read }" @click="openNotification(n)">
+      <div v-for="n in msgList" :key="n.id" class="cjx-msg-item" :class="{ unread: !n.isRead }" @click="openNotification(n)">
         <div class="cjx-msg-avatar">
-          <span>{{ (n.actor_name || '用').substring(0, 1) }}</span>
+          <span>{{ (n.actorName || '用').substring(0, 1) }}</span>
         </div>
         <div class="cjx-msg-body">
           <div class="cjx-msg-title">
-            <span class="cjx-msg-actor">{{ n.actor_name || '某人' }}</span>
+            <span class="cjx-msg-actor">{{ n.actorName || '某人' }}</span>
             <span class="cjx-msg-action">{{ typeText(n.type) }}</span>
           </div>
-          <div class="cjx-msg-content">{{ n.content_snippet }}</div>
+          <div class="cjx-msg-content">{{ n.contentSnippet }}</div>
           <div class="cjx-msg-meta">
-            <span>{{ formatTime(n.created_at) }}</span>
-            <span class="cjx-msg-hint" v-if="n.game_id">点击查看 →</span>
+            <span>{{ formatTime(n.createdAt) }}</span>
+            <span class="cjx-msg-hint" v-if="n.gameId">点击查看 →</span>
           </div>
         </div>
-        <div v-if="!n.is_read" class="cjx-unread-dot"></div>
+        <div v-if="!n.isRead" class="cjx-unread-dot"></div>
       </div>
     </div>
 
@@ -111,7 +111,7 @@ const markAllRead = async () => {
   if (!currentUser.value?.id) return
   if (tab.value === 'msg') {
     await notificationAPI.markAllRead(currentUser.value.id)
-    msgList.value.forEach(n => n.is_read = true)
+    msgList.value.forEach(n => n.isRead = true)
     msgUnread.value = 0
   } else {
     await announcementAPI.markAllRead(currentUser.value.id)
@@ -120,12 +120,12 @@ const markAllRead = async () => {
 }
 
 const openNotification = async (n: any) => {
-  if (!n.is_read) {
+  if (!n.isRead) {
     await notificationAPI.markRead(n.id)
-    n.is_read = true
+    n.isRead = true
     msgUnread.value = Math.max(0, msgUnread.value - 1)
   }
-  if (n.game_id) router.push({ path: '/game/' + n.game_id, query: { highlight: n.target_id, hlType: n.target_type } })
+  if (n.gameId) router.push({ path: '/game/' + n.gameId, query: { highlight: n.targetId, hlType: n.targetType } })
 }
 
 onMounted(loadData)
