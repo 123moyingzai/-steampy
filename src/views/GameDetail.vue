@@ -431,44 +431,47 @@
                   </div>
                 </div>
               </div>
+
+              <!-- 共享回复输入框（跟随父评论底部） -->
+              <div
+                class="cjx-reply-input-global"
+                v-if="replyTarget?.review?.id === r.id"
+              >
+                <template v-if="!authAPI.getCurrentUser()">
+                  <div class="cjx-reply-input-ph-disabled" @click="router.push('/login')">请先登录后回复</div>
+                </template>
+                <template v-else>
+                  <div class="cjx-reply-input-bar" v-if="replyTarget">
+                    <span class="cjx-reply-input-hint">
+                      回复
+                      <template v-if="replyTarget.type === 'review'">
+                        <b>{{ replyTarget.review.userName || '匿名' }}</b> 的评论
+                      </template>
+                      <template v-else-if="replyTarget.type === 'reply'">
+                        <b>@{{ replyTarget.reply.userName || '匿名' }}</b>
+                      </template>
+                    </span>
+                    <span class="cjx-reply-input-clear" @click="clearReplyTarget">× 取消</span>
+                  </div>
+                  <div class="cjx-reply-input-row">
+                    <input
+                      :ref="el => setReplyInputRef(el)"
+                      v-model="replyText"
+                      class="cjx-reply-input-field"
+                      :placeholder="replyTarget
+                        ? (replyTarget.type === 'review' ? `回复评论...` : `回复 @${replyTarget.reply.userName || ''}...`)
+                        : '输入回复内容...'"
+                      @keyup.enter="submitReplyGlobal"
+                    />
+                    <button class="cjx-reply-send" @click="submitReplyGlobal" :disabled="!replyText.trim()">发送</button>
+                  </div>
+                </template>
+              </div>
             </div>
           </div>
         </div>
         <div class="cjx-review-empty" v-else>
           <p>还没有任何评测，来做第一个评价的人吧 👇</p>
-        </div>
-
-        <!-- 共享回复输入框（全评测区仅此一个） -->
-        <div class="cjx-reply-input-global">
-          <template v-if="!authAPI.getCurrentUser()">
-            <div class="cjx-reply-input-ph-disabled" @click="router.push('/login')">请先登录后回复</div>
-          </template>
-          <template v-else>
-            <div class="cjx-reply-input-bar" v-if="replyTarget">
-              <span class="cjx-reply-input-hint">
-                回复
-                <template v-if="replyTarget.type === 'review'">
-                  <b>{{ replyTarget.review.userName || '匿名' }}</b> 的评论
-                </template>
-                <template v-else-if="replyTarget.type === 'reply'">
-                  <b>@{{ replyTarget.reply.userName || '匿名' }}</b>
-                </template>
-              </span>
-              <span class="cjx-reply-input-clear" @click="clearReplyTarget">× 取消</span>
-            </div>
-            <div class="cjx-reply-input-row">
-              <input
-                ref="replyInputRef"
-                v-model="replyText"
-                class="cjx-reply-input-field"
-                :placeholder="replyTarget
-                  ? (replyTarget.type === 'review' ? `回复评论...` : `回复 @${replyTarget.reply.userName || ''}...`)
-                  : '选择一条评论或子评论，在这里回复'"
-                @keyup.enter="submitReplyGlobal"
-              />
-              <button class="cjx-reply-send" @click="submitReplyGlobal" :disabled="!replyText.trim()">发送</button>
-            </div>
-          </template>
         </div>
 
         <!-- 底部输入框 → 点击跳发布页 -->
@@ -1103,7 +1106,9 @@ async function deleteReply(r: any, rp: any) {
 const expandedReviews = ref<Record<string, boolean>>({})
 const replyTarget = ref<any>(null)   // { type: 'review'|'reply', review: 父评论, reply?: 子评论 }
 const replyText = ref('')
-const replyInputRef = ref<HTMLInputElement | null>(null)
+let _replyInputEl: HTMLInputElement | null = null
+const setReplyInputRef = (el: any) => { _replyInputEl = el }
+const focusReplyInputField = () => nextTick(() => _replyInputEl?.focus())
 
 /** 点父评论 💬：展开子评论 + 切换回复目标为这条父评论 */
 async function onReviewReplyClick(r: any) {
@@ -1122,7 +1127,7 @@ async function onReviewReplyClick(r: any) {
     r._replies = await reviewAPI.listReplies(r.id, u?.id)
   }
   // 聚焦输入框
-  nextTick(() => replyInputRef.value?.focus())
+  focusReplyInputField()
 }
 
 /** 点子评论的"回复" */
@@ -1131,7 +1136,7 @@ function focusReplyInput(r: any, rp: any) {
   // 确保父评论展开
   expandedReviews.value[r.id] = true
   replyTarget.value = { type: 'reply', review: r, reply: rp }
-  nextTick(() => replyInputRef.value?.focus())
+  focusReplyInputField()
 }
 
 function clearReplyTarget() {
