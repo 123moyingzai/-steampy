@@ -31,7 +31,13 @@
           
           <div class="cjx-avatar-section">
             <div class="cjx-avatar-large" :style="userInfo.avatarUrl ? `background-image:url(${userInfo.avatarUrl});background-size:cover;background-position:center;` : ''">{{ avatarText }}</div>
-            <button class="cjx-btn cjx-btn-secondary" @click="pickAvatar">更换头像</button>
+            <div>
+              <button class="cjx-btn cjx-btn-secondary" @click="$refs.avatarInput.click()">
+                {{ uploadingAvatar ? '上传中...' : '更换头像' }}
+              </button>
+              <input ref="avatarInput" type="file" accept="image/*" style="display:none" @change="handleAvatarFile" />
+              <button v-if="userInfo.avatarUrl" class="cjx-btn cjx-btn-secondary" style="margin-left:8px;background:#fff;color:#e74c3c;border:1px solid #e74c3c;padding:9px 16px;" @click="clearAvatar">移除</button>
+            </div>
           </div>
 
           <div class="cjx-form">
@@ -254,7 +260,8 @@ const router = useRouter()
 
 // 响应式数据
 const activeTab = ref('basic')
-const saving = ref(false)
+const uploading = ref(false)
+const uploadingAvatar = ref(false)
 const showPasswordModal = ref(false)
 const showBindModal = ref(false)
 const binding = ref(false)
@@ -323,13 +330,34 @@ const saveBasic = async () => {
   }
 }
 
-const pickAvatar = () => {
-  const url = prompt('请输入头像图片 URL（网络图片链接）：', userInfo.value.avatarUrl)
-  if (url === null) return
-  const trimmed = url.trim()
-  if (!trimmed) { userInfo.value.avatarUrl = ''; return }
-  if (!/^https?:\/\//i.test(trimmed)) { alert('请输入有效的 http/https 链接'); return }
-  userInfo.value.avatarUrl = trimmed
+const handleAvatarFile = async (e: Event) => {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  if (file.size > 5 * 1024 * 1024) { alert('图片不能超过 5MB'); return }
+  uploadingAvatar.value = true
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await fetch('/api/upload/avatar', { method: 'POST', body: fd })
+    const json = await res.json()
+    if (json.code !== 200 || !json.data?.url) {
+      alert('上传失败：' + (json.message || '未知错误'))
+      return
+    }
+    userInfo.value.avatarUrl = json.data.url
+    alert('头像上传成功！记得点「保存修改」生效哦 ✅')
+  } catch (err: any) {
+    alert('上传失败：' + (err?.message || '网络错误'))
+  } finally {
+    uploadingAvatar.value = false
+    input.value = ''
+  }
+}
+
+const clearAvatar = () => {
+  if (!confirm('确定移除当前头像吗？')) return
+  userInfo.value.avatarUrl = ''
 }
 
 const savePassword = async () => {
