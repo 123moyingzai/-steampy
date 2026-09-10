@@ -1,961 +1,372 @@
 <template>
-  <Layout>
-    <div class="cjx-settings-page">
-      <!-- 侧边标签 -->
-      <div class="cjx-settings-sidebar">
-        <div 
-          class="cjx-settings-tab" 
-          :class="{ active: activeTab === 'basic' }"
-          @click="activeTab = 'basic'"
-        >基本信息</div>
-        <div 
-          class="cjx-settings-tab" 
-          :class="{ active: activeTab === 'security' }"
-          @click="activeTab = 'security'"
-        >账号安全</div>
-        <div 
-          class="cjx-settings-tab" 
-          :class="{ active: activeTab === 'steam' }"
-          @click="switchToSteam"
-        >
-          Steam绑定
-          <span v-if="steamBound" class="cjx-bind-dot" title="已绑定"></span>
-        </div>
+  <div class="cjx-settings">
+    <!-- 顶部 tab（与 MessageCenter 风格一致） -->
+    <div class="cjx-tabs">
+      <div class="cjx-tab" :class="{ active: tab === 'profile' }" @click="tab = 'profile'">👤 基本信息</div>
+      <div class="cjx-tab" :class="{ active: tab === 'security' }" @click="tab = 'security'">🔐 修改密码</div>
+      <div class="cjx-tab" :class="{ active: tab === 'steam' }" @click="tab = 'steam'">🎮 Steam 绑定</div>
+    </div>
+
+    <!-- 基本信息 -->
+    <div v-if="tab === 'profile'" class="cjx-card">
+      <h3 class="cjx-card-title">基本信息</h3>
+      <p class="cjx-card-hint">用户名是账号的唯一标识，不可修改</p>
+
+      <div class="cjx-form-row">
+        <label>用户名</label>
+        <input v-model="form.username" disabled class="cjx-input cjx-input-disabled" />
       </div>
 
-      <!-- 内容区域 -->
-      <div class="cjx-settings-content">
-        <!-- 基本信息 -->
-        <div v-show="activeTab === 'basic'" class="cjx-settings-panel">
-          <h2>基本信息</h2>
-          
-          <div class="cjx-avatar-section">
-            <div class="cjx-avatar-large">{{ avatarText }}</div>
-            <button class="cjx-btn cjx-btn-secondary">更换头像</button>
-          </div>
+      <div class="cjx-form-row">
+        <label>昵称</label>
+        <input v-model="form.nickname" class="cjx-input" placeholder="显示给其他玩家的名字" />
+      </div>
 
-          <div class="cjx-form">
-            <div class="cjx-form-row">
-              <label>用户名</label>
-              <input type="text" :value="userInfo.username" disabled class="cjx-input" />
-              <span class="cjx-hint">用户名不可修改</span>
-            </div>
+      <div class="cjx-form-row">
+        <label>手机号</label>
+        <input v-model="form.phone" class="cjx-input" placeholder="选填" maxlength="20" />
+      </div>
 
-            <div class="cjx-form-row">
-              <label>昵称</label>
-              <input type="text" v-model="userInfo.nickname" class="cjx-input" placeholder="设置昵称" />
-            </div>
+      <div class="cjx-form-row">
+        <label>邮箱</label>
+        <input v-model="form.email" class="cjx-input" placeholder="选填" />
+      </div>
 
-            <div class="cjx-form-row">
-              <label>性别</label>
-              <div class="cjx-radio-group">
-                <label><input type="radio" v-model="userInfo.gender" value="male" /> 男</label>
-                <label><input type="radio" v-model="userInfo.gender" value="female" /> 女</label>
-              </div>
-            </div>
+      <div class="cjx-form-row">
+        <label>头像 URL</label>
+        <input v-model="form.avatarUrl" class="cjx-input" placeholder="图片链接" />
+      </div>
 
-            <div class="cjx-form-row">
-              <label>国家/地区</label>
-              <select v-model="userInfo.country" class="cjx-select">
-                <option value="中国">中国</option>
-                <option value="美国">美国</option>
-                <option value="日本">日本</option>
-                <option value="其他">其他</option>
-              </select>
-            </div>
+      <div v-if="form.avatarUrl" class="cjx-avatar-preview">
+        <img :src="form.avatarUrl" alt="头像预览" />
+      </div>
 
-            <div class="cjx-form-actions">
-              <button class="cjx-btn cjx-btn-primary" @click="saveBasic" :disabled="saving">
-                {{ saving ? '保存中...' : '保存修改' }}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- 账号安全 -->
-        <div v-show="activeTab === 'security'" class="cjx-settings-panel">
-          <h2>账号安全</h2>
-          
-          <div class="cjx-security-list">
-            <div class="cjx-security-item">
-              <div class="cjx-security-info">
-                <h4>登录密码</h4>
-                <p>密码强度：{{ userInfo.passwordStrength }}</p>
-              </div>
-              <button class="cjx-btn cjx-btn-secondary" @click="showPasswordModal = true">修改</button>
-            </div>
-
-            <div class="cjx-security-item">
-              <div class="cjx-security-info">
-                <h4>手机绑定</h4>
-                <p>{{ userInfo.phone || '未绑定' }}</p>
-              </div>
-              <button class="cjx-btn cjx-btn-secondary">更换</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- ========== Steam绑定 ========== -->
-        <div v-show="activeTab === 'steam'" class="cjx-settings-panel cjx-steam-panel">
-          <h2>Steam 绑定</h2>
-
-          <!-- 未绑定状态 -->
-          <div v-if="!steamBound" class="cjx-steam-unbound">
-            <div class="cjx-steam-icon-big">🎮</div>
-            <h3>尚未绑定 Steam 账号</h3>
-            <p class="cjx-steam-tip">绑定 Steam 账号后可以正常购买游戏，系统会自动检测您的游戏库存避免重复购买</p>
-            <button class="cjx-btn cjx-btn-primary cjx-btn-bind" :disabled="binding" @click="handleBind">
-              {{ binding ? '绑定中...' : '立即绑定 Steam' }}
-            </button>
-          </div>
-
-          <!-- 已绑定状态 -->
-          <div v-else>
-            <!-- 顶部账号信息栏 -->
-            <div class="cjx-steam-profile">
-              <!-- 第一行：头像 + 名称 + SteamID + 地区 -->
-              <div class="cjx-steam-row1">
-                <div class="cjx-steam-avatar-wrap">
-                  <img
-                    v-if="steamInfo.steam_avatar_url"
-                    :src="steamInfo.steam_avatar_url"
-                    class="cjx-steam-avatar"
-                    @error="(e: any) => { (e.target as HTMLImageElement).style.display = 'none' }"
-                  />
-                  <div v-else class="cjx-steam-avatar-fallback">🎮</div>
-                </div>
-                <div class="cjx-steam-info">
-                  <div class="cjx-steam-name-row">
-                    <span class="cjx-steam-name">{{ steamInfo.steam_name || '—' }}</span>
-                    <span class="cjx-steam-badge">已绑定</span>
-                  </div>
-                  <div class="cjx-steam-meta-row">
-                    <span class="cjx-steam-meta">
-                      <i class="cjx-meta-icon">🆔</i>
-                      Steam ID: {{ steamInfo.steam_id || '—' }}
-                    </span>
-                    <span class="cjx-steam-meta">
-                      <i class="cjx-meta-icon">🌍</i>
-                      {{ steamInfo.steam_region || '—' }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 第二行：等级 + 游戏数量 + 账号价值 + 游戏时长 -->
-              <div class="cjx-steam-row2">
-                <div class="cjx-stat-item">
-                  <div class="cjx-stat-value cjx-stat-level">Lv.{{ steamInfo.steam_level ?? 0 }}</div>
-                  <div class="cjx-stat-label">Steam 等级</div>
-                </div>
-                <div class="cjx-stat-item">
-                  <div class="cjx-stat-value">{{ steamInfo.steam_game_count ?? 0 }}</div>
-                  <div class="cjx-stat-label">游戏数量</div>
-                </div>
-                <div class="cjx-stat-item">
-                  <div class="cjx-stat-value">¥{{ (steamInfo.steam_account_value ?? 0).toFixed(2) }}</div>
-                  <div class="cjx-stat-label">账号价值</div>
-                </div>
-                <div class="cjx-stat-item">
-                  <div class="cjx-stat-value">{{ steamInfo.steam_playtime ?? 0 }}h</div>
-                  <div class="cjx-stat-label">游戏时长</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- 库存游戏列表 -->
-            <div class="cjx-library-section">
-              <div class="cjx-library-head">
-                <h3>🎯 游戏库存 ({{ library.length }})</h3>
-                <button class="cjx-btn cjx-btn-secondary cjx-btn-small" @click="handleRefreshLibrary" :disabled="refreshing">
-                  {{ refreshing ? '刷新中...' : '刷新库存' }}
-                </button>
-              </div>
-
-              <div v-if="library.length > 0" class="cjx-library-grid">
-                <div v-for="item in library" :key="item.game_id + '-' + item.game_name" class="cjx-library-card">
-                  <div class="cjx-library-img-wrap">
-                    <img
-                      v-if="item.game_image"
-                      :src="getImageUrl(item.game_image)"
-                      class="cjx-library-img"
-                      @error="(e: any) => { (e.target as HTMLImageElement).src = '/picture/安魂曲.jpg' }"
-                    />
-                    <div v-else class="cjx-library-img-fallback">🎮</div>
-                    <div class="cjx-library-playtime">⏱ {{ item.playtime ?? 0 }}h</div>
-                  </div>
-                  <div class="cjx-library-name" :title="item.game_name">{{ item.game_name }}</div>
-                </div>
-              </div>
-              <div v-else class="cjx-library-empty">
-                <p>库存为空</p>
-              </div>
-            </div>
-
-            <!-- 底部操作 -->
-            <div class="cjx-steam-actions">
-              <button class="cjx-btn cjx-btn-danger" @click="handleUnbind" :disabled="unbinding">
-                {{ unbinding ? '解绑中...' : '解除绑定' }}
-              </button>
-            </div>
-          </div>
-        </div>
+      <div class="cjx-form-actions">
+        <button class="cjx-btn-primary" :disabled="saving" @click="saveProfile">
+          {{ saving ? '保存中...' : '保存修改' }}
+        </button>
+        <span v-if="profileMsg" class="cjx-form-msg" :class="profileMsgType">{{ profileMsg }}</span>
       </div>
     </div>
 
-    <!-- 修改密码弹窗 -->
-    <div class="cjx-modal" v-if="showPasswordModal" @click.self="showPasswordModal = false">
-      <div class="cjx-modal-content">
-        <h3>修改密码</h3>
-        <div class="cjx-form">
-          <div class="cjx-form-row">
-            <label>原密码</label>
-            <input type="password" v-model="passwordForm.old" class="cjx-input" />
-          </div>
-          <div class="cjx-form-row">
-            <label>新密码</label>
-            <input type="password" v-model="passwordForm.new" class="cjx-input" />
-          </div>
-          <div class="cjx-form-row">
-            <label>确认新密码</label>
-            <input type="password" v-model="passwordForm.confirm" class="cjx-input" />
-          </div>
-          <div class="cjx-modal-actions">
-            <button class="cjx-btn cjx-btn-secondary" @click="showPasswordModal = false">取消</button>
-            <button class="cjx-btn cjx-btn-primary" @click="savePassword">确认</button>
-          </div>
-        </div>
+    <!-- 修改密码 -->
+    <div v-if="tab === 'security'" class="cjx-card">
+      <h3 class="cjx-card-title">修改密码</h3>
+      <p class="cjx-card-hint">修改后下次登录生效</p>
+
+      <div class="cjx-form-row">
+        <label>当前密码</label>
+        <input v-model="pwdForm.oldPassword" type="password" class="cjx-input" placeholder="请输入当前密码" />
+      </div>
+      <div class="cjx-form-row">
+        <label>新密码</label>
+        <input v-model="pwdForm.newPassword" type="password" class="cjx-input" placeholder="不少于 4 位" />
+      </div>
+      <div class="cjx-form-row">
+        <label>确认新密码</label>
+        <input v-model="pwdForm.confirmPassword" type="password" class="cjx-input" placeholder="再输一遍新密码" />
+      </div>
+
+      <div class="cjx-form-actions">
+        <button class="cjx-btn-primary" :disabled="changing" @click="changePassword">
+          {{ changing ? '提交中...' : '确认修改' }}
+        </button>
+        <span v-if="pwdMsg" class="cjx-form-msg" :class="pwdMsgType">{{ pwdMsg }}</span>
       </div>
     </div>
 
-    <!-- 绑定 Steam 弹窗 -->
-    <div class="cjx-modal" v-if="showBindModal" @click.self="showBindModal = false">
-      <div class="cjx-modal-content cjx-bind-modal">
-        <h3>🎮 模拟绑定 Steam</h3>
-        <p class="cjx-bind-desc">这是一个模拟绑定功能，后端将为您生成一份模拟的 Steam 账号信息和游戏库存数据。</p>
-        <div class="cjx-modal-actions">
-          <button class="cjx-btn cjx-btn-secondary" @click="showBindModal = false">取消</button>
-          <button class="cjx-btn cjx-btn-primary" :disabled="binding" @click="confirmBind">
-            {{ binding ? '绑定中...' : '确认绑定' }}
-          </button>
+    <!-- Steam 绑定 -->
+    <div v-if="tab === 'steam'" class="cjx-card">
+      <h3 class="cjx-card-title">🎮 Steam 绑定</h3>
+      <p class="cjx-card-hint">展示您的 Steam 社区公开信息</p>
+
+      <div v-if="!form.steamId" class="cjx-empty">
+        暂未绑定 Steam 账号<br />
+        <small>（可通过 Steam 社区绑定，或联系管理员手动绑定）</small>
+      </div>
+
+      <div v-else class="cjx-steam-info">
+        <div class="cjx-steam-avatar">
+          <img v-if="form.steamAvatarUrl" :src="form.steamAvatarUrl" alt="Steam头像" />
+          <div v-else>{{ (form.steamName || 'S').substring(0, 1) }}</div>
+        </div>
+        <div class="cjx-steam-meta">
+          <div class="cjx-steam-name">{{ form.steamName || '未知' }}</div>
+          <div class="cjx-steam-row"><span>Steam ID</span><span>{{ form.steamId }}</span></div>
+          <div v-if="form.steamLevel" class="cjx-steam-row"><span>等级</span><span>{{ form.steamLevel }}</span></div>
+          <div v-if="form.steamGameCount" class="cjx-steam-row"><span>游戏数</span><span>{{ form.steamGameCount }}</span></div>
+          <div v-if="form.steamPlaytime" class="cjx-steam-row"><span>游戏时长</span><span>{{ form.steamPlaytime }} 小时</span></div>
+          <div v-if="form.steamRegion" class="cjx-steam-row"><span>地区</span><span>{{ form.steamRegion }}</span></div>
+          <div v-if="form.steamAccountValue" class="cjx-steam-row"><span>账户价值</span><span>¥{{ form.steamAccountValue }}</span></div>
         </div>
       </div>
     </div>
-  </Layout>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { authAPI, steamAPI } from '../config/supabase-local.ts'
-import Layout from '../components/Layout.vue'
+import { authAPI } from '../config/supabase-local.ts'
 
 const router = useRouter()
+const tab = ref<'profile' | 'security' | 'steam'>('profile')
 
-// 响应式数据
-const activeTab = ref('basic')
+const form = ref<any>({})
 const saving = ref(false)
-const showPasswordModal = ref(false)
-const showBindModal = ref(false)
-const binding = ref(false)
-const unbinding = ref(false)
-const refreshing = ref(false)
+const profileMsg = ref('')
+const profileMsgType = ref<'ok' | 'err'>('ok' as const)
 
-const userInfo = ref({
-  username: '',
-  nickname: '',
-  gender: 'male',
-  country: '中国',
-  phone: '',
-  passwordStrength: '中',
-  steam_id: '',
-  steam_url: ''
+const pwdForm = ref({ oldPassword: '', newPassword: '', confirmPassword: '' })
+const changing = ref(false)
+const pwdMsg = ref('')
+const pwdMsgType = ref<'ok' | 'err'>('ok' as const)
+
+const syncUser = (src: any) => {
+  form.value = {
+    username: src.username || '',
+    nickname: src.nickname || '',
+    phone: src.phone || '',
+    email: src.email || '',
+    avatarUrl: src.avatarUrl || '',
+    steamId: src.steamId || '',
+    steamName: src.steamName || '',
+    steamAvatarUrl: src.steamAvatarUrl || '',
+    steamLevel: src.steamLevel ?? null,
+    steamGameCount: src.steamGameCount ?? null,
+    steamPlaytime: src.steamPlaytime ?? null,
+    steamRegion: src.steamRegion || '',
+    steamAccountValue: src.steamAccountValue ?? null
+  }
+}
+
+onMounted(async () => {
+  const u = authAPI.getCurrentUser()
+  if (!u) { router.push('/login'); return }
+  const fresh = await authAPI.getUser(u.id)
+  syncUser(fresh || u)
 })
 
-const passwordForm = ref({
-  old: '',
-  new: '',
-  confirm: ''
-})
-
-// Steam 相关
-const steamBound = ref(false)
-const steamInfo = ref<any>({})
-const library = ref<any[]>([])
-
-const avatarText = computed(() => {
-  const name = userInfo.value.nickname || userInfo.value.username || '用'
-  return name.substring(0, 2)
-})
-
-const getImageUrl = (path: string) => {
-  if (!path) return '/picture/安魂曲.jpg'
-  if (path.startsWith('http')) return path
-  if (path.includes('picture/')) {
-    const fileName = path.split('picture/')[1]
-    if (fileName) return `/picture/${fileName}`
-  }
-  return path.startsWith('/') ? path : `/${path}`
-}
-
-const saveBasic = async () => {
-  const currentUser = authAPI.getCurrentUser()
-  if (!currentUser) return
-  
-  saving.value = true
-  const result = await authAPI.updateUser(currentUser.id, {
-    nickname: userInfo.value.nickname,
-    gender: userInfo.value.gender,
-    country: userInfo.value.country
-  })
-  saving.value = false
-  
-  if (result.error) {
-    alert('保存失败：' + result.error)
-  } else {
-    alert('保存成功！')
-  }
-}
-
-const savePassword = () => {
-  if (passwordForm.value.new !== passwordForm.value.confirm) {
-    alert('两次输入的密码不一致')
-    return
-  }
-  alert('密码修改成功！')
-  showPasswordModal.value = false
-}
-
-// ========== Steam 相关方法 ==========
-
-const switchToSteam = () => {
-  activeTab.value = 'steam'
-  loadSteamData()
-}
-
-const loadSteamData = async () => {
-  const currentUser = authAPI.getCurrentUser()
-  if (!currentUser) return
-
-  // 先从 sessionStorage 取状态快速响应
-  steamBound.value = !!currentUser.steam_bound || !!currentUser.steamId || currentUser.steam_bound === true
-
-  if (steamBound.value) {
-    // 从后端拉最新数据
-    try {
-      const info = await steamAPI.getInfo(currentUser.id)
-      if (info.data) steamInfo.value = info.data
-      const lib = await steamAPI.getLibrary(currentUser.id)
-      if (lib.data) library.value = lib.data
-    } catch (e) {
-      console.warn('加载 Steam 数据失败', e)
-    }
-  } else {
-    steamInfo.value = {}
-    library.value = []
-  }
-}
-
-const handleBind = () => {
-  showBindModal.value = true
-}
-
-const confirmBind = async () => {
-  const currentUser = authAPI.getCurrentUser()
-  if (!currentUser) {
-    alert('请先登录')
-    router.push('/login')
-    return
-  }
-  binding.value = true
+const saveProfile = async () => {
+  const u = authAPI.getCurrentUser()
+  if (!u) return
+  saving.value = true; profileMsg.value = ''
   try {
-    const res = await steamAPI.bind(currentUser.id)
-    if (res.error) {
-      alert('绑定失败：' + res.error)
-    } else {
-      showBindModal.value = false
-      alert('Steam 绑定成功！')
-      await loadSteamData()
+    const r = await authAPI.updateUser(u.id, {
+      nickname: form.value.nickname?.trim(),
+      phone: form.value.phone?.trim(),
+      email: form.value.email?.trim(),
+      avatarUrl: form.value.avatarUrl?.trim()
+    })
+    if (r.error) { profileMsg.value = r.error; profileMsgType.value = 'err' }
+    else {
+      const merged = { ...u, ...r.data }
+      sessionStorage.setItem('steampy_user', JSON.stringify(merged))
+      profileMsg.value = '保存成功 ✅'; profileMsgType.value = 'ok'
     }
   } catch (e: any) {
-    alert('绑定失败：' + (e?.message || '未知错误'))
+    profileMsg.value = e.message || '保存失败'; profileMsgType.value = 'err'
   } finally {
-    binding.value = false
+    saving.value = false
+    setTimeout(() => { profileMsg.value = '' }, 3000)
   }
 }
 
-const handleUnbind = async () => {
-  const currentUser = authAPI.getCurrentUser()
-  if (!currentUser) return
-  if (!confirm('确定要解绑 Steam 吗？解绑后将无法购买游戏。')) return
-
-  unbinding.value = true
+const changePassword = async () => {
+  const u = authAPI.getCurrentUser()
+  if (!u) return
+  const { oldPassword, newPassword, confirmPassword } = pwdForm.value
+  pwdMsg.value = ''
+  if (!oldPassword || !newPassword || !confirmPassword) {
+    pwdMsg.value = '请填写完整'; pwdMsgType.value = 'err'; return
+  }
+  if (newPassword.length < 4) {
+    pwdMsg.value = '新密码不少于 4 位'; pwdMsgType.value = 'err'; return
+  }
+  if (newPassword !== confirmPassword) {
+    pwdMsg.value = '两次新密码不一致'; pwdMsgType.value = 'err'; return
+  }
+  if (oldPassword === newPassword) {
+    pwdMsg.value = '新密码不能和原密码相同'; pwdMsgType.value = 'err'; return
+  }
+  changing.value = true
   try {
-    const res = await steamAPI.unbind(currentUser.id)
-    if (res.error) {
-      alert('解绑失败：' + res.error)
-    } else {
-      steamBound.value = false
-      steamInfo.value = {}
-      library.value = []
-      alert('已解绑 Steam')
+    const r = await authAPI.changePassword(u.id, oldPassword, newPassword)
+    if (r.error) { pwdMsg.value = r.error; pwdMsgType.value = 'err' }
+    else {
+      pwdMsg.value = '密码修改成功 ✅'; pwdMsgType.value = 'ok'
+      pwdForm.value = { oldPassword: '', newPassword: '', confirmPassword: '' }
     }
   } catch (e: any) {
-    alert('解绑失败：' + (e?.message || '未知错误'))
+    pwdMsg.value = e.message || '修改失败'; pwdMsgType.value = 'err'
   } finally {
-    unbinding.value = false
+    changing.value = false
+    setTimeout(() => { pwdMsg.value = '' }, 3000)
   }
 }
-
-const handleRefreshLibrary = async () => {
-  const currentUser = authAPI.getCurrentUser()
-  if (!currentUser) return
-  refreshing.value = true
-  try {
-    const res = await steamAPI.getLibrary(currentUser.id)
-    if (res.data) {
-      library.value = res.data
-      alert('库存已刷新')
-    }
-  } catch (e) {
-    alert('刷新失败')
-  } finally {
-    refreshing.value = false
-  }
-}
-
-// ========== 初始加载 ==========
-
-const loadData = () => {
-  const currentUser = authAPI.getCurrentUser()
-  
-  if (!currentUser) {
-    alert('请先登录')
-    router.push('/login')
-    return
-  }
-  
-  userInfo.value = {
-    username: currentUser.username || '',
-    nickname: currentUser.nickname || '',
-    gender: currentUser.gender || 'male',
-    country: currentUser.country || '中国',
-    phone: currentUser.phone || '',
-    passwordStrength: currentUser.password_strength || '中',
-    steam_id: currentUser.steam_id || currentUser.steamId || '',
-    steam_url: currentUser.steam_url || ''
-  }
-
-  // 同步 Steam 绑定状态
-  steamBound.value = !!currentUser.steam_bound || !!currentUser.steamId
-  if (steamBound.value) {
-    steamInfo.value = {
-      steam_id: currentUser.steam_id || currentUser.steamId,
-      steam_name: currentUser.steam_name || currentUser.steamName,
-      steam_avatar_url: currentUser.steam_avatar_url || currentUser.steamAvatarUrl,
-      steam_region: currentUser.steam_region || currentUser.steamRegion,
-      steam_level: currentUser.steam_level ?? currentUser.steamLevel,
-      steam_game_count: currentUser.steam_game_count ?? currentUser.steamGameCount,
-      steam_account_value: currentUser.steam_account_value ?? currentUser.steamAccountValue,
-      steam_playtime: currentUser.steam_playtime ?? currentUser.steamPlaytime
-    }
-  }
-}
-
-onMounted(() => {
-  loadData()
-})
 </script>
 
 <style scoped>
-.cjx-settings-page {
+.cjx-settings {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+/* 顶部 tab（与 MessageCenter 同款） */
+.cjx-tabs {
   display: flex;
-  gap: 20px;
+  align-items: center;
+  gap: 1rem;
+  border-bottom: 2px solid #e0e0e0;
+  margin-bottom: 1rem;
 }
-
-.cjx-settings-sidebar {
-  width: 200px;
-  flex-shrink: 0;
-  background: #fff;
-  border-radius: 8px;
-  padding: 10px 0;
-}
-
-.cjx-settings-tab {
-  padding: 15px 20px;
+.cjx-tab {
+  padding: 0.75rem 1.25rem;
   cursor: pointer;
+  font-weight: 600;
   color: #666;
-  border-left: 3px solid transparent;
-  transition: all 0.3s;
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.2s;
+}
+.cjx-tab:hover { color: #2c3e50; }
+.cjx-tab.active {
+  color: #2c3e50;
+  border-bottom: 2px solid #3498db;
+  margin-bottom: -2px;
 }
 
-.cjx-settings-tab:hover,
-.cjx-settings-tab.active {
-  background: #f5f5f5;
-  border-left-color: #3498db;
-  color: #3498db;
-}
-
-.cjx-bind-dot {
-  position: absolute;
-  top: 12px;
-  right: 14px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #52c41a;
-  box-shadow: 0 0 0 2px rgba(82, 196, 26, 0.2);
-}
-
-.cjx-settings-content {
-  flex: 1;
+/* 卡片容器 */
+.cjx-card {
   background: #fff;
   border-radius: 8px;
-  padding: 30px;
+  padding: 24px 28px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+}
+.cjx-card-title {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #2c3e50;
+}
+.cjx-card-hint {
+  margin: 0 0 20px;
+  font-size: 12px;
+  color: #999;
 }
 
-.cjx-settings-panel h2 {
-  margin: 0 0 30px 0;
-  color: #333;
-  font-size: 20px;
-}
-
-.cjx-avatar-section {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  margin-bottom: 30px;
-}
-
-.cjx-avatar-large {
-  width: 100px;
-  height: 100px;
-  background: #3498db;
-  color: #fff;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 36px;
-}
-
-.cjx-form-row {
-  margin-bottom: 20px;
-}
-
-.cjx-form-row label {
-  display: block;
-  margin-bottom: 8px;
-  color: #333;
+/* 空状态 */
+.cjx-empty {
+  text-align: center;
+  color: #999;
+  padding: 60px 20px;
   font-size: 14px;
+  line-height: 1.8;
 }
 
-.cjx-input,
-.cjx-textarea,
-.cjx-select {
-  width: 100%;
-  max-width: 400px;
-  padding: 10px 15px;
+/* 表单 */
+.cjx-form-row {
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.cjx-form-row label {
+  width: 96px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: #666;
+  text-align: right;
+}
+.cjx-input {
+  flex: 1;
+  padding: 8px 12px;
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 14px;
+  transition: border-color 0.15s;
+  font-family: inherit;
+  box-sizing: border-box;
 }
+.cjx-input:focus { outline: none; border-color: #3498db; }
+.cjx-input-disabled { background: #f5f5f5; color: #999; cursor: not-allowed; }
 
-.cjx-input:disabled {
-  background: #f5f5f5;
+.cjx-avatar-preview {
+  margin-left: 112px;
+  margin-bottom: 14px;
 }
-
-.cjx-hint {
-  font-size: 12px;
-  color: #999;
-  margin-left: 10px;
-}
-
-.cjx-radio-group {
-  display: flex;
-  gap: 20px;
-}
-
-.cjx-radio-group label {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
+.cjx-avatar-preview img {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #eee;
 }
 
 .cjx-form-actions {
-  margin-top: 30px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 16px;
+  padding-left: 112px;
 }
-
-.cjx-btn {
-  padding: 10px 30px;
+.cjx-btn-primary {
+  padding: 7px 20px;
   border: none;
   border-radius: 4px;
+  font-size: 14px;
   cursor: pointer;
-  transition: all 0.3s;
-}
-
-.cjx-btn:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
-}
-
-.cjx-btn-primary {
+  font-family: inherit;
   background: #3498db;
   color: #fff;
+  font-weight: 600;
+  transition: opacity 0.15s;
 }
+.cjx-btn-primary:hover:not(:disabled) { background: #2e89c7; }
+.cjx-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
-.cjx-btn-primary:hover:not(:disabled) {
-  background: #2980b9;
-}
+.cjx-form-msg { font-size: 13px; }
+.cjx-form-msg.ok { color: #27ae60; }
+.cjx-form-msg.err { color: #e74c3c; }
 
-.cjx-btn-secondary {
-  background: #f0f0f0;
-  color: #666;
-}
-
-.cjx-btn-secondary:hover {
-  background: #e0e0e0;
-}
-
-.cjx-btn-small {
-  padding: 6px 14px;
-  font-size: 12px;
-}
-
-.cjx-btn-danger {
-  background: #e74c3c;
+/* Steam 绑定展示 */
+.cjx-steam-info {
+  display: flex;
+  gap: 20px;
+  padding: 18px 20px;
+  background: linear-gradient(135deg, #1b2838, #2a475e);
+  border-radius: 8px;
   color: #fff;
 }
-
-.cjx-btn-danger:hover:not(:disabled) {
-  background: #c0392b;
-}
-
-.cjx-security-list {
-  border-top: 1px solid #eee;
-}
-
-.cjx-security-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 0;
-  border-bottom: 1px solid #eee;
-}
-
-.cjx-security-info h4 {
-  margin: 0 0 5px 0;
-  color: #333;
-}
-
-.cjx-security-info p {
-  margin: 0;
-  color: #999;
-  font-size: 14px;
-}
-
-/* ========== Steam 未绑定 ========== */
-.cjx-steam-unbound {
-  text-align: center;
-  padding: 80px 20px;
-}
-
-.cjx-steam-icon-big {
-  font-size: 80px;
-  margin-bottom: 16px;
-}
-
-.cjx-steam-unbound h3 {
-  color: #333;
-  margin: 0 0 12px 0;
-}
-
-.cjx-steam-tip {
-  color: #888;
-  max-width: 460px;
-  margin: 0 auto 28px;
-  font-size: 14px;
-  line-height: 1.7;
-}
-
-.cjx-btn-bind {
-  padding: 12px 40px;
-  font-size: 15px;
-  background: linear-gradient(135deg, #1b2838, #2a475e);
-  box-shadow: 0 4px 14px rgba(42, 71, 94, 0.3);
-}
-
-.cjx-btn-bind:hover:not(:disabled) {
-  background: linear-gradient(135deg, #2a475e, #1b2838);
-}
-
-/* ========== Steam 顶部账号栏 ========== */
-.cjx-steam-profile {
-  background: linear-gradient(135deg, #1b2838 0%, #2a475e 100%);
-  border-radius: 12px;
-  padding: 24px 28px;
-  color: #e5e5e5;
-  margin-bottom: 28px;
-  box-shadow: 0 4px 16px rgba(27, 40, 56, 0.15);
-}
-
-.cjx-steam-row1 {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.cjx-steam-avatar-wrap {
+.cjx-steam-avatar img, .cjx-steam-avatar > div {
   width: 72px;
   height: 72px;
   border-radius: 50%;
-  overflow: hidden;
-  border: 3px solid #66c0f4;
-  flex-shrink: 0;
-  background: #3a4a5c;
-}
-
-.cjx-steam-avatar {
-  width: 100%;
-  height: 100%;
+  background: #3498db;
   object-fit: cover;
-}
-
-.cjx-steam-avatar-fallback {
-  width: 100%;
-  height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 32px;
-}
-
-.cjx-steam-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.cjx-steam-name-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 6px;
-}
-
-.cjx-steam-name {
-  font-size: 20px;
-  font-weight: 600;
-  color: #fff;
-}
-
-.cjx-steam-badge {
-  background: #52c41a;
-  color: #fff;
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-weight: 500;
-}
-
-.cjx-steam-meta-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 18px;
-  font-size: 13px;
-  color: #b8b6b4;
-}
-
-.cjx-steam-meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.cjx-meta-icon {
-  font-style: normal;
-}
-
-/* 第二行统计 */
-.cjx-steam-row2 {
-  display: flex;
-  gap: 0;
-  padding-top: 18px;
-}
-
-.cjx-stat-item {
-  flex: 1;
-  text-align: center;
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.cjx-stat-item:last-child {
-  border-right: none;
-}
-
-.cjx-stat-value {
-  font-size: 22px;
+  font-size: 28px;
   font-weight: 700;
-  color: #fff;
-  margin-bottom: 4px;
+  flex-shrink: 0;
 }
-
-.cjx-stat-level {
-  color: #66c0f4;
-}
-
-.cjx-stat-label {
-  font-size: 12px;
-  color: #8f98a0;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* ========== 库存 ========== */
-.cjx-library-section {
-  margin-bottom: 28px;
-}
-
-.cjx-library-head {
+.cjx-steam-meta { flex: 1; min-width: 0; }
+.cjx-steam-name { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+.cjx-steam-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-
-.cjx-library-head h3 {
-  margin: 0;
-  font-size: 16px;
-  color: #333;
-}
-
-.cjx-library-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 14px;
-}
-
-.cjx-library-card {
-  background: #fff;
-  border: 1px solid #eee;
-  border-radius: 8px;
-  overflow: hidden;
-  transition: all 0.2s;
-  cursor: default;
-}
-
-.cjx-library-card:hover {
-  border-color: #66c0f4;
-  box-shadow: 0 4px 12px rgba(102, 192, 244, 0.2);
-  transform: translateY(-2px);
-}
-
-.cjx-library-img-wrap {
-  position: relative;
-  width: 100%;
-  padding-top: 56%;
-  background: #1b2838;
-}
-
-.cjx-library-img {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.cjx-library-img-fallback {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 36px;
-}
-
-.cjx-library-playtime {
-  position: absolute;
-  bottom: 6px;
-  left: 6px;
-  background: rgba(0, 0, 0, 0.7);
-  color: #fff;
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 10px;
-}
-
-.cjx-library-name {
-  padding: 10px 12px;
+  gap: 12px;
   font-size: 13px;
-  color: #333;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: #c7d5e0;
+  margin-bottom: 3px;
 }
+.cjx-steam-row span:first-child { width: 72px; color: #8f98a0; flex-shrink: 0; }
 
-.cjx-library-empty {
-  text-align: center;
-  padding: 40px;
-  color: #999;
-}
-
-/* ========== 底部操作 ========== */
-.cjx-steam-actions {
-  border-top: 1px solid #eee;
-  padding-top: 20px;
-  text-align: right;
-}
-
-/* ========== 弹窗 ========== */
-.cjx-modal {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.cjx-modal-content {
-  background: #fff;
-  padding: 30px;
-  border-radius: 8px;
-  width: 100%;
-  max-width: 400px;
-}
-
-.cjx-modal-content h3 {
-  margin: 0 0 20px 0;
-}
-
-.cjx-bind-modal h3 {
-  text-align: center;
-}
-
-.cjx-bind-desc {
-  text-align: center;
-  color: #666;
-  font-size: 14px;
-  line-height: 1.7;
-  margin-bottom: 24px;
-}
-
-.cjx-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 20px;
+@media (max-width: 700px) {
+  .cjx-form-row { flex-direction: column; align-items: flex-start; gap: 6px; }
+  .cjx-form-row label { text-align: left; width: auto; }
+  .cjx-form-actions, .cjx-avatar-preview { padding-left: 0; margin-left: 0; }
 }
 </style>

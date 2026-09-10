@@ -82,6 +82,20 @@ export const authAPI = {
     } catch (e: any) {
       return { error: e.message }
     }
+  },
+  async changePassword(userId: string, oldPassword: string, newPassword: string): Promise<ApiResponse<null>> {
+    try {
+      await apiRequest<any>(`/auth/user/${userId}/change-password`, 'POST', { oldPassword, newPassword })
+      return { data: null }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+  async getUser(userId: string): Promise<User | null> {
+    try {
+      const r = await apiRequest<User>(`/auth/user/${userId}`)
+      return snakeToCamel(r) as User
+    } catch { return null }
   }
 }
 

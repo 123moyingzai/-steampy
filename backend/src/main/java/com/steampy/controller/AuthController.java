@@ -102,17 +102,35 @@ public class AuthController {
         return Result.success(u);
     }
 
-    // 更新用户
+    // 更新用户（基础资料）
     @PutMapping("/user/{id}")
     public Result<User> updateUser(@PathVariable String id, @RequestBody User update) {
         User u = userMapper.selectById(id);
         if (u == null) return Result.error("用户不存在");
         if (update.getNickname() != null) u.setNickname(update.getNickname());
         if (update.getPhone() != null) u.setPhone(update.getPhone());
+        if (update.getEmail() != null) u.setEmail(update.getEmail());
         if (update.getAvatarUrl() != null) u.setAvatarUrl(update.getAvatarUrl());
         u.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(u);
         u.setPasswordHash(null);
         return Result.success(u);
+    }
+
+    // 修改密码
+    @PostMapping("/user/{id}/change-password")
+    public Result<?> changePassword(@PathVariable String id,
+                                    @RequestBody Map<String, String> body) {
+        User u = userMapper.selectById(id);
+        if (u == null) return Result.error("用户不存在");
+        String oldPwd = body.get("oldPassword");
+        String newPwd = body.get("newPassword");
+        if (oldPwd == null || newPwd == null) return Result.error("请填写完整");
+        if (!u.getPasswordHash().equals(oldPwd)) return Result.error("原密码错误");
+        if (newPwd.length() < 4) return Result.error("新密码不少于4位");
+        u.setPasswordHash(newPwd);
+        u.setUpdatedAt(LocalDateTime.now());
+        userMapper.updateById(u);
+        return Result.success(null);
     }
 }
