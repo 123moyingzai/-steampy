@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="cjx-login-page">
     <div class="cjx-logo">
       <svg viewBox="0 0 24 24">
@@ -405,7 +405,7 @@ const handleLogin = async () => {
       alert(result.error) // 使用alert确保错误信息显示
     } else {
       const user = result.data as any
-      const isAdmin = user?.user_type === '管理员'
+      const isAdmin = user?.userType === '管理员'
       // 如果是管理员，额外标记
       if (isAdmin) {
         sessionStorage.setItem('steampy_admin', 'true')
@@ -467,10 +467,11 @@ const handlePhoneLogin = async () => {
       const user = snakeToCamel(json.data.user)
       sessionStorage.setItem('steampy_user', JSON.stringify(user))
       sessionStorage.removeItem('steampy_admin')
-      if ((user as any)?.userType === '管理员') sessionStorage.setItem('steampy_admin', 'true')
+      const isAdmin = (user as any)?.userType === '管理员'
+      if (isAdmin) sessionStorage.setItem('steampy_admin', 'true')
       alert('登录成功！')
       window.dispatchEvent(new Event('user-logged-in'))
-      router.replace('/')
+      router.replace(isAdmin ? '/admin/dashboard' : '/')
     } else {
       alert(json.message || '登录失败')
     }
