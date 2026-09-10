@@ -30,7 +30,7 @@
           <h2>基本信息</h2>
           
           <div class="cjx-avatar-section">
-            <div class="cjx-avatar-large" :style="userInfo.avatarUrl ? `background-image:url(${userInfo.avatarUrl});background-size:cover;background-position:center;` : ''">{{ avatarText }}</div>
+            <div class="cjx-avatar-large" :style="userInfo.avatarUrl ? `background-image:url(${userInfo.avatarUrl});background-size:cover;background-position:center;` : ''"><span v-if="!userInfo.avatarUrl">{{ avatarText }}</span></div>
             <div>
               <button class="cjx-btn cjx-btn-secondary" @click="$refs.avatarInput.click()">
                 {{ uploadingAvatar ? '上传中...' : '更换头像' }}
@@ -259,6 +259,7 @@ const router = useRouter()
 
 // 响应式数据
 const activeTab = ref('basic')
+const saving = ref(false)
 const uploading = ref(false)
 const uploadingAvatar = ref(false)
 const showPasswordModal = ref(false)
