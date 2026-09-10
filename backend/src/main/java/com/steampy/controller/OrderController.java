@@ -213,9 +213,11 @@ public class OrderController {
             transactionMapper.insert(st);
         }
 
-        // ===== 购买后自动激活到 Steam 账号（steam_libraries） =====
-        if ("cdkey".equals(order.getOrderType()) && order.getCdkey() != null && !order.getCdkey().isEmpty()
-                && order.getGameName() != null && !order.getGameName().isBlank() && accountId != null) {
+        // ===== 购买后自动激活到 Steam 账号（steam_libraries）=====
+        // 不管是 cdkey 还是 py 代购，只要绑定了 Steam 且订单有游戏名，都进库存
+        if (accountId != null
+                && order.getGameName() != null && !order.getGameName().isBlank()
+                && !"cancelled".equalsIgnoreCase(order.getStatus())) {
             if (!steamService.isGameOwned(accountId, order.getGameId(), order.getGameName())) {
                 SteamLibrary sl = new SteamLibrary();
                 sl.setUserId(order.getBuyerId());
