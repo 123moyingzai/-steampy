@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="admin-users">
     <!-- 工具栏 -->
     <div class="toolbar">
@@ -7,9 +7,15 @@
           type="text"
           v-model="searchKeyword"
           placeholder="搜索用户名、昵称、手机号..."
-          @input="filterUsers"
+          @input="onSearchInput"
         >
       </div>
+      <select v-model="roleFilter" @change="onSearchInput" class="role-select">
+        <option value="">全部角色</option>
+        <option value="普通用户">普通用户</option>
+        <option value="管理员">管理员</option>
+        <option value="已封禁">已封禁</option>
+      </select>
       <button class="btn btn-primary" @click="openCreateModal">
         <span>+</span> 新增用户
       </button>
@@ -57,6 +63,20 @@
       </table>
       <div v-if="filteredUsers.length === 0" class="empty-state">
         <p>暂无用户数据</p>
+      </div>
+      <!-- 分页条 -->
+      <div class="pagination">
+        <span class="pagination-info">共 {{ total }} 条 · 第 {{ page }}/{{ totalPages }} 页</span>
+        <div class="pagination-controls">
+          <button class="page-btn" :disabled="page <= 1" @click="goPage(page - 1)">上一页</button>
+          <button class="page-btn" v-for="p in visiblePages" :key="p" :class="{ active: p === page }" @click="goPage(p)">{{ p }}</button>
+          <button class="page-btn" :disabled="page >= totalPages" @click="goPage(page + 1)">下一页</button>
+          <select v-model.number="size" @change="goPage(1)" class="size-select">
+            <option :value="10">10条/页</option>
+            <option :value="20">20条/页</option>
+            <option :value="50">50条/页</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -112,15 +132,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import axios from 'axios'
 
-const users = ref<any[]>([])
 const filteredUsers = ref<any[]>([])
 const searchKeyword = ref('')
+const roleFilter = ref('')
+const page = ref(1)
+const size = ref(10)
+const total = ref(0)
 const showModal = ref(false)
 const editingUser = ref<any>(null)
 const saving = ref(false)
+
+// 搜索 debounce timer
+let searchTimer: ReturnType<typeof setTimeout> | null = null
 
 const formData = reactive({
   username: '',
@@ -136,30 +162,47 @@ const resetForm = () => {
   formData.password = ''; formData.user_type = '普通用户'; formData.wallet_balance = 0
 }
 
+const totalPages = computed(() => Math.max(1, Math.ceil(total.value / size.value)))
+const visiblePages = computed(() => {
+  const tp = totalPages.value
+  const cur = page.value
+  // 显示当前页 ±1
+  const list: number[] = []
+  const start = Math.max(1, cur - 1)
+  const end = Math.min(tp, start + 2)
+  for (let i = start; i <= end; i++) list.push(i)
+  return list
+})
+
 const loadUsers = async () => {
   try {
-    const r = await axios.get('/api/admin/users')
-    const list = r.data?.data || []
-    // 并行查每个用户的钱包余额
-    const withWallets = await Promise.all(list.map(async (u: any) => {
-      try {
-        const wr = await axios.get(`/api/wallets/user/${u.id}`)
-        return { ...u, wallet_balance: wr.data?.data?.balance ?? 0 }
-      } catch { return { ...u, wallet_balance: 0 } }
-    }))
-    users.value = withWallets
-    filteredUsers.value = [...withWallets]
+    const params = new URLSearchParams({
+      page: String(page.value),
+      size: String(size.value)
+    })
+    if (searchKeyword.value.trim()) params.set('keyword', searchKeyword.value.trim())
+    if (roleFilter.value) params.set('role', roleFilter.value)
+
+    const r = await axios.get('/api/admin/users?' + params.toString())
+    const payload = r.data?.data || {}
+    total.value = Number(payload.total) || 0
+    filteredUsers.value = payload.list || []
   } catch (e) { console.error('加载用户失败', e) }
 }
 
-const filterUsers = () => {
-  const kw = searchKeyword.value.trim().toLowerCase()
-  if (!kw) { filteredUsers.value = [...users.value]; return }
-  filteredUsers.value = users.value.filter(u =>
-    (u.username || '').toLowerCase().includes(kw) ||
-    (u.nickname || '').toLowerCase().includes(kw) ||
-    (u.phone || '').includes(kw)
-  )
+// debounce 300ms — 搜索输入不立刻打后端
+const onSearchInput = () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    page.value = 1
+    loadUsers()
+  }, 300)
+}
+
+const goPage = (p: number) => {
+  if (p < 1 || p > totalPages.value) return
+  page.value = p
+  loadUsers()
 }
 
 const openCreateModal = () => { editingUser.value = null; resetForm(); showModal.value = true }
@@ -415,6 +458,70 @@ onMounted(loadUsers)
   text-align: center;
   padding: 40px;
   color: #999;
+}
+
+.role-select {
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-top: 1px solid #eee;
+  background: #fafafa;
+}
+
+.pagination-info {
+  font-size: 13px;
+  color: #666;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.page-btn {
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  background: #fff;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.page-btn:hover:not(:disabled):not(.active) {
+  border-color: #3498db;
+  color: #3498db;
+}
+
+.page-btn.active {
+  background: #3498db;
+  border-color: #3498db;
+  color: #fff;
+}
+
+.page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.size-select {
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+  cursor: pointer;
 }
 
 /* 弹窗 */

@@ -106,14 +106,55 @@ public class AdminController {
         return Result.success(m);
     }
 
-    // ======== 用户管理 ========
+    // ======== 用户管理（分页 + 搜索 + LEFT JOIN wallet 一次查完） ========
     @GetMapping("/users")
-    public Result<List<User>> getAllUsers() {
-        QueryWrapper<User> qw = new QueryWrapper<>();
-        qw.orderByDesc("created_at");
-        List<User> users = userMapper.selectList(qw);
-        users.forEach(u -> u.setPasswordHash(null));
-        return Result.success(users);
+    public Result<Map<String, Object>> getAllUsers(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String role) {
+
+        // 防刷：size 最多 100
+        if (size > 100) size = 100;
+        int offset = (page - 1) * size;
+
+        // --- 构建 WHERE 条件 ---
+        StringBuilder where = new StringBuilder("WHERE 1=1");
+        List<Object> params = new ArrayList<>();
+
+        if (keyword != null && !keyword.isBlank()) {
+            where.append(" AND (u.username LIKE ? OR u.nickname LIKE ? OR u.phone LIKE ?)");
+            String like = "%" + keyword + "%";
+            params.add(like); params.add(like); params.add(like);
+        }
+        if (role != null && !role.isBlank()) {
+            where.append(" AND u.user_type = ?");
+            params.add(role);
+        }
+
+        // --- 总数 ---
+        String countSql = "SELECT COUNT(*) FROM users u " + where;
+        Long total = jdbcTemplate.queryForObject(countSql, Long.class, params.toArray());
+
+        // --- 分页数据（LEFT JOIN wallet 一次带出来，避免 N+1）---
+        String dataSql = "SELECT u.*, w.balance AS wallet_balance " +
+                "FROM users u LEFT JOIN user_wallets w ON w.user_id = u.id " +
+                where +
+                " ORDER BY u.created_at DESC LIMIT ? OFFSET ?";
+        List<Object> dataParams = new ArrayList<>(params);
+        dataParams.add(size);
+        dataParams.add(offset);
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(dataSql, dataParams.toArray());
+
+        // 敏感字段脱敏
+        for (Map<String, Object> r : rows) r.put("password_hash", null);
+
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("total", total == null ? 0 : total);
+        resp.put("page", page);
+        resp.put("size", size);
+        resp.put("list", rows);
+        return Result.success(resp);
     }
 
     @PutMapping("/users/{id}/ban")
