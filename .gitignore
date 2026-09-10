@@ -41,3 +41,6 @@ backend/src/main/resources/application.properties
 # MySQL migration temp
 *.sql.bak
 backend/init_data.sql.bak
+
+# Uploads（运行时生成的用户上传文件）
+backend/uploads/
