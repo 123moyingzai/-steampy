@@ -475,14 +475,25 @@ const loadShowcase = async () => {
         }
       } catch {}
     }
-    showcase.value = raw.map(o => {
+    // 按 gameId 去重：同一游戏多次购买只保留最近一次
+    const map = new Map<number, any>()
+    for (const o of raw) {
+      if (!o.gameId) continue
       const g = gamesMap[o.gameId] || {}
-      return {
+      const merged = {
         ...o,
         originalPrice: g.originalPrice ?? o.originalPrice,
         discount: g.discount ?? o.discount
       }
-    })
+      const prev = map.get(o.gameId)
+      // 保留 createdAt 更大（更晚）的那条
+      if (!prev || new Date(merged.createdAt).getTime() > new Date(prev.createdAt).getTime()) {
+        map.set(o.gameId, merged)
+      }
+    }
+    showcase.value = [...map.values()].sort((a, b) =>
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
   } catch (e) {
     showcase.value = []
   } finally {
