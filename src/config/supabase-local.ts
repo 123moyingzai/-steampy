@@ -267,6 +267,40 @@ export const orderAPI = {
   }
 }
 
+// ========== 收藏 ==========
+export const favoriteAPI = {
+  async add(userId: string, gameId: number): Promise<ApiResponse<any>> {
+    try {
+      const r = await apiRequest<any>('/favorites', 'POST', { user_id: userId, game_id: gameId })
+      return { data: snakeToCamel(r) }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+  async remove(userId: string, gameId: number): Promise<ApiResponse<any>> {
+    try {
+      await apiRequest<any>(`/favorites/${gameId}?userId=${encodeURIComponent(userId)}`, 'DELETE')
+      return { data: null }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+  async check(userId: string, gameId: number): Promise<boolean> {
+    try {
+      const r = await apiRequest<boolean>(`/favorites/check?userId=${encodeURIComponent(userId)}&gameId=${gameId}`)
+      return !!r
+    } catch { return false }
+  },
+  async listByUser(userId: string): Promise<ApiResponse<any[]>> {
+    try {
+      const r = await apiRequest<any[]>(`/favorites/user/${userId}`)
+      return { data: (r || []).map(snakeToCamel) }
+    } catch (e: any) {
+      return { error: e.message, data: [] }
+    }
+  }
+}
+
 // ========== 钱包 ==========
 export const walletAPI = {
   async getWallet(userId: string | number): Promise<ApiResponse<Wallet>> {

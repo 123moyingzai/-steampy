@@ -168,7 +168,9 @@
             </div>
 
             <button class="cjx-btn cjx-btn-buy" @click="buyNow">立即购买</button>
-            <button class="cjx-btn cjx-btn-cart" @click="addToCart">加入购物车</button>
+            <button class="cjx-btn" :class="isFavorited ? 'cjx-btn-favorited' : 'cjx-btn-favorite'" @click="toggleFavorite">
+              {{ favoriteLoading ? '...' : (isFavorited ? '★ 已收藏' : '☆ 收藏') }}
+            </button>
           </div>
 
           <!-- 服务保障（卖家信息已移至左侧出售卖家表格） -->
@@ -521,14 +523,16 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
-import { authAPI, orderAPI, transactionAPI, walletAPI, userGameAPI, fetchAllGames, reviewAPI, steamAPI } from '../config/supabase-local.ts'
+import { authAPI, orderAPI, transactionAPI, walletAPI, userGameAPI, fetchAllGames, reviewAPI, steamAPI, favoriteAPI } from '../config/supabase-local.ts'
 import Layout from '../components/Layout.vue'
 
 const route = useRoute()
 const router = useRouter()
 
 // 响应式数据
-const game = ref(null)
+const game = ref<any>(null)
+const isFavorited = ref(false)
+const favoriteLoading = ref(false)
 const quantity = ref(1)
 const deliveryMethod = ref('cdkey')
 const walletBalance = ref(0)
@@ -755,8 +759,30 @@ const buyNow = () => {
   }
 }
 
-const addToCart = () => {
-  alert(`已加入购物车：${game.value.name}`)
+const toggleFavorite = async () => {
+  const currentUser = authAPI.getCurrentUser()
+  if (!currentUser) { alert('请先登录'); router.push('/login'); return }
+  if (!game.value?.id) return
+  favoriteLoading.value = true
+  try {
+    if (isFavorited.value) {
+      await favoriteAPI.remove(String(currentUser.id), Number(game.value.id))
+      isFavorited.value = false
+    } else {
+      await favoriteAPI.add(String(currentUser.id), Number(game.value.id))
+      isFavorited.value = true
+    }
+  } catch (e: any) {
+    alert('操作失败：' + (e?.message || '未知错误'))
+  } finally {
+    favoriteLoading.value = false
+  }
+}
+
+const checkFavorite = async () => {
+  const currentUser = authAPI.getCurrentUser()
+  if (!currentUser || !game.value?.id) return
+  isFavorited.value = await favoriteAPI.check(String(currentUser.id), Number(game.value.id))
 }
 
 // 关闭弹窗
@@ -1292,6 +1318,7 @@ function previewImg(src: string) {
 // 生命周期
 onMounted(async () => {
   await loadData()
+  await checkFavorite()
   await loadReviews()
   // 通知跳转过来的，自动展开 + 定位
   const hid = route.query.highlight as string
@@ -1798,13 +1825,21 @@ function scrollAndFlash(selector: string) {
   font-weight: 500;
 }
 
-.cjx-btn-cart {
+.cjx-btn-favorite {
   background: #f0f0f0;
   color: #666;
 }
-
-.cjx-btn-cart:hover {
-  background: #e0e0e0;
+.cjx-btn-favorite:hover {
+  background: #fff8e1;
+  color: #f39c12;
+}
+.cjx-btn-favorited {
+  background: #fff8e1;
+  color: #f39c12;
+  border: 1px solid #f39c12;
+}
+.cjx-btn-favorited:hover {
+  background: #fff3cd;
 }
 
 .cjx-seller-card,

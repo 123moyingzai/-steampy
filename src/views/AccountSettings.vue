@@ -15,6 +15,11 @@
         >账号安全</div>
         <div 
           class="cjx-settings-tab" 
+          :class="{ active: activeTab === 'library' }"
+          @click="switchToLibrary"
+        >游戏库</div>
+        <div 
+          class="cjx-settings-tab" 
           :class="{ active: activeTab === 'steam' }"
           @click="switchToSteam"
         >
@@ -96,6 +101,59 @@
                 <p>{{ userInfo.phone || '未绑定' }}</p>
               </div>
               <button class="cjx-btn cjx-btn-secondary">更换</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ========== 游戏库 ========== -->
+        <div v-show="activeTab === 'library'" class="cjx-settings-panel">
+          <h2>🎮 游戏库</h2>
+
+          <!-- Tab 切换：展柜 / 收藏 -->
+          <div class="cjx-lib-tabs">
+            <span :class="{ active: libTab === 'showcase' }" @click="libTab = 'showcase'; loadShowcase()">游戏展柜 ({{ showcase.length }})</span>
+            <span :class="{ active: libTab === 'fav' }" @click="libTab = 'fav'; loadFavorites()">游戏收藏 ({{ favorites.length }})</span>
+          </div>
+
+          <!-- 展柜 -->
+          <div v-if="libTab === 'showcase'" class="cjx-lib-section">
+            <p v-if="showcase.length === 0 && !libLoading" class="cjx-lib-empty">还没有购买记录，快去首页逛逛吧～</p>
+            <div v-else class="cjx-lib-grid">
+              <div v-for="o in showcase" :key="o.id" class="cjx-lib-card" @click="$router.push('/game/' + o.gameId)">
+                <div class="cjx-lib-img-wrap">
+                  <img :src="getImageUrl(o.gameImage)" @error="(e:any)=>{e.target.style.display='none'}" />
+                </div>
+                <div class="cjx-lib-info">
+                  <div class="cjx-lib-name" :title="o.gameName">{{ o.gameName }}</div>
+                  <div class="cjx-lib-date">购买于 {{ formatDate(o.createdAt) }}</div>
+                  <div class="cjx-lib-price-row">
+                    <span class="cjx-lib-final">¥{{ Number(o.price ?? o.totalPrice ?? 0).toFixed(2) }}</span>
+                    <span v-if="o.originalPrice && Number(o.originalPrice) > Number(o.price ?? 0)" class="cjx-lib-original">¥{{ Number(o.originalPrice).toFixed(2) }}</span>
+                    <span v-if="o.discount" class="cjx-lib-discount">{{ o.discount }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 收藏 -->
+          <div v-if="libTab === 'fav'" class="cjx-lib-section">
+            <p v-if="favorites.length === 0 && !libLoading" class="cjx-lib-empty">还没有收藏，在游戏详情页点 ☆ 收藏吧～</p>
+            <div v-else class="cjx-lib-grid">
+              <div v-for="f in favorites" :key="f.favoriteId || f.id" class="cjx-lib-card" @click="$router.push('/game/' + f.gameId)">
+                <div class="cjx-lib-img-wrap">
+                  <img :src="getImageUrl(f.imageUrl || f.image)" @error="(e:any)=>{e.target.style.display='none'}" />
+                </div>
+                <div class="cjx-lib-info">
+                  <div class="cjx-lib-name" :title="f.name">{{ f.name }}</div>
+                  <div class="cjx-lib-price-row">
+                    <span class="cjx-lib-final">¥{{ Number(f.price ?? 0).toFixed(2) }}</span>
+                    <span v-if="f.originalPrice && Number(f.originalPrice) > Number(f.price ?? 0)" class="cjx-lib-original">¥{{ Number(f.originalPrice).toFixed(2) }}</span>
+                    <span v-if="f.discount" class="cjx-lib-discount">{{ f.discount }}</span>
+                  </div>
+                  <button class="cjx-btn cjx-btn-secondary cjx-btn-small cjx-lib-unfav" @click.stop="unfavorite(f)">取消收藏</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -252,7 +310,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { authAPI, steamAPI } from '../config/supabase-local.ts'
+import { authAPI, steamAPI, orderAPI, favoriteAPI, snakeToCamel } from '../config/supabase-local.ts'
 import Layout from '../components/Layout.vue'
 
 const router = useRouter()
@@ -267,6 +325,12 @@ const showBindModal = ref(false)
 const binding = ref(false)
 const unbinding = ref(false)
 const refreshing = ref(false)
+
+// 游戏库相关
+const libTab = ref<'showcase' | 'fav'>('showcase')
+const showcase = ref<any[]>([])
+const favorites = ref<any[]>([])
+const libLoading = ref(false)
 
 const userInfo = ref({
   username: '',
@@ -380,6 +444,79 @@ const savePassword = async () => {
   alert('密码修改成功！')
   passwordForm.value = { old: '', new: '', confirm: '' }
   showPasswordModal.value = false
+}
+
+// ========== 游戏库 ==========
+
+const switchToLibrary = () => {
+  activeTab.value = 'library'
+  if (libTab.value === 'showcase') loadShowcase()
+  else loadFavorites()
+}
+
+const loadShowcase = async () => {
+  const currentUser = authAPI.getCurrentUser()
+  if (!currentUser) return
+  libLoading.value = true
+  try {
+    const res = await orderAPI.getUserOrders(String(currentUser.id))
+    // 订单数据 snakeToCamel 处理，并 JOIN games 拿原价/折扣
+    const raw = (res.data || []).map(snakeToCamel) as any[]
+    // 为每个订单补 originalPrice / discount（查 games 表）
+    const gameIds = [...new Set(raw.map(o => o.gameId).filter(Boolean))]
+    let gamesMap: Record<number, any> = {}
+    if (gameIds.length > 0) {
+      try {
+        const gRes = await fetch('/api/games')
+        const gJson = await gRes.json()
+        if (gJson.code === 200) {
+          const glist = (gJson.data || []).map(snakeToCamel)
+          for (const g of glist) gamesMap[g.id] = g
+        }
+      } catch {}
+    }
+    showcase.value = raw.map(o => {
+      const g = gamesMap[o.gameId] || {}
+      return {
+        ...o,
+        originalPrice: g.originalPrice ?? o.originalPrice,
+        discount: g.discount ?? o.discount
+      }
+    })
+  } catch (e) {
+    showcase.value = []
+  } finally {
+    libLoading.value = false
+  }
+}
+
+const loadFavorites = async () => {
+  const currentUser = authAPI.getCurrentUser()
+  if (!currentUser) return
+  libLoading.value = true
+  try {
+    const res = await favoriteAPI.listByUser(String(currentUser.id))
+    favorites.value = res.data || []
+  } catch (e) {
+    favorites.value = []
+  } finally {
+    libLoading.value = false
+  }
+}
+
+const unfavorite = async (f: any) => {
+  const currentUser = authAPI.getCurrentUser()
+  if (!currentUser) return
+  if (!confirm(`取消收藏「${f.name}」？`)) return
+  await favoriteAPI.remove(String(currentUser.id), Number(f.gameId))
+  await loadFavorites()
+}
+
+const formatDate = (dt: any) => {
+  if (!dt) return ''
+  const d = new Date(dt)
+  if (isNaN(d.getTime())) return String(dt).substring(0, 10)
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
 
 // ========== Steam 相关方法 ==========
@@ -711,6 +848,112 @@ onMounted(() => {
 .cjx-security-info p {
   margin: 0;
   color: #999;
+  font-size: 14px;
+}
+
+/* ========== 游戏库 ========== */
+.cjx-lib-tabs {
+  display: flex;
+  gap: 30px;
+  border-bottom: 2px solid #eee;
+  margin-bottom: 24px;
+}
+.cjx-lib-tabs span {
+  padding: 10px 4px;
+  cursor: pointer;
+  color: #888;
+  font-size: 15px;
+  font-weight: 500;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: all 0.2s;
+}
+.cjx-lib-tabs span:hover { color: #3498db; }
+.cjx-lib-tabs span.active {
+  color: #3498db;
+  border-bottom-color: #3498db;
+}
+
+.cjx-lib-section { padding-top: 4px; }
+
+.cjx-lib-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.cjx-lib-card {
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.cjx-lib-card:hover {
+  border-color: #3498db;
+  box-shadow: 0 4px 14px rgba(52,152,219,0.18);
+  transform: translateY(-2px);
+}
+
+.cjx-lib-img-wrap {
+  position: relative;
+  width: 100%;
+  padding-top: 56%;
+  background: #1b2838;
+}
+.cjx-lib-img-wrap img {
+  position: absolute;
+  inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+}
+
+.cjx-lib-info { padding: 12px 14px 14px; }
+.cjx-lib-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 4px;
+}
+.cjx-lib-date {
+  font-size: 12px;
+  color: #999;
+  margin-bottom: 8px;
+}
+.cjx-lib-price-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.cjx-lib-final {
+  font-size: 16px;
+  font-weight: 700;
+  color: #e74c3c;
+}
+.cjx-lib-original {
+  font-size: 12px;
+  color: #bbb;
+  text-decoration: line-through;
+}
+.cjx-lib-discount {
+  font-size: 11px;
+  color: #fff;
+  background: #e74c3c;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-weight: 500;
+}
+.cjx-lib-unfav { margin-top: 8px; width: 100%; }
+
+.cjx-lib-empty {
+  text-align: center;
+  padding: 50px 20px;
+  color: #aaa;
   font-size: 14px;
 }
 
