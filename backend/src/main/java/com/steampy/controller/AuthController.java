@@ -104,13 +104,20 @@ public class AuthController {
 
     // 更新用户（基础资料）
     @PutMapping("/user/{id}")
-    public Result<User> updateUser(@PathVariable String id, @RequestBody User update) {
+    public Result<User> updateUser(@PathVariable String id, @RequestBody Map<String, Object> body) {
         User u = userMapper.selectById(id);
         if (u == null) return Result.error("用户不存在");
-        if (update.getNickname() != null) u.setNickname(update.getNickname());
-        if (update.getPhone() != null) u.setPhone(update.getPhone());
-        if (update.getEmail() != null) u.setEmail(update.getEmail());
-        if (update.getAvatarUrl() != null) u.setAvatarUrl(update.getAvatarUrl());
+
+        Object nick = body.get("nickname");
+        Object avatar = body.get("avatar_url");
+        Object phone = body.get("phone");
+        Object email = body.get("email");
+
+        if (nick != null) u.setNickname(nick.toString());
+        if (avatar != null) u.setAvatarUrl(avatar.toString());
+        if (phone != null) u.setPhone(phone.toString());
+        if (email != null) u.setEmail(email.toString());
+
         u.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(u);
         u.setPasswordHash(null);

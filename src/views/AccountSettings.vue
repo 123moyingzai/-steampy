@@ -36,7 +36,6 @@
                 {{ uploadingAvatar ? '上传中...' : '更换头像' }}
               </button>
               <input ref="avatarInput" type="file" accept="image/*" style="display:none" @change="handleAvatarFile" />
-              <button v-if="userInfo.avatarUrl" class="cjx-btn cjx-btn-secondary" style="margin-left:8px;background:#fff;color:#e74c3c;border:1px solid #e74c3c;padding:9px 16px;" @click="clearAvatar">移除</button>
             </div>
           </div>
 
@@ -353,11 +352,6 @@ const handleAvatarFile = async (e: Event) => {
     uploadingAvatar.value = false
     input.value = ''
   }
-}
-
-const clearAvatar = () => {
-  if (!confirm('确定移除当前头像吗？')) return
-  userInfo.value.avatarUrl = ''
 }
 
 const savePassword = async () => {
