@@ -123,8 +123,10 @@ public class AuthController {
                                     @RequestBody Map<String, String> body) {
         User u = userMapper.selectById(id);
         if (u == null) return Result.error("用户不存在");
-        String oldPwd = body.get("oldPassword");
-        String newPwd = body.get("newPassword");
+        String oldPwd = body.get("old_password");
+        String newPwd = body.get("new_password");
+        if (oldPwd == null) oldPwd = body.get("oldPassword");
+        if (newPwd == null) newPwd = body.get("newPassword");
         if (oldPwd == null || newPwd == null) return Result.error("请填写完整");
         if (!u.getPasswordHash().equals(oldPwd)) return Result.error("原密码错误");
         if (newPwd.length() < 4) return Result.error("新密码不少于4位");

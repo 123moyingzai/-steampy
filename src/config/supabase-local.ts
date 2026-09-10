@@ -77,15 +77,15 @@ export const authAPI = {
 
   async updateUser(userId: string, updateData: Partial<User>): Promise<ApiResponse<User>> {
     try {
-      const data = await apiRequest<User>(`/auth/user/${userId}`, 'PUT', updateData)
-      return { data }
+      const data = await apiRequest<User>(`/auth/user/${userId}`, 'PUT', camelToSnake(updateData))
+      return { data: snakeToCamel(data) }
     } catch (e: any) {
       return { error: e.message }
     }
   },
   async changePassword(userId: string, oldPassword: string, newPassword: string): Promise<ApiResponse<null>> {
     try {
-      await apiRequest<any>(`/auth/user/${userId}/change-password`, 'POST', { oldPassword, newPassword })
+      await apiRequest<any>(`/auth/user/${userId}/change-password`, 'POST', { old_password: oldPassword, new_password: newPassword })
       return { data: null }
     } catch (e: any) {
       return { error: e.message }
@@ -454,6 +454,20 @@ function snakeToCamel<T = any>(obj: any): T {
     for (const k of Object.keys(obj)) {
       const camel = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
       out[camel] = snakeToCamel(obj[k])
+    }
+    return out as T
+  }
+  return obj
+}
+
+// camelCase → snake_case（Jackson 入参只接 snake_case）
+function camelToSnake<T = any>(obj: any): T {
+  if (Array.isArray(obj)) return obj.map(camelToSnake) as any
+  if (obj && typeof obj === 'object') {
+    const out: any = {}
+    for (const k of Object.keys(obj)) {
+      const snake = k.replace(/([A-Z])/g, '_$1').toLowerCase()
+      out[snake] = camelToSnake(obj[k])
     }
     return out as T
   }

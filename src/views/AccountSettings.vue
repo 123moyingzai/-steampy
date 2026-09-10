@@ -30,8 +30,8 @@
           <h2>基本信息</h2>
           
           <div class="cjx-avatar-section">
-            <div class="cjx-avatar-large">{{ avatarText }}</div>
-            <button class="cjx-btn cjx-btn-secondary">更换头像</button>
+            <div class="cjx-avatar-large" :style="userInfo.avatarUrl ? `background-image:url(${userInfo.avatarUrl});background-size:cover;background-position:center;` : ''">{{ avatarText }}</div>
+            <button class="cjx-btn cjx-btn-secondary" @click="pickAvatar">更换头像</button>
           </div>
 
           <div class="cjx-form">
@@ -264,9 +264,11 @@ const refreshing = ref(false)
 const userInfo = ref({
   username: '',
   nickname: '',
+  avatarUrl: '',
   gender: 'male',
   country: '中国',
   phone: '',
+  email: '',
   passwordStrength: '中',
   steam_id: '',
   steam_url: ''
@@ -305,16 +307,29 @@ const saveBasic = async () => {
   saving.value = true
   const result = await authAPI.updateUser(currentUser.id, {
     nickname: userInfo.value.nickname,
-    gender: userInfo.value.gender,
-    country: userInfo.value.country
+    avatarUrl: userInfo.value.avatarUrl,
+    phone: userInfo.value.phone,
+    email: userInfo.value.email
   })
   saving.value = false
   
   if (result.error) {
     alert('保存失败：' + result.error)
   } else {
+    // 更新 sessionStorage
+    const merged = { ...currentUser, ...result.data }
+    sessionStorage.setItem('steampy_user', JSON.stringify(merged))
     alert('保存成功！')
   }
+}
+
+const pickAvatar = () => {
+  const url = prompt('请输入头像图片 URL（网络图片链接）：', userInfo.value.avatarUrl)
+  if (url === null) return
+  const trimmed = url.trim()
+  if (!trimmed) { userInfo.value.avatarUrl = ''; return }
+  if (!/^https?:\/\//i.test(trimmed)) { alert('请输入有效的 http/https 链接'); return }
+  userInfo.value.avatarUrl = trimmed
 }
 
 const savePassword = async () => {
@@ -454,9 +469,11 @@ const loadData = () => {
   userInfo.value = {
     username: currentUser.username || '',
     nickname: currentUser.nickname || '',
+    avatarUrl: currentUser.avatarUrl || currentUser.avatar_url || '',
     gender: currentUser.gender || 'male',
     country: currentUser.country || '中国',
     phone: currentUser.phone || '',
+    email: currentUser.email || '',
     passwordStrength: currentUser.password_strength || '中',
     steam_id: currentUser.steam_id || currentUser.steamId || '',
     steam_url: currentUser.steam_url || ''
