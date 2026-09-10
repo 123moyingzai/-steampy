@@ -36,6 +36,7 @@ public class AuthController {
     @Data
     public static class LoginReq {
         private String username;
+        private String phone;
         private String password;
     }
 
@@ -78,13 +79,23 @@ public class AuthController {
         return Result.success(u);
     }
 
-    // 登录
+    // 登录（支持用户名或手机号）
     @PostMapping("/login")
     public Result<Map<String, Object>> login(@RequestBody LoginReq req) {
-        QueryWrapper<User> qw = new QueryWrapper<>();
-        qw.eq("username", req.getUsername());
-        User u = userMapper.selectOne(qw);
-        if (u == null) return Result.error("用户名或密码错误");
+        User u;
+        if (req.getPhone() != null && !req.getPhone().isBlank()) {
+            QueryWrapper<User> qw = new QueryWrapper<>();
+            qw.eq("phone", req.getPhone());
+            u = userMapper.selectOne(qw);
+            if (u == null) return Result.error("手机号未注册");
+        } else if (req.getUsername() != null && !req.getUsername().isBlank()) {
+            QueryWrapper<User> qw = new QueryWrapper<>();
+            qw.eq("username", req.getUsername());
+            u = userMapper.selectOne(qw);
+            if (u == null) return Result.error("用户名或密码错误");
+        } else {
+            return Result.error("请输入用户名或手机号");
+        }
         if (!u.getPasswordHash().equals(req.getPassword())) return Result.error("用户名或密码错误");
         if ("已封禁".equals(u.getUserType())) return Result.error("您的账号已被封禁，无法登录");
 

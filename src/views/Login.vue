@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="cjx-login-page">
     <div class="cjx-logo">
       <svg viewBox="0 0 24 24">
@@ -104,20 +104,23 @@
           </div>
           <div class="cjx-error-message">{{ errors.phone }}</div>
 
-          <div class="cjx-form-group cjx-verify-code-group">
+          <div class="cjx-form-group cjx-password-toggle">
             <input 
-              type="text" 
+              :type="showPhonePassword ? 'text' : 'password'"
               class="cjx-form-control" 
-              placeholder="请输入短信验证码"
-              v-model="phoneForm.code"
+              placeholder="请输入密码"
+              v-model="phoneForm.password"
             >
-            <button 
-              class="cjx-get-code-btn" 
-              @click="sendPhoneCode"
-              :disabled="phoneCodeCountdown > 0"
-            >
-              {{ phoneCodeCountdown > 0 ? `重新发送(${phoneCodeCountdown})` : '获取验证码' }}
-            </button>
+            <span class="cjx-toggle-icon" @click="showPhonePassword = !showPhonePassword">
+              <svg v-if="showPhonePassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                <line x1="1" y1="1" x2="23" y2="23"/>
+              </svg>
+            </span>
           </div>
           <div class="cjx-error-message">{{ errors.phoneCode }}</div>
 
@@ -135,8 +138,8 @@
           </div>
           <div class="cjx-error-message">{{ errors.phoneAgree }}</div>
 
-          <button class="cjx-btn cjx-btn-primary" @click="handlePhoneLogin">
-            登录
+          <button class="cjx-btn cjx-btn-primary" @click="handlePhoneLogin" :disabled="phoneLoading">
+            {{ phoneLoading ? '登录中...' : '登录' }}
           </button>
 
           <div class="cjx-link-text">
@@ -244,7 +247,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { authAPI } from '../config/supabase-local.ts'
+import { authAPI, snakeToCamel } from '../config/supabase-local.ts'
 
 const router = useRouter()
 const route = useRoute()
@@ -253,7 +256,9 @@ const route = useRoute()
 const isLogin = ref(true)
 const loginTab = ref('password')
 const loading = ref(false)
+const phoneLoading = ref(false)
 const showPassword = ref(false)
+const showPhonePassword = ref(false)
 const showRegPassword = ref(false)
 const captchaCode = ref('')
 const phoneCodeCountdown = ref(0)
@@ -269,7 +274,7 @@ const loginForm = reactive({
 
 const phoneForm = reactive({
   phone: '',
-  code: '',
+  password: '',
   autoLogin: true,
   agree: false
 })
@@ -430,8 +435,8 @@ const handleLogin = async () => {
   }
 }
 
-// 手机号登录
-const handlePhoneLogin = () => {
+// 手机号 + 密码登录（后端 LoginReq 已支持 phone 字段）
+const handlePhoneLogin = async () => {
   clearErrors()
   let isValid = true
 
@@ -439,8 +444,8 @@ const handlePhoneLogin = () => {
     errors.phone = '请输入正确的手机号'
     isValid = false
   }
-  if (!phoneForm.code || phoneForm.code.length < 6) {
-    errors.phoneCode = '请输入6位短信验证码'
+  if (!phoneForm.password) {
+    errors.phoneCode = '请输入密码'
     isValid = false
   }
   if (!phoneForm.agree) {
@@ -450,8 +455,30 @@ const handlePhoneLogin = () => {
 
   if (!isValid) return
 
-  alert('手机号登录成功！')
-  router.push('/')
+  phoneLoading.value = true
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: phoneForm.phone, password: phoneForm.password })
+    })
+    const json = await res.json()
+    if (json.code === 200) {
+      const user = snakeToCamel(json.data.user)
+      sessionStorage.setItem('steampy_user', JSON.stringify(user))
+      sessionStorage.removeItem('steampy_admin')
+      if ((user as any)?.userType === '管理员') sessionStorage.setItem('steampy_admin', 'true')
+      alert('登录成功！')
+      window.dispatchEvent(new Event('user-logged-in'))
+      router.replace('/')
+    } else {
+      alert(json.message || '登录失败')
+    }
+  } catch (e: any) {
+    alert('登录异常：' + (e?.message || '网络错误'))
+  } finally {
+    phoneLoading.value = false
+  }
 }
 
 // 注册处理
