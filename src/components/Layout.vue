@@ -126,7 +126,7 @@
           </div>
 
           <div class="cjx-avatar-menu-container">
-            <div class="cjx-user-avatar" @click="toggleMenu">{{ avatarText }}</div>
+            <div class="cjx-user-avatar" :style="(currentUser?.avatarUrl || currentUser?.avatar_url) ? `background-image:url(${currentUser.avatarUrl || currentUser.avatar_url});background-size:cover;background-position:center;` : ''" @click="toggleMenu"><span v-if="!(currentUser?.avatarUrl || currentUser?.avatar_url)">{{ avatarText }}</span></div>
             <div class="cjx-dropdown-menu" :class="{ active: showMenu }">
               <template v-if="isLoggedIn">
                 <div class="cjx-username-display">{{ currentUser?.nickname || currentUser?.username || '游客' }}</div>
@@ -353,6 +353,11 @@ onMounted(() => {
       loadBalance()
       loadUnread()
     }
+  })
+
+  // 同 tab 内用户资料更新（头像/昵称等）— AccountSettings 保存后 dispatch
+  window.addEventListener('user-data-updated', () => {
+    currentUser.value = authAPI.getCurrentUser()
   })
 
   // 每 30 秒轮询未读数

@@ -57,8 +57,8 @@ export const authAPI = {
   async login(username: string, password: string): Promise<ApiResponse<User>> {
     try {
       const res = await apiRequest<{ user: User }>('/auth/login', 'POST', { username, password })
-      const user = res.user
-      // 存入 sessionStorage
+      const user = snakeToCamel(res.user)
+      // 存入 sessionStorage（统一 camelCase）
       sessionStorage.setItem('steampy_user', JSON.stringify(user))
       return { data: user }
     } catch (e: any) {

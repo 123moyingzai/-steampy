@@ -326,6 +326,8 @@ const saveBasic = async () => {
     // 更新 sessionStorage
     const merged = { ...currentUser, ...result.data }
     sessionStorage.setItem('steampy_user', JSON.stringify(merged))
+    // 通知 Layout（同 tab，storage 事件不触发）
+    window.dispatchEvent(new Event('user-data-updated'))
     alert('保存成功！')
   }
 }
