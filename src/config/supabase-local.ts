@@ -447,7 +447,7 @@ export const sellerAPI = {
 
 // ========== 评论/评测 ==========
 // snake_case → camelCase 辅助（Jackson 返回 snake_case，前端用 camelCase）
-function snakeToCamel<T = any>(obj: any): T {
+export function snakeToCamel<T = any>(obj: any): T {
   if (Array.isArray(obj)) return obj.map(snakeToCamel) as any
   if (obj && typeof obj === 'object') {
     const out: any = {}
