@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="cjx-login-page">
     <div class="cjx-logo">
       <svg viewBox="0 0 24 24">
@@ -24,7 +24,7 @@
         </div>
 
         <!-- 账户密码登录面板 -->
-        <div v-show="loginTab === 'password'" class="cjx-login-tab-panel">
+        <form v-show="loginTab === 'password'" class="cjx-login-tab-panel" @submit.prevent="handleLogin">
           <div class="cjx-form-group">
             <input 
               type="text" 
@@ -80,17 +80,17 @@
           </div>
           <div class="cjx-error-message">{{ errors.loginAgree }}</div>
 
-          <button class="cjx-btn cjx-btn-primary" @click="handleLogin" :disabled="loading">
+          <button type="button" class="cjx-btn cjx-btn-primary" @click="handleLogin" :disabled="loading">
             {{ loading ? '登录中...' : '登录' }}
           </button>
 
           <div class="cjx-link-text">
             <a @click="switchToRegister">注册账户</a>
           </div>
-        </div>
+        </form>
 
         <!-- 手机号登录面板 -->
-        <div v-show="loginTab === 'phone'" class="cjx-login-tab-panel">
+        <form v-show="loginTab === 'phone'" class="cjx-login-tab-panel" @submit.prevent="handlePhoneLogin">
           <div class="cjx-form-group cjx-phone-input-group">
             <select class="cjx-country-code">
               <option>+86(中国)</option>
@@ -138,18 +138,18 @@
           </div>
           <div class="cjx-error-message">{{ errors.phoneAgree }}</div>
 
-          <button class="cjx-btn cjx-btn-primary" @click="handlePhoneLogin" :disabled="phoneLoading">
+          <button type="button" class="cjx-btn cjx-btn-primary" @click="handlePhoneLogin" :disabled="phoneLoading">
             {{ phoneLoading ? '登录中...' : '登录' }}
           </button>
 
           <div class="cjx-link-text">
             <a @click="switchToRegister">注册账户</a>
           </div>
-        </div>
+        </form>
       </div>
 
       <!-- 注册表单 -->
-      <div v-else id="cjx-register-panel" class="cjx-form-panel cjx-active">
+      <form v-else id="cjx-register-panel" class="cjx-form-panel cjx-active" @submit.prevent="handleRegister">
         <h2>注册</h2>
 
         <div class="cjx-form-group">
@@ -212,7 +212,7 @@
             placeholder="请输入短信验证码"
             v-model="registerForm.code"
           >
-          <button 
+          <button type="button" 
             class="cjx-get-code-btn"
             @click="sendRegCode"
             :disabled="regCodeCountdown > 0"
@@ -228,15 +228,15 @@
         </div>
         <div class="cjx-error-message">{{ errors.regAgree }}</div>
 
-        <button class="cjx-btn cjx-btn-primary" @click="handleRegister" :disabled="loading">
+        <button type="button" class="cjx-btn cjx-btn-primary" @click="handleRegister" :disabled="loading">
           {{ loading ? '注册中...' : '注册' }}
         </button>
 
         <div class="cjx-link-text">
-            <a @click="switchToLogin">使用已有账号登录</a>
-          </div>
+          <a @click="switchToLogin">使用已有账号登录</a>
         </div>
-      </div>
+      </form>
+    </div>
 
     <div class="cjx-footer">
       - Steam游戏交易平台 | 沪ICP备19042195号-1
@@ -245,7 +245,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { authAPI, snakeToCamel } from '../config/supabase-local.ts'
 
@@ -531,28 +531,8 @@ const handleRegister = async () => {
   }
 }
 
-// 全局回车监听 — 不受焦点位置影响（checkbox / select / 页面空白都能触发）
-const handleGlobalEnter = (e: KeyboardEvent) => {
-  if (e.key !== 'Enter' || e.isComposing) return
-  // 只拦截当前活动元素是 textarea 的情况（注册页面如果有 textarea 要正常换行）
-  if ((e.target as HTMLElement)?.tagName === 'TEXTAREA') return
-
-  const path = window.location.pathname
-  if (path.includes('register')) {
-    handleRegister()
-  } else if (path.includes('login') || path === '/') {
-    // 登录页：根据当前 tab 调对应登录函数
-    if (loginTab.value === 'password') handleLogin()
-    else handlePhoneLogin()
-  }
-}
-
 onMounted(() => {
   generateCaptcha()
-  window.addEventListener('keydown', handleGlobalEnter)
-})
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleGlobalEnter)
 })
 </script>
 
