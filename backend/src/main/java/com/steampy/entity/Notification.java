@@ -25,6 +25,8 @@ public class Notification {
     private String gameId;
     /** 内容片段，最多 200 字 */
     private String contentSnippet;
+    /** 被回复/被点赞的那条原评论/原回复的内容（用于前端显示"引用块"） */
+    private String targetContent;
     private Boolean isRead;
     private LocalDateTime createdAt;
 }

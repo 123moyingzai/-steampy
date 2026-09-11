@@ -47,7 +47,8 @@ public class NotificationController {
     /** 供业务 Controller 内部调用：创建一条通知 */
     public static void createNotification(NotificationMapper mapper,
                                           String userId, String type, String actorId, String actorName,
-                                          String targetType, String targetId, String gameId, String snippet) {
+                                          String targetType, String targetId, String gameId,
+                                          String snippet, String targetContent) {
         Notification n = new Notification();
         n.setId(UUID.randomUUID().toString());
         n.setUserId(userId);
@@ -59,7 +60,17 @@ public class NotificationController {
         n.setGameId(gameId);
         n.setContentSnippet(snippet == null ? "" :
             (snippet.length() > 200 ? snippet.substring(0, 200) : snippet));
+        n.setTargetContent(targetContent == null ? null :
+            (targetContent.length() > 500 ? targetContent.substring(0, 500) : targetContent));
         n.setIsRead(false);
         mapper.insert(n);
+    }
+
+    /** 兼容旧调用（targetContent 传 null） */
+    public static void createNotification(NotificationMapper mapper,
+                                          String userId, String type, String actorId, String actorName,
+                                          String targetType, String targetId, String gameId, String snippet) {
+        createNotification(mapper, userId, type, actorId, actorName,
+                targetType, targetId, gameId, snippet, null);
     }
 }

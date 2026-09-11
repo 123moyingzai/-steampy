@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="admin-orders">
     <!-- 工具栏 -->
     <div class="toolbar">
@@ -17,6 +17,13 @@
           <option value="pending">处理中</option>
           <option value="cancelled">已取消</option>
           <option value="failed">失败</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <select v-model="typeFilter" @change="filterOrders">
+          <option value="">全部类型</option>
+          <option value="cdkey">CDKey 国区</option>
+          <option value="py">PY 代购</option>
         </select>
       </div>
     </div>
@@ -115,6 +122,7 @@ const orders = ref<any[]>([])
 const filteredOrders = ref<any[]>([])
 const searchKeyword = ref('')
 const statusFilter = ref('')
+const typeFilter = ref('')
 
 const totalAmount = computed(() => {
   return filteredOrders.value.reduce((sum, o) => sum + parseFloat(o.total_price || o.price || 0), 0)
@@ -148,6 +156,9 @@ const filterOrders = () => {
   }
   if (statusFilter.value) {
     result = result.filter(o => o.status === statusFilter.value)
+  }
+  if (typeFilter.value) {
+    result = result.filter(o => (o.order_type || o.orderType || 'cdkey') === typeFilter.value)
   }
   filteredOrders.value = result
 }

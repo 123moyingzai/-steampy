@@ -88,11 +88,19 @@
                     <span class="cjx-popover-type">{{ n.type === 'reply' ? '💬 回复了你' : n.type === 'like_review' ? '👍 赞了你的评论' : '👍 赞了你的回复' }}</span>
                     <span v-if="n.actorName" class="cjx-popover-actor">{{ n.actorName }}</span>
                   </div>
-                  <div class="cjx-popover-content">{{ n.contentSnippet }}</div>
+                  <!-- 引用块：被回复/被点赞的那条原评论/回复 -->
+                  <div v-if="n.targetContent || n.contentSnippet" class="cjx-popover-quote">
+                    {{ n.targetContent || n.contentSnippet }}
+                  </div>
+                  <!-- reply 场景：新回复的正文（只有 targetContent 时才单独显示，避免重复） -->
+                  <div v-if="n.type === 'reply' && n.contentSnippet && n.targetContent" class="cjx-popover-content">{{ n.contentSnippet }}</div>
                   <div class="cjx-popover-time">{{ formatTime(n.createdAt) }}</div>
                 </div>
               </div>
-              <div v-if="msgList.length > 8" class="cjx-popover-footer" @click="goMessages">查看全部 →</div>
+              <div class="cjx-popover-footer" @click="goMessages">
+                <span>查看全部消息</span>
+                <span class="cjx-popover-footer-arrow">→</span>
+              </div>
             </div>
           </div>
 
@@ -670,14 +678,30 @@ onUnmounted(() => {
   border-radius: 3px;
 }
 
-.cjx-popover-content {
+.cjx-popover-quote {
   font-size: 12px;
-  color: #666;
+  color: #888;
+  background: #f4f5f6;
+  border-left: 3px solid #ccc;
+  padding: 6px 10px;
+  border-radius: 0 4px 4px 0;
+  margin: 4px 0;
   line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.cjx-popover-content {
+  font-size: 12px;
+  color: #333;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-top: 2px;
 }
 
 .cjx-popover-time {
@@ -689,12 +713,23 @@ onUnmounted(() => {
 .cjx-popover-footer {
   padding: 10px 16px;
   border-top: 1px solid #eee;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   font-size: 13px;
   color: #3498db;
   cursor: pointer;
+  transition: background 0.15s;
 }
 .cjx-popover-footer:hover { background: #f8f9fa; }
+.cjx-popover-footer-arrow {
+  font-size: 14px;
+  transition: transform 0.15s;
+}
+.cjx-popover-footer:hover .cjx-popover-footer-arrow {
+  transform: translateX(3px);
+}
 
 .cjx-avatar-menu-container {
   position: relative;

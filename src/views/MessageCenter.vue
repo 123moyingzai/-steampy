@@ -25,7 +25,14 @@
             <span class="cjx-msg-actor">{{ n.actorName || '某人' }}</span>
             <span class="cjx-msg-action">{{ typeText(n.type) }}</span>
           </div>
-          <div class="cjx-msg-content">{{ n.contentSnippet }}</div>
+          <!-- 引用块 -->
+          <div v-if="n.targetContent || n.contentSnippet" class="cjx-msg-quote">
+            {{ n.targetContent || n.contentSnippet }}
+          </div>
+          <!-- reply 场景的新回复正文 -->
+          <div v-if="n.type === 'reply' && n.contentSnippet && n.targetContent" class="cjx-msg-reply-body">
+            {{ n.contentSnippet }}
+          </div>
           <div class="cjx-msg-meta">
             <span>{{ formatTime(n.createdAt) }}</span>
             <span class="cjx-msg-hint" v-if="n.gameId">点击查看 →</span>
@@ -244,6 +251,32 @@ onMounted(loadData)
 }
 .cjx-msg-actor { color: #3498db; font-weight: 600; }
 .cjx-msg-action { color: #555; }
+
+.cjx-msg-quote {
+  font-size: 13px;
+  color: #888;
+  background: #f4f5f6;
+  border-left: 3px solid #ccc;
+  padding: 6px 10px;
+  border-radius: 0 4px 4px 0;
+  margin-bottom: 4px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cjx-msg-reply-body {
+  font-size: 13px;
+  color: #333;
+  line-height: 1.5;
+  margin-bottom: 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 
 .cjx-msg-content {
   font-size: 13px;
