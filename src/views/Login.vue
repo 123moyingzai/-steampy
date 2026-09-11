@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="cjx-login-page">
     <div class="cjx-logo">
       <svg viewBox="0 0 24 24">
@@ -31,6 +31,7 @@
               class="cjx-form-control" 
               placeholder="请输入用户名"
               v-model="loginForm.username"
+              @keyup.enter="handleLogin"
             >
             <div class="cjx-error-message">{{ errors.loginUsername }}</div>
           </div>
@@ -41,6 +42,7 @@
               class="cjx-form-control" 
               placeholder="请输入密码"
               v-model="loginForm.password"
+              @keyup.enter="handleLogin"
             >
             <span class="cjx-toggle-icon" @click="showPassword = !showPassword">
               <svg v-if="showPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -100,6 +102,7 @@
               class="cjx-form-control" 
               placeholder="请输入手机号"
               v-model="phoneForm.phone"
+              @keyup.enter="handlePhoneLogin"
             >
           </div>
           <div class="cjx-error-message">{{ errors.phone }}</div>
@@ -110,6 +113,7 @@
               class="cjx-form-control" 
               placeholder="请输入密码"
               v-model="phoneForm.password"
+              @keyup.enter="handlePhoneLogin"
             >
             <span class="cjx-toggle-icon" @click="showPhonePassword = !showPhonePassword">
               <svg v-if="showPhonePassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -406,7 +410,8 @@ const handleLogin = async () => {
     } else {
       const user = result.data as any
       const isAdmin = user?.userType === '管理员'
-      // 如果是管理员，额外标记
+      // 先清掉旧的 admin 标记（可能是之前登管理员残留），再按当前角色设置
+      sessionStorage.removeItem('steampy_admin')
       if (isAdmin) {
         sessionStorage.setItem('steampy_admin', 'true')
       }
@@ -424,7 +429,6 @@ const handleLogin = async () => {
       } else if (redirect && redirect.startsWith('/')) {
         router.replace(redirect)
       } else {
-        // 默认跳转：管理员去后台，普通用户去首页
         router.replace(isAdmin ? '/admin/dashboard' : '/')
       }
     }
