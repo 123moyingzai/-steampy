@@ -1,5 +1,10 @@
 <template>
   <div class="cjx-msg-center">
+    <!-- 返回按钮 -->
+    <div class="cjx-back-bar">
+      <button class="cjx-back-btn" @click="router.back()">← 返回</button>
+    </div>
+
     <!-- 顶部标签 -->
     <div class="cjx-tabs">
       <div class="cjx-tab" :class="{ active: tab === 'msg' }" @click="switchTab('msg')">
@@ -25,12 +30,12 @@
             <span class="cjx-msg-actor">{{ n.actorName || '某人' }}</span>
             <span class="cjx-msg-action">{{ typeText(n.type) }}</span>
           </div>
-          <!-- 引用块 -->
-          <div v-if="n.targetContent || n.contentSnippet" class="cjx-msg-quote">
+          <!-- 引用块：like 通知始终显示被点赞的原内容；reply 只在有 targetContent 时显示被回复的原评论 -->
+          <div v-if="(n.type !== 'reply' && (n.targetContent || n.contentSnippet)) || (n.type === 'reply' && n.targetContent)" class="cjx-msg-quote">
             {{ n.targetContent || n.contentSnippet }}
           </div>
-          <!-- reply 场景的新回复正文 -->
-          <div v-if="n.type === 'reply' && n.contentSnippet && n.targetContent" class="cjx-msg-reply-body">
+          <!-- reply 正文：无论新旧通知，只要有 contentSnippet 就一行省略显示 -->
+          <div v-if="n.type === 'reply' && n.contentSnippet" class="cjx-msg-reply-body">
             {{ n.contentSnippet }}
           </div>
           <div class="cjx-msg-meta">
@@ -142,6 +147,29 @@ onMounted(loadData)
 .cjx-msg-center {
   max-width: 720px;
   margin: 0 auto;
+}
+
+.cjx-back-bar {
+  margin-bottom: 12px;
+}
+
+.cjx-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  color: #3498db;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.cjx-back-btn:hover {
+  background: #eaf4fc;
+  text-decoration: underline;
 }
 
 .cjx-tabs {
@@ -271,11 +299,10 @@ onMounted(loadData)
   font-size: 13px;
   color: #333;
   line-height: 1.5;
-  margin-bottom: 6px;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 6px;
 }
 
 .cjx-msg-content {

@@ -88,12 +88,12 @@
                     <span class="cjx-popover-type">{{ n.type === 'reply' ? '💬 回复了你' : n.type === 'like_review' ? '👍 赞了你的评论' : '👍 赞了你的回复' }}</span>
                     <span v-if="n.actorName" class="cjx-popover-actor">{{ n.actorName }}</span>
                   </div>
-                  <!-- 引用块：被回复/被点赞的那条原评论/回复 -->
-                  <div v-if="n.targetContent || n.contentSnippet" class="cjx-popover-quote">
+                  <!-- 引用块：like 通知始终显示被点赞的原内容；reply 只在有 targetContent 时显示被回复的原评论 -->
+                  <div v-if="(n.type !== 'reply' && (n.targetContent || n.contentSnippet)) || (n.type === 'reply' && n.targetContent)" class="cjx-popover-quote">
                     {{ n.targetContent || n.contentSnippet }}
                   </div>
-                  <!-- reply 场景：新回复的正文（只有 targetContent 时才单独显示，避免重复） -->
-                  <div v-if="n.type === 'reply' && n.contentSnippet && n.targetContent" class="cjx-popover-content">{{ n.contentSnippet }}</div>
+                  <!-- reply 正文：无论新旧通知，只要有 contentSnippet 就一行省略显示 -->
+                  <div v-if="n.type === 'reply' && n.contentSnippet" class="cjx-popover-content">{{ n.contentSnippet }}</div>
                   <div class="cjx-popover-time">{{ formatTime(n.createdAt) }}</div>
                 </div>
               </div>
@@ -697,10 +697,9 @@ onUnmounted(() => {
   font-size: 12px;
   color: #333;
   line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
   margin-top: 2px;
 }
 

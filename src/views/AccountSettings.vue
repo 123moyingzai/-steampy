@@ -291,15 +291,155 @@
       </div>
     </div>
 
-    <!-- 绑定 Steam 弹窗 -->
-    <div class="cjx-modal" v-if="showBindModal" @click.self="showBindModal = false">
-      <div class="cjx-modal-content cjx-bind-modal">
-        <h3>🎮 模拟绑定 Steam</h3>
-        <p class="cjx-bind-desc">这是一个模拟绑定功能，后端将为您生成一份模拟的 Steam 账号信息和游戏库存数据。</p>
-        <div class="cjx-modal-actions">
-          <button class="cjx-btn cjx-btn-secondary" @click="showBindModal = false">取消</button>
-          <button class="cjx-btn cjx-btn-primary" :disabled="binding" @click="confirmBind">
-            {{ binding ? '绑定中...' : '确认绑定' }}
+    <!-- ========== Steam 绑定三步模拟弹窗 ========== -->
+    <div class="cjx-modal" v-if="showBindModal" @click.self="bindStep === 1 ? showBindModal = false : null">
+      <!-- Step 1: Steam 登录页面 -->
+      <div v-if="bindStep === 1" class="cjx-modal-content cjx-steam-login">
+        <div class="cjx-steam-login-header">
+          <div class="cjx-steam-logo">
+            <svg viewBox="0 0 32 32" width="32" height="32" fill="#1b2838">
+              <path d="M16 0C7.16 0 0 7.16 0 16s7.16 16 16 16 16-7.16 16-16S24.84 0 16 0zm4.5 22.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+            </svg>
+            <span>STEAM</span>
+          </div>
+          <button class="cjx-modal-close" @click="showBindModal = false">✕</button>
+        </div>
+        <div class="cjx-steam-login-body">
+          <h3>登录 Steam</h3>
+          <p class="cjx-steam-login-sub">登录后您将被授权绑定至 SteamPY 平台</p>
+          <div class="cjx-steam-form">
+            <div class="cjx-steam-field">
+              <label>Steam 账户名称</label>
+              <input type="text" v-model="steamLoginForm.username" placeholder="请输入 Steam 账户名称" autocomplete="off" />
+            </div>
+            <div class="cjx-steam-field">
+              <label>密码</label>
+              <input type="password" v-model="steamLoginForm.password" placeholder="请输入密码" autocomplete="off" />
+            </div>
+            <label class="cjx-steam-remember">
+              <input type="checkbox" v-model="steamLoginForm.remember" />
+              <span>在此设备上记住我的账户</span>
+            </label>
+          </div>
+          <button class="cjx-btn cjx-btn-steam-login" :disabled="!steamLoginForm.username || !steamLoginForm.password || steamLoggingIn" @click="doSteamLogin">
+            <span v-if="steamLoggingIn">
+              <span class="cjx-spinner-small"></span>
+              正在安全登录...
+            </span>
+            <span v-else>登录</span>
+          </button>
+          <div class="cjx-steam-login-footer">
+            <a @click.prevent>无法登录？</a>
+            <span class="cjx-sep">·</span>
+            <a @click.prevent>免费创建新账户</a>
+          </div>
+          <div class="cjx-steam-guard">
+            <div class="cjx-steam-guard-icon">🛡️</div>
+            <div class="cjx-steam-guard-text">
+              <strong>Steam 安全保护</strong>
+              <p>请确认您正在访问 <code>steampy.com</code>。Steam 永远不会要求您通过电子邮件或聊天提供验证码。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 2: Steam 授权确认 -->
+      <div v-else-if="bindStep === 2" class="cjx-modal-content cjx-steam-auth">
+        <div class="cjx-steam-auth-header">
+          <div class="cjx-steam-logo small">
+            <svg viewBox="0 0 32 32" width="24" height="24" fill="#1b2838">
+              <path d="M16 0C7.16 0 0 7.16 0 16s7.16 16 16 16 16-7.16 16-16S24.84 0 16 0zm4.5 22.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+            </svg>
+          </div>
+          <span class="cjx-steam-auth-title">Steam 授权确认</span>
+        </div>
+        <div class="cjx-steam-auth-body">
+          <div class="cjx-steam-auth-apps">
+            <div class="cjx-steam-auth-app cjx-steam-app">
+              <div class="cjx-steam-app-icon">🎮</div>
+              <div class="cjx-steam-app-info">
+                <div class="cjx-steam-app-name">Steam</div>
+                <div class="cjx-steam-app-username">{{ steamLoginForm.username || 'UnknownUser' }}</div>
+              </div>
+            </div>
+            <div class="cjx-steam-auth-arrow">→</div>
+            <div class="cjx-steam-auth-app cjx-sp-app">
+              <div class="cjx-steam-app-icon">🚀</div>
+              <div class="cjx-steam-app-info">
+                <div class="cjx-steam-app-name">SteamPY</div>
+                <div class="cjx-steam-app-username">交易平台</div>
+              </div>
+            </div>
+          </div>
+
+          <h4>{{ steamLoginForm.username || 'UnknownUser' }} 正在登录 SteamPY</h4>
+          <p class="cjx-steam-auth-desc">
+            SteamPY 希望访问您的 Steam 账户，以完成以下操作：
+          </p>
+
+          <ul class="cjx-steam-auth-scopes">
+            <li>✔ 访问您的 <strong>公开个人资料</strong>（头像、昵称、等级、地区）</li>
+            <li>✔ 读取您的 <strong>游戏库存</strong>（避免重复购买）</li>
+            <li>✔ 查看您的 <strong>游戏时长</strong>（用于账号估值）</li>
+            <li class="cjx-steam-auth-denied">✖ 不会请求密码或支付信息</li>
+            <li class="cjx-steam-auth-denied">✖ 不会以您的名义发送消息</li>
+          </ul>
+
+          <div class="cjx-steam-auth-legal">
+            继续即表示您同意 Steam 与 SteamPY 共享您的公开资料信息。<br/>
+            此授权不会影响您的 Steam 账户安全。
+          </div>
+        </div>
+        <div class="cjx-steam-auth-actions">
+          <button class="cjx-btn cjx-btn-secondary" @click="bindStep = 1">取消</button>
+          <button class="cjx-btn cjx-btn-steam-agree" :disabled="binding" @click="confirmBind">
+            <span v-if="binding">
+              <span class="cjx-spinner-small"></span>
+              正在授权并绑定...
+            </span>
+            <span v-else>同意并绑定</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 3: 绑定成功回跳 -->
+      <div v-else-if="bindStep === 3" class="cjx-modal-content cjx-steam-success">
+        <div class="cjx-steam-success-icon">
+          <div class="cjx-checkmark">✓</div>
+        </div>
+        <h3>绑定成功！</h3>
+        <p class="cjx-steam-success-sub">
+          已成功将 <strong>{{ steamLoginForm.username || 'UnknownUser' }}</strong> 的 Steam 账户
+          与您的 SteamPY 账号关联。
+        </p>
+        <div class="cjx-steam-success-hint">
+          <span class="cjx-spinner-small"></span>
+          <span>正在跳转回 SteamPY...</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 解绑确认弹窗 ========== -->
+    <div class="cjx-modal" v-if="showUnbindModal" @click.self="showUnbindModal = false">
+      <div class="cjx-modal-content cjx-unbind-modal">
+        <div class="cjx-unbind-icon">⚠️</div>
+        <h3>解除 Steam 绑定</h3>
+        <p class="cjx-unbind-desc">
+          确定要解绑 <strong>{{ steamInfo.steam_name || '此 Steam 账号' }}</strong> 吗？
+        </p>
+        <ul class="cjx-unbind-effects">
+          <li>· 解绑后将 <strong>无法购买</strong> 游戏</li>
+          <li>· 系统将 <strong>停止检测</strong> 您的 Steam 库存</li>
+          <li>· 重新绑定 <strong>可恢复</strong> 当前 Steam 账号</li>
+        </ul>
+        <div class="cjx-unbind-actions">
+          <button class="cjx-btn cjx-btn-secondary" @click="showUnbindModal = false">取消</button>
+          <button class="cjx-btn cjx-btn-danger" :disabled="unbinding" @click="confirmUnbind">
+            <span v-if="unbinding">
+              <span class="cjx-spinner-small"></span>
+              正在解绑...
+            </span>
+            <span v-else>确认解绑</span>
           </button>
         </div>
       </div>
@@ -322,9 +462,13 @@ const uploading = ref(false)
 const uploadingAvatar = ref(false)
 const showPasswordModal = ref(false)
 const showBindModal = ref(false)
+const showUnbindModal = ref(false)
+const bindStep = ref(1)  // 1=登录 2=授权 3=成功
 const binding = ref(false)
 const unbinding = ref(false)
+const steamLoggingIn = ref(false)
 const refreshing = ref(false)
+const steamLoginForm = ref({ username: '', password: '', remember: false })
 
 // 游戏库相关
 const libTab = ref<'showcase' | 'fav'>('showcase')
@@ -560,10 +704,24 @@ const loadSteamData = async () => {
   }
 }
 
+// ========== Steam 绑定三步流程 ==========
+
 const handleBind = () => {
+  bindStep.value = 1
+  steamLoginForm.value = { username: '', password: '', remember: false }
   showBindModal.value = true
 }
 
+// Step 1 → Step 2: 模拟 Steam 登录
+const doSteamLogin = async () => {
+  steamLoggingIn.value = true
+  // 模拟网络延迟 + Steam 服务端校验（1.5s）
+  await new Promise(r => setTimeout(r, 1500))
+  steamLoggingIn.value = false
+  bindStep.value = 2
+}
+
+// Step 2 → Step 3 → 关闭: 确认授权并调用后端绑定
 const confirmBind = async () => {
   const currentUser = authAPI.getCurrentUser()
   if (!currentUser) {
@@ -576,22 +734,31 @@ const confirmBind = async () => {
     const res = await steamAPI.bind(currentUser.id)
     if (res.error) {
       alert('绑定失败：' + res.error)
-    } else {
       showBindModal.value = false
-      alert('Steam 绑定成功！')
+    } else {
+      bindStep.value = 3
+      // 显示"正在跳转回 SteamPY..." 1.5 秒后关闭
+      await new Promise(r => setTimeout(r, 1500))
+      showBindModal.value = false
       await loadSteamData()
     }
   } catch (e: any) {
     alert('绑定失败：' + (e?.message || '未知错误'))
+    showBindModal.value = false
   } finally {
     binding.value = false
   }
 }
 
-const handleUnbind = async () => {
+// ========== Steam 解绑（二次确认弹窗） ==========
+
+const handleUnbind = () => {
+  showUnbindModal.value = true
+}
+
+const confirmUnbind = async () => {
   const currentUser = authAPI.getCurrentUser()
   if (!currentUser) return
-  if (!confirm('确定要解绑 Steam 吗？解绑后将无法购买游戏。')) return
 
   unbinding.value = true
   try {
@@ -599,6 +766,7 @@ const handleUnbind = async () => {
     if (res.error) {
       alert('解绑失败：' + res.error)
     } else {
+      showUnbindModal.value = false
       steamBound.value = false
       steamInfo.value = {}
       library.value = []
@@ -1269,5 +1437,333 @@ onMounted(() => {
   justify-content: flex-end;
   gap: 10px;
   margin-top: 20px;
+}
+
+/* ========== Steam 风格三步弹窗 ========== */
+
+/* 小 spinner */
+.cjx-spinner-small {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: cjx-spin 0.8s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+@keyframes cjx-spin { to { transform: rotate(360deg); } }
+
+.cjx-modal-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #888;
+  line-height: 1;
+}
+.cjx-modal-close:hover { color: #333; }
+
+/* Step 1: Steam 登录页 */
+.cjx-steam-login {
+  width: 420px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 8px;
+}
+.cjx-steam-login-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #1b2838 0%, #2a475e 100%);
+  color: #fff;
+}
+.cjx-steam-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  font-size: 18px;
+  color: #fff;
+}
+.cjx-steam-logo svg {
+  background: #fff;
+  border-radius: 4px;
+}
+.cjx-steam-logo.small svg {
+  background: #fff;
+  border-radius: 3px;
+}
+.cjx-steam-login-header .cjx-modal-close { color: rgba(255,255,255,0.6); }
+.cjx-steam-login-header .cjx-modal-close:hover { color: #fff; }
+
+.cjx-steam-login-body {
+  padding: 28px 32px 24px;
+}
+.cjx-steam-login-body h3 {
+  font-size: 20px;
+  font-weight: 700;
+  color: #1b2838;
+  margin: 0 0 4px;
+}
+.cjx-steam-login-sub {
+  color: #7a8895;
+  font-size: 13px;
+  margin: 0 0 20px;
+}
+
+.cjx-steam-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.cjx-steam-field label {
+  display: block;
+  font-size: 12px;
+  color: #7a8895;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+.cjx-steam-field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #dfe3e6;
+  border-radius: 4px;
+  font-size: 14px;
+  background: #fafafa;
+  box-sizing: border-box;
+  transition: all 0.15s;
+}
+.cjx-steam-field input:focus {
+  outline: none;
+  border-color: #1b2838;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(27,40,56,0.1);
+}
+.cjx-steam-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #5a6774;
+  cursor: pointer;
+  margin: 4px 0;
+}
+.cjx-steam-remember input { cursor: pointer; }
+
+.cjx-btn-steam-login {
+  background: linear-gradient(to bottom, #75b022 5%, #588a1b 95%);
+  border: none;
+  color: #fff;
+  font-weight: 600;
+  padding: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-top: 8px;
+  transition: filter 0.15s;
+}
+.cjx-btn-steam-login:hover:not(:disabled) { filter: brightness(1.1); }
+.cjx-btn-steam-login:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.cjx-steam-login-footer {
+  text-align: center;
+  font-size: 12px;
+  color: #7a8895;
+  margin-top: 16px;
+}
+.cjx-steam-login-footer a {
+  color: #5aa9d6;
+  text-decoration: none;
+  cursor: pointer;
+}
+.cjx-steam-login-footer a:hover { text-decoration: underline; }
+.cjx-steam-login-footer .cjx-sep { margin: 0 6px; }
+
+.cjx-steam-guard {
+  margin-top: 16px;
+  padding: 12px 14px;
+  background: #f0f7ff;
+  border: 1px solid #c5e1f5;
+  border-radius: 4px;
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+}
+.cjx-steam-guard-icon { font-size: 20px; flex-shrink: 0; }
+.cjx-steam-guard-text strong { color: #2a475e; display: block; margin-bottom: 3px; }
+.cjx-steam-guard-text p { margin: 0; color: #5a6774; line-height: 1.5; }
+.cjx-steam-guard-text code {
+  background: #e0f0ff;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: #2a475e;
+  font-size: 11px;
+}
+
+/* Step 2: 授权确认 */
+.cjx-steam-auth { width: 440px; padding: 0; overflow: hidden; border-radius: 8px; }
+.cjx-steam-auth-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, #1b2838 0%, #2a475e 100%);
+  color: #fff;
+}
+.cjx-steam-auth-title { font-size: 15px; font-weight: 600; }
+.cjx-steam-auth-body { padding: 24px 28px 20px; }
+
+.cjx-steam-auth-apps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: #f5f7f9;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+.cjx-steam-auth-app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 80px;
+}
+.cjx-steam-app-icon {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px;
+  background: linear-gradient(135deg, #1b2838, #2a475e);
+  color: #fff;
+}
+.cjx-steam-app-name { font-size: 13px; font-weight: 600; color: #1b2838; }
+.cjx-steam-app-username { font-size: 11px; color: #7a8895; max-width: 76px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cjx-steam-auth-arrow {
+  font-size: 22px;
+  color: #5aa9d6;
+  font-weight: 700;
+}
+.cjx-sp-app .cjx-steam-app-icon { background: linear-gradient(135deg, #5aa9d6, #3b7eb5); }
+
+.cjx-steam-auth-body h4 {
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1b2838;
+  margin: 0 0 6px;
+}
+.cjx-steam-auth-desc {
+  text-align: center;
+  font-size: 13px;
+  color: #5a6774;
+  margin: 0 0 16px;
+}
+
+.cjx-steam-auth-scopes {
+  list-style: none;
+  padding: 14px 16px;
+  background: #f5f7f9;
+  border-radius: 6px;
+  margin: 0 0 16px;
+}
+.cjx-steam-auth-scopes li {
+  font-size: 13px;
+  color: #2a5e2a;
+  padding: 4px 0;
+}
+.cjx-steam-auth-scopes li.cjx-steam-auth-denied { color: #999; }
+.cjx-steam-auth-legal {
+  font-size: 12px;
+  color: #7a8895;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.cjx-steam-auth-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 0 28px 24px;
+}
+.cjx-btn-steam-agree {
+  background: linear-gradient(to bottom, #75b022 5%, #588a1b 95%);
+  border: none;
+  color: #fff;
+  font-weight: 600;
+  padding: 10px 22px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: filter 0.15s;
+}
+.cjx-btn-steam-agree:hover:not(:disabled) { filter: brightness(1.1); }
+.cjx-btn-steam-agree:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Step 3: 绑定成功 */
+.cjx-steam-success { width: 360px; text-align: center; padding: 32px 28px; }
+.cjx-steam-success-icon {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #75b022, #588a1b);
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 16px;
+  animation: cjx-success-pop 0.4s ease-out;
+}
+@keyframes cjx-success-pop {
+  0% { transform: scale(0); }
+  70% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+.cjx-checkmark {
+  font-size: 32px;
+  color: #fff;
+  font-weight: 700;
+}
+.cjx-steam-success h3 { margin: 0 0 8px; font-size: 20px; color: #1b2838; }
+.cjx-steam-success-sub {
+  font-size: 13px;
+  color: #5a6774;
+  margin: 0 0 20px;
+  line-height: 1.5;
+}
+.cjx-steam-success-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #7a8895;
+}
+
+/* 解绑确认弹窗 */
+.cjx-unbind-modal { width: 380px; text-align: center; padding: 28px 28px 24px; }
+.cjx-unbind-icon { font-size: 40px; margin-bottom: 8px; }
+.cjx-unbind-modal h3 { margin: 0 0 8px; font-size: 18px; color: #1b2838; }
+.cjx-unbind-desc { font-size: 14px; color: #5a6774; margin: 0 0 16px; }
+.cjx-unbind-effects {
+  list-style: none;
+  padding: 12px 16px;
+  background: #fff5f5;
+  border-radius: 6px;
+  border: 1px solid #f0d0d0;
+  font-size: 13px;
+  color: #666;
+  margin: 0 0 20px;
+  text-align: left;
+  line-height: 1.8;
+}
+.cjx-unbind-effects strong { color: #c0392b; }
+.cjx-unbind-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 </style>
