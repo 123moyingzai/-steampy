@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="cjx-login-page">
     <div class="cjx-logo">
       <svg viewBox="0 0 24 24">
@@ -31,7 +31,6 @@
               class="cjx-form-control" 
               placeholder="请输入用户名"
               v-model="loginForm.username"
-              @keyup.enter="handleLogin"
             >
             <div class="cjx-error-message">{{ errors.loginUsername }}</div>
           </div>
@@ -42,7 +41,6 @@
               class="cjx-form-control" 
               placeholder="请输入密码"
               v-model="loginForm.password"
-              @keyup.enter="handleLogin"
             >
             <span class="cjx-toggle-icon" @click="showPassword = !showPassword">
               <svg v-if="showPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -102,7 +100,6 @@
               class="cjx-form-control" 
               placeholder="请输入手机号"
               v-model="phoneForm.phone"
-              @keyup.enter="handlePhoneLogin"
             >
           </div>
           <div class="cjx-error-message">{{ errors.phone }}</div>
@@ -113,7 +110,6 @@
               class="cjx-form-control" 
               placeholder="请输入密码"
               v-model="phoneForm.password"
-              @keyup.enter="handlePhoneLogin"
             >
             <span class="cjx-toggle-icon" @click="showPhonePassword = !showPhonePassword">
               <svg v-if="showPhonePassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -249,7 +245,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { authAPI, snakeToCamel } from '../config/supabase-local.ts'
 
@@ -535,9 +531,28 @@ const handleRegister = async () => {
   }
 }
 
-// 初始化
+// 全局回车监听 — 不受焦点位置影响（checkbox / select / 页面空白都能触发）
+const handleGlobalEnter = (e: KeyboardEvent) => {
+  if (e.key !== 'Enter' || e.isComposing) return
+  // 只拦截当前活动元素是 textarea 的情况（注册页面如果有 textarea 要正常换行）
+  if ((e.target as HTMLElement)?.tagName === 'TEXTAREA') return
+
+  const path = window.location.pathname
+  if (path.includes('register')) {
+    handleRegister()
+  } else if (path.includes('login') || path === '/') {
+    // 登录页：根据当前 tab 调对应登录函数
+    if (loginTab.value === 'password') handleLogin()
+    else handlePhoneLogin()
+  }
+}
+
 onMounted(() => {
   generateCaptcha()
+  window.addEventListener('keydown', handleGlobalEnter)
+})
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleGlobalEnter)
 })
 </script>
 
