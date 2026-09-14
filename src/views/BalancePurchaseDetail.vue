@@ -13,33 +13,39 @@
 
       <!-- 游戏详情区域 -->
       <div class="cjx-detail-container">
-        <!-- 左侧游戏信息 -->
-        <div class="cjx-detail-main">
-          <!-- 游戏信息卡片 -->
-          <div class="cjx-game-detail-card">
-            <div class="cjx-game-cover">
-              <img :src="gameImageUrl" :alt="game.name" />
+        <!-- 游戏信息卡片 -->
+        <div v-if="game" class="cjx-game-detail-card">
+          <div class="cjx-game-cover">
+            <img :src="gameImageUrl" :alt="game.name" />
+          </div>
+          <div class="cjx-game-info">
+            <h1 class="cjx-game-title">{{ game.name_cn || game.name }}</h1>
+            <p class="cjx-game-subtitle" v-if="game.name_cn && game.name !== game.name_cn">{{ game.name }}</p>
+            <div class="cjx-game-meta-row">
+              <span class="cjx-game-meta" v-if="game.developer">开发商：{{ game.developer }}</span>
+              <span class="cjx-game-meta" v-if="game.release_date">发行日期：{{ game.release_date }}</span>
             </div>
-            <div class="cjx-game-info">
-              <h1 class="cjx-game-title">{{ game.name }}</h1>
-              <p class="cjx-game-subtitle">{{ game.name }}</p>
-              <div class="cjx-game-rating">
-                <button class="cjx-detail-btn">
-                  <svg viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
-                  </svg>
-                  游戏详情
-                </button>
-                <span class="cjx-rating-text">游戏评分: 9.4</span>
-              </div>
-              <div class="cjx-price-section">
-                <span class="cjx-reference-price">参考价: ¥</span>
-                <span class="cjx-current-price">{{ game.price }}</span>
-                <span class="cjx-original-price">{{ getOriginalPrice(game.price, game.discount) }}</span>
-                <span class="cjx-discount-badge" v-if="game.discount">{{ game.discount }}</span>
-              </div>
+            <div class="cjx-price-section">
+              <span class="cjx-current-price">¥{{ Number(game.price).toFixed(2) }}</span>
+              <span class="cjx-original-price" v-if="getOriginalPrice(game.price, game.discount)">{{ getOriginalPrice(game.price, game.discount) }}</span>
+              <span class="cjx-discount-badge" v-if="game.discount">{{ game.discount }}</span>
             </div>
           </div>
+        </div>
+
+        <div v-else class="cjx-loading-state">
+          <p v-if="loading">加载中...</p>
+          <p v-else>未找到该游戏</p>
+          <button class="cjx-btn-back-home" @click="goBack">返回余额购</button>
+        </div>
+
+        <template v-if="game">
+          <!-- 游戏介绍 -->
+          <div class="cjx-game-description" v-if="game.description">
+            <h2 class="cjx-section-title">游戏介绍</h2>
+            <p>{{ game.description }}</p>
+          </div>
+        </template>
 
           <!-- APP下载区域 -->
           <div class="cjx-app-section">
@@ -114,7 +120,6 @@
               </ol>
             </div>
           </div>
-        </div>
 
       </div>
     </div>
@@ -125,106 +130,77 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import Layout from '../components/Layout.vue'
-import { authAPI } from '../config/supabase-local.ts'
+import { authAPI, fetchAllGames } from '../config/supabase-local.ts'
 
 const router = useRouter()
 const route = useRoute()
 
-// 响应式数据
-const game = ref({})
+const game = ref<any>(null)
+const loading = ref(true)
 const walletBalance = ref(0.06)
 
-// 计算游戏图片URL
-const gameImageUrl = computed(() => {
-  // 确保游戏数据存在
-  if (!game.value || !game.value.name) {
-    return '/picture/安魂曲.jpg'
+const getImageUrl = (path: string) => {
+  if (!path) return '/picture/安魂曲.jpg'
+  if (path.startsWith('http')) return path
+  if (path.includes('picture/')) {
+    const fn = path.split('picture/')[1]
+    if (fn) return `/picture/${fn}`
   }
-  
-  // 直接使用游戏名生成图片路径
-  const gameName = game.value.name
-  
-  // 处理游戏名中的特殊字符
-  const cleanName = gameName
-    .replace(/[:：]/g, '')
-    .replace(/[\s\-\_]/g, '')
-    .replace(/[\(\)\[\]\{\}]/g, '')
-    .replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '')
-  
-  // 生成图片路径
-  const imagePath = `/picture/${cleanName}.jpg`
-  
-  // 调试：输出图片路径
-  console.log(`游戏名: ${gameName} → 图片路径: ${imagePath}`)
-  
-  return imagePath
+  return path.startsWith('/') ? path : `/${path}`
+}
+
+const gameImageUrl = computed(() => {
+  return getImageUrl(game.value?.image || '')
 })
 
-// 解析路由参数中的游戏数据
-const parseGameFromRoute = () => {
+// 用 route.params.game 查 games 表
+const loadGame = async () => {
+  loading.value = true
   try {
-    const gameParam = route.params.game
-    if (gameParam) {
-      // 处理中文URI编码问题
-      try {
-        // 先解码一次
-        let decoded = decodeURIComponent(gameParam)
-        // 尝试解析JSON
-        game.value = JSON.parse(decoded)
-      } catch (e1) {
-        try {
-          // 尝试直接解析
-          game.value = JSON.parse(gameParam)
-        } catch (e2) {
-          try {
-            // 尝试解码两次（处理双重编码）
-            let decoded = decodeURIComponent(decodeURIComponent(gameParam))
-            game.value = JSON.parse(decoded)
-          } catch (e3) {
-            console.error('所有解析方式都失败:', e3)
-            game.value = {}
-          }
-        }
-      }
+    const rawParam = route.params.game
+    if (!rawParam || rawParam === 'undefined') {
+      console.warn('路由参数缺失或无效')
+      game.value = null
+      return
+    }
+    const gameId = String(rawParam)
+    const all = await fetchAllGames()
+    const found = all.find((g: any) =>
+      String(g.id) === gameId ||
+      String(g.game_id) === gameId ||
+      String(g.gameId) === gameId
+    )
+    if (found) {
+      game.value = found
+    } else {
+      console.warn('未找到游戏 param=', gameId, '共', all.length, '条 games')
+      game.value = null
     }
   } catch (e) {
-    console.error('解析游戏数据失败:', e)
-    game.value = {}
+    console.error('加载游戏失败:', e)
+    game.value = null
+  } finally {
+    loading.value = false
   }
 }
 
-// 返回上一页
-const goBack = () => {
-  router.push('/balance')
-}
+const goBack = () => router.push('/balance')
 
-// 充值
-const recharge = () => {
-  alert('充值功能开发中...')
-}
-
-// 计算原价
-const getOriginalPrice = (currentPrice, discount) => {
-  if (!discount || discount === '') return ''
-  try {
-    const priceNum = parseFloat(currentPrice.replace(/[^0-9.]/g, ''))
-    const discountNum = parseInt(discount.replace(/[^0-9-]/g, ''))
-    if (discountNum >= 0) return ''
-    const originalPrice = priceNum / (1 + discountNum / 100)
-    return `¥${originalPrice.toFixed(2)}`
-  } catch (e) {
-    return ''
+const getOriginalPrice = (price: any, discount: any) => {
+  if (!game.value) return ''
+  // 优先用 original_price 字段
+  const op = game.value.original_price ?? game.value.originalPrice
+  if (op && Number(op) > 0 && Number(op) !== Number(price)) {
+    return `¥${Number(op).toFixed(2)}`
   }
+  return ''
 }
 
-// 页面加载时解析游戏数据
-onMounted(() => {
-  parseGameFromRoute()
-
-  // 获取用户信息
+onMounted(async () => {
+  await loadGame()
   const currentUser = authAPI.getCurrentUser()
   if (currentUser) {
-    walletBalance.value = currentUser.wallet_balance || 0
+    walletBalance.value = currentUser.wallet_balance || currentUser.walletBalance || 0
   }
 })
 </script>
@@ -267,7 +243,7 @@ onMounted(() => {
   width: 100%;
   max-width: 100%;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 20px 40px 20px;
   box-sizing: border-box;
 }
 
@@ -323,51 +299,53 @@ onMounted(() => {
 }
 
 .cjx-game-subtitle {
-  color: #666;
+  color: #888;
   font-size: 14px;
-  margin: 0 0 20px 0;
+  margin: 0 0 12px 0;
 }
 
-.cjx-game-rating {
+.cjx-game-meta-row {
   display: flex;
-  align-items: center;
-  gap: 20px;
-  margin-bottom: 25px;
-}
-
-.cjx-detail-btn {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  background: #f5f5f5;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  color: #333;
-}
-
-.cjx-detail-btn svg {
-  width: 16px;
-  height: 16px;
-}
-
-.cjx-rating-text {
-  font-size: 14px;
-  color: #666;
-}
-
-.cjx-price-section {
-  display: flex;
-  align-items: center;
-  gap: 15px;
+  gap: 16px;
+  margin-bottom: 20px;
   flex-wrap: wrap;
 }
 
-.cjx-reference-price {
+.cjx-game-meta {
+  font-size: 13px;
+  color: #7a8895;
+}
+
+.cjx-game-description {
+  background: #fff;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  margin-bottom: 20px;
+}
+
+.cjx-game-description p {
+  color: #444;
   font-size: 14px;
-  color: #666;
+  line-height: 1.8;
+  white-space: pre-wrap;
+}
+
+.cjx-loading-state {
+  text-align: center;
+  padding: 80px 20px;
+  color: #7a8895;
+}
+
+.cjx-btn-back-home {
+  margin-top: 20px;
+  padding: 10px 24px;
+  background: #e74c3c;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
 }
 
 .cjx-current-price {

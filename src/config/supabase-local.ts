@@ -827,6 +827,8 @@ function mapGameToFrontend(g: any): any {
   return {
     id: g.id,
     name: g.name,
+    name_cn: g.name_cn ?? g.nameCn,
+    nameCn: g.name_cn ?? g.nameCn,
     price: g.price,
     original_price: g.original_price ?? g.originalPrice,
     originalPrice: g.original_price ?? g.originalPrice,

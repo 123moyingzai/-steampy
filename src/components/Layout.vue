@@ -802,7 +802,7 @@ onUnmounted(() => {
 }
 
 .cjx-page-content {
-  flex: 1;
+  flex: 0 0 auto;
   padding: 1.5rem 2rem;
 }
 

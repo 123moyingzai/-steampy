@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿<template>
   <Layout>
     <div class="cjx-list-header">
       <h2 class="cjx-list-title">余额购 · 平台热门游戏</h2>
@@ -119,7 +119,7 @@ onMounted(async () => {
     const listArr: any[] = ls.data || []
     const catalog: any[] = []
     for (const g of gs) {
-      const py = listArr.filter((l: any) => Number(l.game_id) === Number(g.game_id))
+      const py = listArr.filter((l: any) => Number(l.game_id) === Number(g.game_id || g.id))
       let price = Number(g.price)
       let originalPrice = Number(g.original_price || g.price)
       if (py.length) {
@@ -129,9 +129,12 @@ onMounted(async () => {
       const discount = originalPrice > 0
         ? `-${Math.round((1 - price / originalPrice) * 100)}%`
         : ''
+      const gameDbId = g.id ?? g.game_id
       catalog.push({
-        game_id: g.game_id,
+        id: gameDbId,
+        game_id: gameDbId,
         name: g.name,
+        name_cn: g.name_cn || g.nameCn,
         image: g.image,
         price,
         originalPrice,
