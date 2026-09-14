@@ -14,9 +14,22 @@ import com.steampy.service.SteamService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import javax.net.ssl.*;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.math.BigDecimal;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.security.cert.X509Certificate;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @RestController
@@ -33,6 +46,171 @@ public class SteamController {
     private GameMapper gameMapper;
     @Autowired
     private SteamService steamService;
+
+    // ======== Steam 实时价格缓存 ========
+    private static final Pattern STEAM_APPID_PATTERN = Pattern.compile("/steam/apps/(\\d+)/");
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final int STEAM_CONNECT_TIMEOUT = 8000;
+    private static final int STEAM_READ_TIMEOUT = 10000;
+    // appid -> {initial, final, discount_percent, currency, ts}
+    private final Map<String, Object[]> priceCache = new ConcurrentHashMap<>();
+    private static final long CACHE_TTL_MS = 10 * 60 * 1000L; // 10 分钟
+
+    // 信任所有 SSL 证书（开发环境用，解决 PKIX 证书链缺失）
+    private static void trustAllSsl() {
+        try {
+            SSLContext ctx = SSLContext.getInstance("TLS");
+            ctx.init(null, new TrustManager[]{new X509TrustManager() {
+                public X509Certificate[] getAcceptedIssuers() { return null; }
+                public void checkClientTrusted(X509Certificate[] chain, String authType) {}
+                public void checkServerTrusted(X509Certificate[] chain, String authType) {}
+            }}, new java.security.SecureRandom());
+            HttpsURLConnection.setDefaultSSLSocketFactory(ctx.getSocketFactory());
+            HttpsURLConnection.setDefaultHostnameVerifier((h, s) -> true);
+        } catch (Exception ignored) {}
+    }
+    static { trustAllSsl(); }
+
+    /**
+     * GET /api/steam/prices?gameIds=16,17,18
+     * 返回 [{ game_id, appid, steam_initial, steam_final, discount_percent, currency, from_steam }]
+     * 不支持 Steam API 的游戏（image 不含 appid）自动跳过或 fallback 传 DB 价
+     */
+    @GetMapping("/prices")
+    public Result<List<Map<String, Object>>> getPrices(@RequestParam(required = false) String gameIds) {
+        // 1. 查 games 表
+        QueryWrapper<Game> qw = new QueryWrapper<>();
+        if (gameIds != null && !gameIds.isBlank()) {
+            List<String> ids = Arrays.asList(gameIds.split(","));
+            qw.in("id", ids);
+        }
+        qw.select("id", "image", "price", "original_price");
+        List<Game> games = gameMapper.selectList(qw);
+
+        // 2. 提取 appid
+        List<Map<String, Object>> result = new ArrayList<>();
+        List<Game> needFetch = new ArrayList<>();
+        for (Game g : games) {
+            String appid = extractAppid(g.getImage());
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("game_id", g.getId());
+            entry.put("appid", appid);
+            if (appid == null) {
+                // 没有 Steam appid，用 DB 价
+                entry.put("steam_initial", g.getOriginalPrice() != null ? g.getOriginalPrice() : g.getPrice());
+                entry.put("steam_final", g.getPrice());
+                entry.put("discount_percent", 0);
+                entry.put("currency", "CNY");
+                entry.put("from_steam", false);
+                result.add(entry);
+            } else {
+                Object[] cached = priceCache.get(appid);
+                if (cached != null && (System.currentTimeMillis() - (Long) cached[4]) < CACHE_TTL_MS) {
+                    // 命中缓存
+                    entry.put("steam_initial", cached[0]);
+                    entry.put("steam_final", cached[1]);
+                    entry.put("discount_percent", cached[2]);
+                    entry.put("currency", cached[3]);
+                    entry.put("from_steam", true);
+                    result.add(entry);
+                } else {
+                    // 需要实时查
+                    needFetch.add(g);
+                    result.add(entry); // 先占位，后面填
+                }
+            }
+        }
+
+        // 3. 分批并发查 Steam（每批 6 个，等全部完成再下一批）
+        if (!needFetch.isEmpty()) {
+            Map<String, Map<String, Object>> fresh = new HashMap<>();
+            int batchSize = 6;
+            for (int i = 0; i < needFetch.size(); i += batchSize) {
+                List<Game> batch = needFetch.subList(i, Math.min(i + batchSize, needFetch.size()));
+                List<Thread> batchThreads = new ArrayList<>();
+                for (Game g : batch) {
+                    Thread t = new Thread(() -> {
+                        String appid = extractAppid(g.getImage());
+                        if (appid == null) return;
+                        try {
+                            URL url = new URL("https://store.steampowered.com/api/appdetails?appids=" + appid + "&cc=CN");
+                            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                            conn.setConnectTimeout(STEAM_CONNECT_TIMEOUT);
+                            conn.setReadTimeout(STEAM_READ_TIMEOUT);
+                            conn.setRequestMethod("GET");
+                            conn.setRequestProperty("User-Agent", "SteamPY/1.0");
+                            conn.setRequestProperty("Accept", "application/json");
+
+                            if (conn.getResponseCode() != 200) { conn.disconnect(); return; }
+                            StringBuilder sb = new StringBuilder();
+                            try (BufferedReader reader = new BufferedReader(
+                                    new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                                String line;
+                                while ((line = reader.readLine()) != null) sb.append(line);
+                            }
+                            conn.disconnect();
+
+                            JsonNode root = MAPPER.readTree(sb.toString());
+                            JsonNode appNode = root.get(appid);
+                            if (appNode == null || !appNode.path("success").asBoolean()) return;
+                            JsonNode price = appNode.path("data").path("price_overview");
+                            if (price == null || price.isMissingNode()) return;
+
+                            int initialCents = price.path("initial").asInt(0);
+                            int finCents = price.path("final").asInt(0);
+                            int disc = price.path("discount_percent").asInt(0);
+                            String currency = price.path("currency").asText("CNY");
+
+                            Map<String, Object> item = new HashMap<>();
+                            item.put("initial", initialCents / 100.0);
+                            item.put("final", finCents / 100.0);
+                            item.put("discount", disc);
+                            item.put("currency", currency);
+
+                            fresh.put(appid, item);
+                            priceCache.put(appid, new Object[]{
+                                    initialCents / 100.0, finCents / 100.0, disc, currency, System.currentTimeMillis()
+                            });
+                        } catch (Exception ignored) { }
+                    });
+                    batchThreads.add(t);
+                }
+                for (Thread t : batchThreads) t.start();
+                for (Thread t : batchThreads) {
+                    try { t.join(15000); } catch (InterruptedException ignored) { t.interrupt(); }
+                }
+                try { Thread.sleep(150); } catch (InterruptedException ignored) {}
+            }
+
+            // 4. 把实时数据填回 result
+            for (Map<String, Object> entry : result) {
+                String appid = (String) entry.get("appid");
+                if (appid != null && fresh.containsKey(appid)) {
+                    Map<String, Object> d = fresh.get(appid);
+                    entry.put("steam_initial", d.get("initial"));
+                    entry.put("steam_final", d.get("final"));
+                    entry.put("discount_percent", d.get("discount"));
+                    entry.put("currency", d.get("currency"));
+                    entry.put("from_steam", true);
+                } else if (appid != null) {
+                    // 查失败，fallback 用 DB 价
+                    entry.put("steam_initial", null);
+                    entry.put("steam_final", null);
+                    entry.put("discount_percent", null);
+                    entry.put("currency", null);
+                    entry.put("from_steam", false);
+                }
+            }
+        }
+
+        return Result.success(result);
+    }
+
+    private static String extractAppid(String imageUrl) {
+        if (imageUrl == null) return null;
+        Matcher m = STEAM_APPID_PATTERN.matcher(imageUrl);
+        return m.find() ? m.group(1) : null;
+    }
 
     // ========== 模拟绑定 ==========
     @PostMapping("/bind/{userId}")

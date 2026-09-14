@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿<template>
   <Layout>
     <div class="cjx-list-header">
       <h2 class="cjx-list-title">余额购 · 平台热门游戏</h2>
@@ -118,6 +118,7 @@ onMounted(async () => {
     const [gs, ls] = await Promise.all([fetchAllGames(), listingAPI.getAvailable()])
     const listArr: any[] = ls.data || []
     const catalog: any[] = []
+    const gameIds: number[] = []
     for (const g of gs) {
       const py = listArr.filter((l: any) => Number(l.game_id) === Number(g.game_id || g.id))
       let price = Number(g.price)
@@ -138,10 +139,45 @@ onMounted(async () => {
         image: g.image,
         price,
         originalPrice,
-        discount
+        discount,
+        fromSteam: false
       })
+      gameIds.push(gameDbId)
     }
     games.value = catalog
+
+    // 调后端拿 Steam 实时价格覆盖
+    if (gameIds.length > 0) {
+      try {
+        const resp = await fetch(
+          `/api/steam/prices?gameIds=${gameIds.join(',')}`,
+          { headers: { 'Content-Type': 'application/json' } }
+        )
+        if (resp.ok) {
+          const json = await resp.json()
+          const priceList = json.data || json.result || []
+          const priceMap = new Map()
+          for (const p of priceList) {
+            if (p.game_id != null) priceMap.set(Number(p.game_id), p)
+          }
+          for (const item of games.value) {
+            const sp = priceMap.get(Number(item.game_id))
+            if (sp && sp.from_steam && sp.steam_final != null) {
+              item.price = Number(sp.steam_final)
+              item.originalPrice = Number(sp.steam_initial)
+              if (sp.discount_percent && sp.discount_percent > 0) {
+                item.discount = `-${sp.discount_percent}%`
+              } else {
+                item.discount = ''
+              }
+              item.fromSteam = true
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Steam 实时价格拉取失败，使用 DB 价', e)
+      }
+    }
   } catch {
     games.value = []
   }
