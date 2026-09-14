@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <Layout>
     <div class="cjx-list-header">
       <h2 class="cjx-list-title">余额购 · 平台热门游戏</h2>
@@ -24,6 +24,7 @@
           <div class="cjx-hot-price-row">
             <span class="cjx-hot-original" v-if="game.originalPrice">¥{{ game.originalPrice.toFixed(2) }}</span>
             <span class="cjx-hot-current">¥{{ getRawPrice(game.price).toFixed(2) }}</span>
+            <span v-if="game.fromSteam" class="cjx-steam-badge" title="Steam 实时价格">Steam</span>
           </div>
         </div>
       </div>
@@ -114,8 +115,10 @@ const buyGame = (game: any) => {
 
 // ======= 加载 =======
 onMounted(async () => {
+  console.log('[BalancePurchase] onMounted 开始执行')
   try {
     const [gs, ls] = await Promise.all([fetchAllGames(), listingAPI.getAvailable()])
+    console.log(`[BalancePurchase] fetchAllGames 返回 ${gs.length} 款, listings ${(ls.data||[]).length} 条`)
     const listArr: any[] = ls.data || []
     const catalog: any[] = []
     const gameIds: number[] = []
@@ -146,38 +149,39 @@ onMounted(async () => {
     }
     games.value = catalog
 
-    // 调后端拿 Steam 实时价格覆盖
-    if (gameIds.length > 0) {
+    // 封装：拉 Steam 实时价格覆盖
+    const fetchSteamPrices = async (label: string) => {
+      if (gameIds.length === 0) return
       try {
-        const resp = await fetch(
-          `/api/steam/prices?gameIds=${gameIds.join(',')}`,
-          { headers: { 'Content-Type': 'application/json' } }
-        )
-        if (resp.ok) {
-          const json = await resp.json()
-          const priceList = json.data || json.result || []
-          const priceMap = new Map()
-          for (const p of priceList) {
-            if (p.game_id != null) priceMap.set(Number(p.game_id), p)
-          }
-          for (const item of games.value) {
-            const sp = priceMap.get(Number(item.game_id))
-            if (sp && sp.from_steam && sp.steam_final != null) {
-              item.price = Number(sp.steam_final)
-              item.originalPrice = Number(sp.steam_initial)
-              if (sp.discount_percent && sp.discount_percent > 0) {
-                item.discount = `-${sp.discount_percent}%`
-              } else {
-                item.discount = ''
-              }
-              item.fromSteam = true
-            }
+        const resp = await fetch(`/api/steam/prices?gameIds=${gameIds.join(',')}`)
+        if (!resp.ok) return
+        const json = await resp.json()
+        const priceList = json.data || []
+        const priceMap = new Map<number, any>()
+        for (const p of priceList) {
+          if (p.game_id != null) priceMap.set(Number(p.game_id), p)
+        }
+        let covered = 0
+        for (const item of games.value) {
+          const sp = priceMap.get(Number(item.game_id))
+          if (sp && sp.steam_final != null && sp.steam_final !== 0) {
+            item.price = Number(sp.steam_final)
+            item.originalPrice = Number(sp.steam_initial ?? sp.steam_final)
+            item.discount = Number(sp.discount_percent) > 0 ? `-${sp.discount_percent}%` : ''
+            item.fromSteam = true
+            covered++
           }
         }
+        console.log(`[SteamPrices ${label}] 覆盖 ${covered} 款`)
       } catch (e) {
-        console.warn('Steam 实时价格拉取失败，使用 DB 价', e)
+        console.warn(`[SteamPrices ${label}] 失败:`, e)
       }
     }
+
+    // 立即拉（如果后端之前有缓存就直接生效）
+    await fetchSteamPrices('首次')
+    // 30 秒后再拉（给后台异步缓存填充留时间）
+    setTimeout(() => fetchSteamPrices('延迟30s'), 30000)
   } catch {
     games.value = []
   }
@@ -232,6 +236,11 @@ onMounted(async () => {
   font-size: 16px; font-weight: 700; color: #fff;
   background: linear-gradient(135deg, #3498db, #2980b9);
   padding: 3px 10px; border-radius: 4px;
+}
+.cjx-steam-badge {
+  font-size: 10px; font-weight: 700; color: #fff;
+  background: linear-gradient(135deg, #1b2838, #2a475e);
+  padding: 2px 6px; border-radius: 3px; letter-spacing: 0.5px;
 }
 
 /* 分页 */

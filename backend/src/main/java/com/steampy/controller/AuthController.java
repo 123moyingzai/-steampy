@@ -135,6 +135,18 @@ public class AuthController {
         return Result.success(u);
     }
 
+    // 验证密码（用于 Steam 绑定等敏感操作二次校验）
+    @PostMapping("/verify-password")
+    public Result<?> verifyPassword(@RequestBody Map<String, String> body) {
+        String userId = body.get("userId");
+        String password = body.get("password");
+        if (userId == null || password == null) return Result.error("请填写完整");
+        User u = userMapper.selectById(userId);
+        if (u == null) return Result.error("用户不存在");
+        if (!u.getPasswordHash().equals(password)) return Result.error("账号或密码错误");
+        return Result.success(null);
+    }
+
     // 修改密码
     @PostMapping("/user/{id}/change-password")
     public Result<?> changePassword(@PathVariable String id,

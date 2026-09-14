@@ -291,10 +291,9 @@
       </div>
     </div>
 
-    <!-- ========== Steam 绑定三步模拟弹窗 ========== -->
-    <div class="cjx-modal" v-if="showBindModal" @click.self="bindStep === 1 ? showBindModal = false : null">
-      <!-- Step 1: Steam 登录页面 -->
-      <div v-if="bindStep === 1" class="cjx-modal-content cjx-steam-login">
+    <!-- ========== Steam 绑定弹窗（账号密码验证） ========== -->
+    <div class="cjx-modal" v-if="showBindModal">
+      <div class="cjx-modal-content cjx-steam-login">
         <div class="cjx-steam-login-header">
           <div class="cjx-steam-logo">
             <svg viewBox="0 0 32 32" width="32" height="32" fill="#1b2838">
@@ -305,116 +304,37 @@
           <button class="cjx-modal-close" @click="showBindModal = false">✕</button>
         </div>
         <div class="cjx-steam-login-body">
-          <h3>登录 Steam</h3>
-          <p class="cjx-steam-login-sub">登录后您将被授权绑定至 SteamPY 平台</p>
+          <h3>绑定 Steam 账号</h3>
+          <p class="cjx-steam-login-sub">请输入您当前网站登录的账号密码以完成绑定</p>
           <div class="cjx-steam-form">
             <div class="cjx-steam-field">
-              <label>Steam 账户名称</label>
-              <input type="text" v-model="steamLoginForm.username" placeholder="请输入 Steam 账户名称" autocomplete="off" />
+              <label>账号</label>
+              <input type="text" v-model="steamLoginForm.username" placeholder="请输入网站登录账号" autocomplete="username" />
             </div>
             <div class="cjx-steam-field">
               <label>密码</label>
-              <input type="password" v-model="steamLoginForm.password" placeholder="请输入密码" autocomplete="off" />
+              <input type="password" v-model="steamLoginForm.password" placeholder="请输入网站登录密码" autocomplete="current-password" />
             </div>
-            <label class="cjx-steam-remember">
-              <input type="checkbox" v-model="steamLoginForm.remember" />
-              <span>在此设备上记住我的账户</span>
-            </label>
           </div>
-          <button class="cjx-btn cjx-btn-steam-login" :disabled="!steamLoginForm.username || !steamLoginForm.password || steamLoggingIn" @click="doSteamLogin">
+          <button
+            class="cjx-btn cjx-btn-steam-login"
+            :disabled="!steamLoginForm.username || !steamLoginForm.password || steamLoggingIn"
+            @click="doSteamLogin"
+          >
             <span v-if="steamLoggingIn">
               <span class="cjx-spinner-small"></span>
-              正在安全登录...
+              验证中...
             </span>
-            <span v-else>登录</span>
+            <span v-else>确认绑定</span>
           </button>
-          <div class="cjx-steam-login-footer">
-            <a @click.prevent>无法登录？</a>
-            <span class="cjx-sep">·</span>
-            <a @click.prevent>免费创建新账户</a>
-          </div>
+          <div v-if="steamVerifyError" class="cjx-steam-error">❌ {{ steamVerifyError }}</div>
           <div class="cjx-steam-guard">
             <div class="cjx-steam-guard-icon">🛡️</div>
             <div class="cjx-steam-guard-text">
-              <strong>Steam 安全保护</strong>
-              <p>请确认您正在访问 <code>steampy.com</code>。Steam 永远不会要求您通过电子邮件或聊天提供验证码。</p>
+              <strong>安全提示</strong>
+              <p>您的密码仅用于本次身份验证，不会被存储或用于其他用途。</p>
             </div>
           </div>
-        </div>
-      </div>
-
-      <!-- Step 2: Steam 授权确认 -->
-      <div v-else-if="bindStep === 2" class="cjx-modal-content cjx-steam-auth">
-        <div class="cjx-steam-auth-header">
-          <div class="cjx-steam-logo small">
-            <svg viewBox="0 0 32 32" width="24" height="24" fill="#1b2838">
-              <path d="M16 0C7.16 0 0 7.16 0 16s7.16 16 16 16 16-7.16 16-16S24.84 0 16 0zm4.5 22.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-            </svg>
-          </div>
-          <span class="cjx-steam-auth-title">Steam 授权确认</span>
-        </div>
-        <div class="cjx-steam-auth-body">
-          <div class="cjx-steam-auth-apps">
-            <div class="cjx-steam-auth-app cjx-steam-app">
-              <div class="cjx-steam-app-icon">🎮</div>
-              <div class="cjx-steam-app-info">
-                <div class="cjx-steam-app-name">Steam</div>
-                <div class="cjx-steam-app-username">{{ steamLoginForm.username || 'UnknownUser' }}</div>
-              </div>
-            </div>
-            <div class="cjx-steam-auth-arrow">→</div>
-            <div class="cjx-steam-auth-app cjx-sp-app">
-              <div class="cjx-steam-app-icon">🚀</div>
-              <div class="cjx-steam-app-info">
-                <div class="cjx-steam-app-name">SteamPY</div>
-                <div class="cjx-steam-app-username">交易平台</div>
-              </div>
-            </div>
-          </div>
-
-          <h4>{{ steamLoginForm.username || 'UnknownUser' }} 正在登录 SteamPY</h4>
-          <p class="cjx-steam-auth-desc">
-            SteamPY 希望访问您的 Steam 账户，以完成以下操作：
-          </p>
-
-          <ul class="cjx-steam-auth-scopes">
-            <li>✔ 访问您的 <strong>公开个人资料</strong>（头像、昵称、等级、地区）</li>
-            <li>✔ 读取您的 <strong>游戏库存</strong>（避免重复购买）</li>
-            <li>✔ 查看您的 <strong>游戏时长</strong>（用于账号估值）</li>
-            <li class="cjx-steam-auth-denied">✖ 不会请求密码或支付信息</li>
-            <li class="cjx-steam-auth-denied">✖ 不会以您的名义发送消息</li>
-          </ul>
-
-          <div class="cjx-steam-auth-legal">
-            继续即表示您同意 Steam 与 SteamPY 共享您的公开资料信息。<br/>
-            此授权不会影响您的 Steam 账户安全。
-          </div>
-        </div>
-        <div class="cjx-steam-auth-actions">
-          <button class="cjx-btn cjx-btn-secondary" @click="bindStep = 1">取消</button>
-          <button class="cjx-btn cjx-btn-steam-agree" :disabled="binding" @click="confirmBind">
-            <span v-if="binding">
-              <span class="cjx-spinner-small"></span>
-              正在授权并绑定...
-            </span>
-            <span v-else>同意并绑定</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Step 3: 绑定成功回跳 -->
-      <div v-else-if="bindStep === 3" class="cjx-modal-content cjx-steam-success">
-        <div class="cjx-steam-success-icon">
-          <div class="cjx-checkmark">✓</div>
-        </div>
-        <h3>绑定成功！</h3>
-        <p class="cjx-steam-success-sub">
-          已成功将 <strong>{{ steamLoginForm.username || 'UnknownUser' }}</strong> 的 Steam 账户
-          与您的 SteamPY 账号关联。
-        </p>
-        <div class="cjx-steam-success-hint">
-          <span class="cjx-spinner-small"></span>
-          <span>正在跳转回 SteamPY...</span>
         </div>
       </div>
     </div>
@@ -463,12 +383,12 @@ const uploadingAvatar = ref(false)
 const showPasswordModal = ref(false)
 const showBindModal = ref(false)
 const showUnbindModal = ref(false)
-const bindStep = ref(1)  // 1=登录 2=授权 3=成功
 const binding = ref(false)
 const unbinding = ref(false)
 const steamLoggingIn = ref(false)
+const steamVerifyError = ref('')
 const refreshing = ref(false)
-const steamLoginForm = ref({ username: '', password: '', remember: false })
+const steamLoginForm = ref({ username: '', password: '' })
 
 // 游戏库相关
 const libTab = ref<'showcase' | 'fav'>('showcase')
@@ -704,49 +624,55 @@ const loadSteamData = async () => {
   }
 }
 
-// ========== Steam 绑定三步流程 ==========
+// ========== Steam 绑定（账号密码验证 + 一键绑定） ==========
 
 const handleBind = () => {
-  bindStep.value = 1
-  steamLoginForm.value = { username: '', password: '', remember: false }
+  steamLoginForm.value = { username: '', password: '' }
+  steamVerifyError.value = ''
   showBindModal.value = true
 }
 
-// Step 1 → Step 2: 模拟 Steam 登录
+// 验证账号密码 → 真绑定
 const doSteamLogin = async () => {
-  steamLoggingIn.value = true
-  // 模拟网络延迟 + Steam 服务端校验（1.5s）
-  await new Promise(r => setTimeout(r, 1500))
-  steamLoggingIn.value = false
-  bindStep.value = 2
-}
-
-// Step 2 → Step 3 → 关闭: 确认授权并调用后端绑定
-const confirmBind = async () => {
+  steamVerifyError.value = ''
   const currentUser = authAPI.getCurrentUser()
   if (!currentUser) {
-    alert('请先登录')
     router.push('/login')
     return
   }
-  binding.value = true
+  const usernameInput = steamLoginForm.value.username.trim()
+  const passwordInput = steamLoginForm.value.password
+
+  steamLoggingIn.value = true
   try {
+    // 1. 先验证密码
+    const verifyResp = await fetch('/api/auth/verify-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUser.id, password: passwordInput })
+    })
+    const verifyJson = await verifyResp.json()
+    if (!verifyResp.ok || verifyJson.code !== 200) {
+      steamVerifyError.value = verifyJson.message || '密码错误'
+      steamLoggingIn.value = false
+      return
+    }
+
+    // 2. 再调后端绑定
+    binding.value = true
     const res = await steamAPI.bind(currentUser.id)
+    binding.value = false
+
     if (res.error) {
-      alert('绑定失败：' + res.error)
-      showBindModal.value = false
+      steamVerifyError.value = '绑定失败：' + res.error
     } else {
-      bindStep.value = 3
-      // 显示"正在跳转回 SteamPY..." 1.5 秒后关闭
-      await new Promise(r => setTimeout(r, 1500))
       showBindModal.value = false
       await loadSteamData()
     }
   } catch (e: any) {
-    alert('绑定失败：' + (e?.message || '未知错误'))
-    showBindModal.value = false
+    steamVerifyError.value = '操作失败：' + (e?.message || '未知错误')
   } finally {
-    binding.value = false
+    steamLoggingIn.value = false
   }
 }
 
@@ -1585,6 +1511,15 @@ onMounted(() => {
 .cjx-steam-login-footer a:hover { text-decoration: underline; }
 .cjx-steam-login-footer .cjx-sep { margin: 0 6px; }
 
+.cjx-steam-error {
+  margin-top: 12px;
+  padding: 8px 12px;
+  background: #fff1f0;
+  border: 1px solid #ffa39e;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #cf1322;
+}
 .cjx-steam-guard {
   margin-top: 16px;
   padding: 12px 14px;

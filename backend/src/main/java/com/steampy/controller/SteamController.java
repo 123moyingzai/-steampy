@@ -87,16 +87,15 @@ public class SteamController {
         qw.select("id", "image", "price", "original_price");
         List<Game> games = gameMapper.selectList(qw);
 
-        // 2. 提取 appid
+        // 2. 提取 appid + 查缓存
         List<Map<String, Object>> result = new ArrayList<>();
-        List<Game> needFetch = new ArrayList<>();
+        List<Game> needBackgroundFetch = new ArrayList<>();
         for (Game g : games) {
             String appid = extractAppid(g.getImage());
             Map<String, Object> entry = new LinkedHashMap<>();
             entry.put("game_id", g.getId());
             entry.put("appid", appid);
             if (appid == null) {
-                // 没有 Steam appid，用 DB 价
                 entry.put("steam_initial", g.getOriginalPrice() != null ? g.getOriginalPrice() : g.getPrice());
                 entry.put("steam_final", g.getPrice());
                 entry.put("discount_percent", 0);
@@ -106,7 +105,7 @@ public class SteamController {
             } else {
                 Object[] cached = priceCache.get(appid);
                 if (cached != null && (System.currentTimeMillis() - (Long) cached[4]) < CACHE_TTL_MS) {
-                    // 命中缓存
+                    // 命中缓存 —— from_steam=true
                     entry.put("steam_initial", cached[0]);
                     entry.put("steam_final", cached[1]);
                     entry.put("discount_percent", cached[2]);
@@ -114,93 +113,65 @@ public class SteamController {
                     entry.put("from_steam", true);
                     result.add(entry);
                 } else {
-                    // 需要实时查
-                    needFetch.add(g);
-                    result.add(entry); // 先占位，后面填
-                }
-            }
-        }
-
-        // 3. 分批并发查 Steam（每批 6 个，等全部完成再下一批）
-        if (!needFetch.isEmpty()) {
-            Map<String, Map<String, Object>> fresh = new HashMap<>();
-            int batchSize = 6;
-            for (int i = 0; i < needFetch.size(); i += batchSize) {
-                List<Game> batch = needFetch.subList(i, Math.min(i + batchSize, needFetch.size()));
-                List<Thread> batchThreads = new ArrayList<>();
-                for (Game g : batch) {
-                    Thread t = new Thread(() -> {
-                        String appid = extractAppid(g.getImage());
-                        if (appid == null) return;
-                        try {
-                            URL url = new URL("https://store.steampowered.com/api/appdetails?appids=" + appid + "&cc=CN");
-                            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                            conn.setConnectTimeout(STEAM_CONNECT_TIMEOUT);
-                            conn.setReadTimeout(STEAM_READ_TIMEOUT);
-                            conn.setRequestMethod("GET");
-                            conn.setRequestProperty("User-Agent", "SteamPY/1.0");
-                            conn.setRequestProperty("Accept", "application/json");
-
-                            if (conn.getResponseCode() != 200) { conn.disconnect(); return; }
-                            StringBuilder sb = new StringBuilder();
-                            try (BufferedReader reader = new BufferedReader(
-                                    new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
-                                String line;
-                                while ((line = reader.readLine()) != null) sb.append(line);
-                            }
-                            conn.disconnect();
-
-                            JsonNode root = MAPPER.readTree(sb.toString());
-                            JsonNode appNode = root.get(appid);
-                            if (appNode == null || !appNode.path("success").asBoolean()) return;
-                            JsonNode price = appNode.path("data").path("price_overview");
-                            if (price == null || price.isMissingNode()) return;
-
-                            int initialCents = price.path("initial").asInt(0);
-                            int finCents = price.path("final").asInt(0);
-                            int disc = price.path("discount_percent").asInt(0);
-                            String currency = price.path("currency").asText("CNY");
-
-                            Map<String, Object> item = new HashMap<>();
-                            item.put("initial", initialCents / 100.0);
-                            item.put("final", finCents / 100.0);
-                            item.put("discount", disc);
-                            item.put("currency", currency);
-
-                            fresh.put(appid, item);
-                            priceCache.put(appid, new Object[]{
-                                    initialCents / 100.0, finCents / 100.0, disc, currency, System.currentTimeMillis()
-                            });
-                        } catch (Exception ignored) { }
-                    });
-                    batchThreads.add(t);
-                }
-                for (Thread t : batchThreads) t.start();
-                for (Thread t : batchThreads) {
-                    try { t.join(15000); } catch (InterruptedException ignored) { t.interrupt(); }
-                }
-                try { Thread.sleep(150); } catch (InterruptedException ignored) {}
-            }
-
-            // 4. 把实时数据填回 result
-            for (Map<String, Object> entry : result) {
-                String appid = (String) entry.get("appid");
-                if (appid != null && fresh.containsKey(appid)) {
-                    Map<String, Object> d = fresh.get(appid);
-                    entry.put("steam_initial", d.get("initial"));
-                    entry.put("steam_final", d.get("final"));
-                    entry.put("discount_percent", d.get("discount"));
-                    entry.put("currency", d.get("currency"));
-                    entry.put("from_steam", true);
-                } else if (appid != null) {
-                    // 查失败，fallback 用 DB 价
+                    // 缓存未命中 — 先用 DB 价返回，后台异步查 Steam
                     entry.put("steam_initial", null);
                     entry.put("steam_final", null);
                     entry.put("discount_percent", null);
                     entry.put("currency", null);
                     entry.put("from_steam", false);
+                    result.add(entry);
+                    needBackgroundFetch.add(g);
                 }
             }
+        }
+
+        // 3. 如果有缓存未命中的，后台线程异步查 Steam（不阻塞 HTTP 响应）
+        if (!needBackgroundFetch.isEmpty()) {
+            List<Game> bgList = needBackgroundFetch; // 捕获
+            new Thread(() -> {
+                for (Game g : bgList) {
+                    String appid = extractAppid(g.getImage());
+                    if (appid == null) continue;
+                    try {
+                        URL url = new URL("https://store.steampowered.com/api/appdetails?appids=" + appid + "&cc=CN");
+                        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                        conn.setConnectTimeout(STEAM_CONNECT_TIMEOUT);
+                        conn.setReadTimeout(STEAM_READ_TIMEOUT);
+                        conn.setRequestMethod("GET");
+                        conn.setRequestProperty("User-Agent", "SteamPY/1.0");
+                        conn.setRequestProperty("Accept", "application/json");
+
+                        int code = conn.getResponseCode();
+                        if (code == 429 || code == 403) { Thread.sleep(3000); code = conn.getResponseCode(); }
+                        if (code != 200) { conn.disconnect(); Thread.sleep(400); continue; }
+                        StringBuilder sb = new StringBuilder();
+                        try (BufferedReader reader = new BufferedReader(
+                                new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
+                            String line;
+                            while ((line = reader.readLine()) != null) sb.append(line);
+                        }
+                        conn.disconnect();
+
+                        JsonNode root = MAPPER.readTree(sb.toString());
+                        JsonNode appNode = root.get(appid);
+                        if (appNode == null || !appNode.path("success").asBoolean()) { Thread.sleep(400); continue; }
+                        JsonNode price = appNode.path("data").path("price_overview");
+                        if (price == null || price.isMissingNode()) { Thread.sleep(400); continue; }
+
+                        int initialCents = price.path("initial").asInt(0);
+                        int finCents = price.path("final").asInt(0);
+                        int disc = price.path("discount_percent").asInt(0);
+                        String currency = price.path("currency").asText("CNY");
+
+                        priceCache.put(appid, new Object[]{
+                                initialCents / 100.0, finCents / 100.0, disc, currency, System.currentTimeMillis()
+                        });
+                        System.out.println("[SteamPrices] 后台缓存更新 appid=" + appid + " ✅");
+                    } catch (Exception ignored) {}
+                    try { Thread.sleep(400); } catch (InterruptedException ignored) {}
+                }
+                System.out.println("[SteamPrices] 后台查询线程完成，共处理 " + bgList.size() + " 款");
+            }, "SteamPriceBG").start();
         }
 
         return Result.success(result);
