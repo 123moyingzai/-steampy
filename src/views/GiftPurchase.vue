@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <Layout>
     <div class="cjx-gift-page">
 
@@ -429,6 +429,36 @@ const loadData = async () => {
     ])
     if (Array.isArray(gamesArr)) games.value = gamesArr
     if (lr.data) listings.value = lr.data
+
+    // 调后端拿 Steam 实时价格覆盖
+    if (games.value.length > 0) {
+      try {
+        const gameIds = games.value.map((g: any) => g.id).filter(Boolean)
+        const resp = await fetch(
+          `/api/steam/prices?gameIds=${gameIds.join(',')}`,
+          { headers: { 'Content-Type': 'application/json' } }
+        )
+        if (resp.ok) {
+          const json = await resp.json()
+          const priceList = json.data || json.result || []
+          const priceMap = new Map()
+          for (const p of priceList) {
+            if (p.game_id != null) priceMap.set(Number(p.game_id), p)
+          }
+          for (const g of games.value) {
+            const sp = priceMap.get(Number(g.id))
+            if (sp && sp.from_steam && sp.steam_final != null) {
+              g.current_price = Number(sp.steam_final)
+              g.price = Number(sp.steam_final)
+              g.original_price = Number(sp.steam_initial)
+              g.discount_percent = sp.discount_percent || 0
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Steam 实时价格拉取失败，使用 DB 价', e)
+      }
+    }
   } catch (e) {
     console.error('加载失败', e)
   }
