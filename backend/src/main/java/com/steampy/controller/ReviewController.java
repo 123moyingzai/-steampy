@@ -5,19 +5,20 @@ import com.steampy.dto.Result;
 import com.steampy.entity.Game;
 import com.steampy.entity.Reply;
 import com.steampy.entity.Review;
+import com.steampy.entity.User;
 import com.steampy.mapper.GameMapper;
 import com.steampy.mapper.NotificationMapper;
 import com.steampy.mapper.ReplyMapper;
 import com.steampy.mapper.ReviewMapper;
+import com.steampy.mapper.UserMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/reviews")
@@ -26,6 +27,7 @@ public class ReviewController {
     @Autowired private ReviewMapper reviewMapper;
     @Autowired private ReplyMapper replyMapper;
     @Autowired private NotificationMapper notificationMapper;
+    @Autowired private UserMapper userMapper;
 
     @Autowired
     private GameMapper gameMapper;
@@ -45,8 +47,11 @@ public class ReviewController {
         List<Review> list = reviewMapper.selectList(qw);
         Game g = gameMapper.selectById(gameId);
         String name = g != null ? g.getName() : "";
+        // 批量回填用户实时资料（昵称 + 头像）
+        Map<String, User> userMap = batchGetUsers(list.stream().map(Review::getUserId).collect(Collectors.toList()));
         for (Review r : list) {
             r.setGameName(name);
+            fillReviewUserFields(r, userMap);
             if (userId != null && !userId.isBlank()) {
                 r.setLiked(reviewMapper.countLike(r.getId(), userId) > 0);
             } else {
@@ -70,7 +75,6 @@ public class ReviewController {
         String id = (String) body.get("id");
         Long gameId = Long.valueOf(body.get("gameId").toString());
         String userId = (String) body.get("userId");
-        String userName = (String) body.getOrDefault("userName", "");
         Integer recommend = Integer.valueOf(body.get("recommend").toString());
         String content = (String) body.get("content");
         String images = (String) body.getOrDefault("images", "");
@@ -81,6 +85,11 @@ public class ReviewController {
         if (recommend != 0 && recommend != 1) {
             return Result.error("请选择推荐或不推荐");
         }
+
+        // 从 DB 取最新用户名（不信任前端传来的 userName）
+        User u = userMapper.selectById(userId);
+        String dbUserName = u != null ? u.getNickname() : null;
+        if (dbUserName == null || dbUserName.isBlank()) dbUserName = u != null ? u.getUsername() : "匿名";
 
         Review review;
         if (id != null && !id.isBlank()) {
@@ -105,7 +114,7 @@ public class ReviewController {
             review.setId(UUID.randomUUID().toString());
             review.setGameId(gameId);
             review.setUserId(userId);
-            review.setUserName(userName);
+            review.setUserName(dbUserName);  // 存 DB 最新昵称做 fallback
             review.setRecommend(recommend);
             review.setContent(content.trim());
             review.setImages(images);
@@ -192,7 +201,15 @@ public class ReviewController {
         QueryWrapper<Reply> qw = new QueryWrapper<>();
         qw.eq("review_id", reviewId).eq("status", 1).orderByAsc("created_at");
         List<Reply> list = replyMapper.selectList(qw);
+        // 收集所有 userId（回复者 + 被回复者）
+        Set<String> allIds = new HashSet<>();
         for (Reply r : list) {
+            if (r.getUserId() != null) allIds.add(r.getUserId());
+            if (r.getReplyToUserId() != null && !r.getReplyToUserId().isBlank()) allIds.add(r.getReplyToUserId());
+        }
+        Map<String, User> userMap = batchGetUsers(new ArrayList<>(allIds));
+        for (Reply r : list) {
+            fillReplyUserFields(r, userMap);
             if (userId != null && !userId.isBlank()) {
                 r.setLiked(replyMapper.countLike(r.getId(), userId) > 0);
             } else {
@@ -211,17 +228,21 @@ public class ReviewController {
         if (parent == null) return Result.error("评论不存在");
 
         String userId = (String) body.get("userId");
-        String userName = (String) body.getOrDefault("userName", "");
         String content = (String) body.get("content");
         if (content == null || content.trim().length() < 2) {
             return Result.error("回复内容不少于两个字");
         }
 
+        // 从 DB 取双方最新昵称（不信任前端传来的）
+        User me = userMapper.selectById(userId);
+        String myName = me != null && me.getNickname() != null && !me.getNickname().isBlank()
+                ? me.getNickname() : (me != null ? me.getUsername() : "匿名");
+
         Reply r = new Reply();
         r.setId(UUID.randomUUID().toString());
         r.setReviewId(reviewId);
         r.setUserId(userId);
-        r.setUserName(userName);
+        r.setUserName(myName);  // 存 DB 最新昵称做 fallback
         r.setContent(content.trim());
         r.setLikesCount(0);
         r.setStatus(1);
@@ -229,7 +250,13 @@ public class ReviewController {
         // 回复某条子评论（子评论的回复也还是子评论，只是记录了 parentReplyId 便于前端显示 "@xxx"）
         String parentReplyId = (String) body.get("parentReplyId");
         String replyToUserId = (String) body.get("replyToUserId");
-        String replyToUserName = (String) body.get("replyToUserName");
+        // 被回复者昵称也从 DB 取
+        String replyToUserName = null;
+        if (replyToUserId != null && !replyToUserId.isBlank()) {
+            User target = userMapper.selectById(replyToUserId);
+            replyToUserName = target != null && target.getNickname() != null && !target.getNickname().isBlank()
+                    ? target.getNickname() : (target != null ? target.getUsername() : null);
+        }
         r.setParentReplyId(parentReplyId);
         r.setReplyToUserId(replyToUserId);
         r.setReplyToUserName(replyToUserName);
@@ -245,7 +272,7 @@ public class ReviewController {
         // 通知父评论作者（不能通知自己）
         if (!parent.getUserId().equals(userId)) {
             NotificationController.createNotification(notificationMapper,
-                    parent.getUserId(), "reply", userId, userName,
+                    parent.getUserId(), "reply", userId, myName,
                     "review", reviewId, parent.getGameId() == null ? null : String.valueOf(parent.getGameId()),
                     content, parent.getContent());
         }
@@ -258,7 +285,7 @@ public class ReviewController {
                 if (parentReply != null) parentReplyContent = parentReply.getContent();
             }
             NotificationController.createNotification(notificationMapper,
-                    replyToUserId, "reply", userId, userName,
+                    replyToUserId, "reply", userId, myName,
                     "reply", parentReplyId, parent.getGameId() == null ? null : String.valueOf(parent.getGameId()),
                     content, parentReplyContent);
         }
@@ -336,5 +363,56 @@ public class ReviewController {
                 "UPDATE reviews SET replies_count = GREATEST(replies_count - 1, 0) WHERE id = ?",
                 r.getReviewId());
         return Result.success();
+    }
+
+    // ========== 私有工具：批量回填用户实时资料 ==========
+
+    /** 批量查 users 表，返回 Map<userId, User>（去重 + 过滤 null） */
+    private Map<String, User> batchGetUsers(List<String> userIds) {
+        if (userIds == null || userIds.isEmpty()) return Collections.emptyMap();
+        List<String> unique = userIds.stream().filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        if (unique.isEmpty()) return Collections.emptyMap();
+        List<User> users = userMapper.selectBatchIds(unique);
+        Map<String, User> map = new HashMap<>();
+        for (User u : users) map.put(u.getId(), u);
+        return map;
+    }
+
+    /** 给 Review 回填实时 displayName + avatarUrl（fallback 到 DB 的 user_name） */
+    private void fillReviewUserFields(Review r, Map<String, User> userMap) {
+        User u = userMap.get(r.getUserId());
+        if (u != null) {
+            String name = (u.getNickname() != null && !u.getNickname().isBlank()) ? u.getNickname() : u.getUsername();
+            r.setDisplayName(name != null ? name : r.getUserName());
+            r.setAvatarUrl(u.getAvatarUrl());
+        } else {
+            // 用户被删，用 DB 存的旧值
+            r.setDisplayName(r.getUserName());
+            r.setAvatarUrl(null);
+        }
+    }
+
+    /** 给 Reply 回填双方的实时 displayName + avatarUrl */
+    private void fillReplyUserFields(Reply r, Map<String, User> userMap) {
+        // 回复者
+        User me = userMap.get(r.getUserId());
+        if (me != null) {
+            String name = (me.getNickname() != null && !me.getNickname().isBlank()) ? me.getNickname() : me.getUsername();
+            r.setDisplayName(name != null ? name : r.getUserName());
+            r.setAvatarUrl(me.getAvatarUrl());
+        } else {
+            r.setDisplayName(r.getUserName());
+        }
+        // 被回复者
+        if (r.getReplyToUserId() != null && !r.getReplyToUserId().isBlank()) {
+            User target = userMap.get(r.getReplyToUserId());
+            if (target != null) {
+                String name = (target.getNickname() != null && !target.getNickname().isBlank()) ? target.getNickname() : target.getUsername();
+                r.setReplyToDisplayName(name != null ? name : r.getReplyToUserName());
+                r.setReplyToAvatarUrl(target.getAvatarUrl());
+            } else {
+                r.setReplyToDisplayName(r.getReplyToUserName());
+            }
+        }
     }
 }

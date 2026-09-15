@@ -32,6 +32,12 @@ public class Review {
 
     @TableField(exist = false)
     private String gameName;
+    /** 实时头像（查询时从 users 表回填，不存 DB） */
+    @TableField(exist = false)
+    private String avatarUrl;
+    /** 实时昵称（查询时从 users 表回填，不存 DB，优先 nickname，fallback user_name） */
+    @TableField(exist = false)
+    private String displayName;
     /** 当前登录用户是否已点赞（仅查询时填充，不映射 DB） */
     @TableField(exist = false)
     private Boolean liked;

@@ -365,8 +365,14 @@
           <div class="cjx-review-item" v-for="r in reviews" :key="r.id" :data-review-id="r.id">
             <div class="cjx-review-top">
               <div class="cjx-review-user">
-                <span class="cjx-review-avatar">{{ (r.userName || '匿').slice(0, 1) }}</span>
-                <span class="cjx-review-name">{{ r.userName || '匿名用户' }}</span>
+                <img
+                  v-if="r.avatarUrl"
+                  :src="r.avatarUrl"
+                  class="cjx-review-avatar cjx-review-avatar-img"
+                  @error="(e: any) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target.nextElementSibling as HTMLElement).style.display = '' }"
+                />
+                <span v-if="!r.avatarUrl" class="cjx-review-avatar">{{ (r.displayName || r.userName || '匿').slice(0, 1) }}</span>
+                <span class="cjx-review-name">{{ r.displayName || r.userName || '匿名用户' }}</span>
                 <span class="cjx-review-rec" :class="r.recommend === 1 ? 'rec-pos' : 'rec-neg'">
                   {{ r.recommend === 1 ? '👍 推荐' : '👎 不推荐' }}
                 </span>
@@ -411,11 +417,17 @@
               <div class="cjx-replies-list" v-if="r._replies?.length">
                 <div class="cjx-reply-item" v-for="rp in r._replies" :key="rp.id" :data-reply-id="rp.id">
                   <div class="cjx-reply-head">
-                    <span class="cjx-reply-avatar">{{ (rp.userName || '匿').slice(0, 1) }}</span>
-                    <span class="cjx-reply-name">{{ rp.userName || '匿名' }}</span>
-                    <template v-if="rp.replyToUserName">
+                    <img
+                      v-if="rp.avatarUrl"
+                      :src="rp.avatarUrl"
+                      class="cjx-reply-avatar cjx-reply-avatar-img"
+                      @error="(e: any) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target.nextElementSibling as HTMLElement).style.display = '' }"
+                    />
+                    <span v-if="!rp.avatarUrl" class="cjx-reply-avatar">{{ (rp.displayName || rp.userName || '匿').slice(0, 1) }}</span>
+                    <span class="cjx-reply-name">{{ rp.displayName || rp.userName || '匿名' }}</span>
+                    <template v-if="rp.replyToDisplayName || rp.replyToUserName">
                       <span class="cjx-reply-to">回复</span>
-                      <span class="cjx-reply-to-name">@{{ rp.replyToUserName }}</span>
+                      <span class="cjx-reply-to-name">@{{ rp.replyToDisplayName || rp.replyToUserName }}</span>
                     </template>
                     <span class="cjx-reply-time">{{ formatTime(rp.createdAt) }}</span>
                   </div>
@@ -2477,6 +2489,11 @@ function scrollAndFlash(selector: string) {
   align-items: center;
   justify-content: center;
   font-weight: 600;
+  overflow: hidden;
+}
+.cjx-review-avatar-img {
+  background: none;
+  object-fit: cover;
 }
 .cjx-review-name {
   font-size: 14px;
@@ -2604,6 +2621,11 @@ function scrollAndFlash(selector: string) {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
+}
+.cjx-reply-avatar-img {
+  background: none;
+  object-fit: cover;
 }
 .cjx-reply-name { color: #333; font-weight: 600; }
 .cjx-reply-to { color: #999; font-size: 12px; }

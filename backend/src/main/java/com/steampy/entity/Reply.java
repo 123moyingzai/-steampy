@@ -31,4 +31,16 @@ public class Reply {
     @TableField(exist = false)
     /** 当前登录用户是否已点赞 */
     private Boolean liked;
+    /** 实时头像（查询时从 users 表回填） */
+    @TableField(exist = false)
+    private String avatarUrl;
+    /** 实时昵称（查询时从 users 表回填） */
+    @TableField(exist = false)
+    private String displayName;
+    /** 被回复者的实时昵称 */
+    @TableField(exist = false)
+    private String replyToDisplayName;
+    /** 被回复者的实时头像 */
+    @TableField(exist = false)
+    private String replyToAvatarUrl;
 }
