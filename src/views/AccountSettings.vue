@@ -645,11 +645,11 @@ const doSteamLogin = async () => {
 
   steamLoggingIn.value = true
   try {
-    // 1. 先验证密码
+    // 1. 先验证账号密码（弹窗里填的账号必须 = 当前登录用户的账号，密码也必须对）
     const verifyResp = await fetch('/api/auth/verify-password', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: currentUser.id, password: passwordInput })
+      body: JSON.stringify({ userId: currentUser.id, username: usernameInput, password: passwordInput })
     })
     const verifyJson = await verifyResp.json()
     if (!verifyResp.ok || verifyJson.code !== 200) {

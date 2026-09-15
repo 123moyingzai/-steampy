@@ -139,11 +139,16 @@ public class AuthController {
     @PostMapping("/verify-password")
     public Result<?> verifyPassword(@RequestBody Map<String, String> body) {
         String userId = body.get("userId");
+        String username = body.get("username");
         String password = body.get("password");
         if (userId == null || password == null) return Result.error("请填写完整");
         User u = userMapper.selectById(userId);
         if (u == null) return Result.error("用户不存在");
-        if (!u.getPasswordHash().equals(password)) return Result.error("账号或密码错误");
+        // 如果传了 username，必须与 DB 一致
+        if (username != null && !username.isBlank() && !u.getUsername().equals(username)) {
+            return Result.error("账号不匹配");
+        }
+        if (!u.getPasswordHash().equals(password)) return Result.error("密码错误");
         return Result.success(null);
     }
 
