@@ -1364,35 +1364,36 @@ watch(() => route.query, (q) => {
 
 // 通知跳转定位：找到并展开对应的 review/reply
 async function scrollToHighlight(targetId: string, hlType?: string) {
-  // 先看看是不是 review
+  const u = authAPI.getCurrentUser()
+  // 是 review：直接展开 + scroll
   const review = reviews.value.find((r: any) => r.id === targetId)
   if (review || hlType === 'review') {
     if (review) {
-      expandedReviews.value[review.id] = true
-      await nextTick()
-      // 首次展开拉 replies
+      // 先拉好 replies 数据再展开，避免空容器撑页面抖动
       if (!review._replies) {
-        const u = authAPI.getCurrentUser()
         review._replies = await reviewAPI.listReplies(review.id, u?.id)
       }
+      expandedReviews.value[review.id] = true
+      await nextTick()
       scrollAndFlash(`[data-review-id="${review.id}"]`)
     }
     return
   }
-  // 是 reply：遍历所有 review 查它的 replies，找到后展开父 review 再 scroll
+  // 是 reply：先遍历所有 review 把 replies 数据拉齐（不展开），找到父 review 后再展开 + scroll
+  let parentReview: any = null
   for (const r of reviews.value) {
     if (!r._replies) {
-      expandedReviews.value[r.id] = true
-      const u = authAPI.getCurrentUser()
       r._replies = await reviewAPI.listReplies(r.id, u?.id)
     }
-    const found = r._replies?.find((rp: any) => rp.id === targetId)
-    if (found) {
-      expandedReviews.value[r.id] = true
-      await nextTick()
-      scrollAndFlash(`[data-reply-id="${targetId}"]`)
-      return
+    if (!parentReview && r._replies?.some((rp: any) => rp.id === targetId)) {
+      parentReview = r
     }
+  }
+  if (parentReview) {
+    // 数据都齐了，现在只展开父 review（DOM 一次到位，不会抖）
+    expandedReviews.value[parentReview.id] = true
+    await nextTick()
+    scrollAndFlash(`[data-reply-id="${targetId}"]`)
   }
 }
 
