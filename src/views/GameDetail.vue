@@ -443,11 +443,6 @@
                     </button>
                     <button class="cjx-reply-link" @click="focusReplyInput(r, rp)">回复</button>
                     <button
-                      v-if="rp.userId === authAPI.getCurrentUser()?.id"
-                      class="cjx-reply-del"
-                      @click="deleteReply(r, rp)"
-                    >删除</button>
-                    <button
                       class="cjx-more-btn small"
                       @click.stop="openMoreMenu($event, 'reply', rp)"
                       title="更多"
@@ -505,7 +500,7 @@
       </div>
     </div>
 
-    <!-- 全局 ⋯ 弹层（复制 / 举报） -->
+    <!-- 全局 ⋯ 弹层（自己的显示删除，别人的显示举报） -->
     <Teleport to="body">
       <div
         class="cjx-more-mask"
@@ -521,10 +516,20 @@
             <span class="cjx-more-icon">📋</span>
             <span>复制内容</span>
           </div>
-          <div class="cjx-more-item danger" @click="onReport">
-            <span class="cjx-more-icon">⚠️</span>
-            <span>举报</span>
-          </div>
+          <!-- 自己发的 → 显示删除 -->
+          <template v-if="moreMenu.target.userId === authAPI.getCurrentUser()?.id">
+            <div class="cjx-more-item danger" @click="onDeleteFromMenu">
+              <span class="cjx-more-icon">🗑️</span>
+              <span>删除</span>
+            </div>
+          </template>
+          <!-- 别人发的 → 显示举报 -->
+          <template v-else>
+            <div class="cjx-more-item danger" @click="onReport">
+              <span class="cjx-more-icon">⚠️</span>
+              <span>举报</span>
+            </div>
+          </template>
         </div>
       </div>
     </Teleport>
@@ -1205,6 +1210,35 @@ async function onReport() {
   closeMoreMenu()
 }
 
+/** 从 ⋯ 弹层删除自己的评论/回复 */
+async function onDeleteFromMenu() {
+  const u = authAPI.getCurrentUser()
+  if (!u) { alert('请先登录'); closeMoreMenu(); return }
+  const mm = moreMenu.value!
+  if (mm.target.userId !== u.id) { closeMoreMenu(); return }
+  if (!confirm('确定删除？此操作不可恢复')) { closeMoreMenu(); return }
+  try {
+    if (mm.type === 'review') {
+      await reviewAPI.delete(mm.target.id, u.id)
+      reviews.value = reviews.value.filter((x: any) => x.id !== mm.target.id)
+      showToast('评论已删除')
+    } else {
+      // Reply: 通过 reviewId 找父评论
+      const rp = mm.target
+      const parentReview = reviews.value.find((x: any) => x.id === rp.reviewId)
+      await reviewAPI.deleteReply(rp.id, u.id)
+      if (parentReview) {
+        parentReview._replies = (parentReview._replies || []).filter((x: any) => x.id !== rp.id)
+        parentReview.repliesCount = Math.max(0, (parentReview.repliesCount || 1) - 1)
+      }
+      showToast('回复已删除')
+    }
+  } catch (e: any) {
+    alert(e?.message || '删除失败')
+  }
+  closeMoreMenu()
+}
+
 async function toggleReplyLike(rp: any) {
   const u = authAPI.getCurrentUser()
   if (!u) { alert('请先登录'); return }
@@ -1219,20 +1253,6 @@ async function toggleReplyLike(rp: any) {
       rp.likesCount = res?.likesCount ?? (rp.likesCount || 0) + 1
     }
   } catch (e: any) { alert(e?.message || '操作失败') }
-}
-
-async function deleteReply(r: any, rp: any) {
-  if (!confirm('确定删除这条回复？')) return
-  const u = authAPI.getCurrentUser()
-  try {
-    await reviewAPI.deleteReply(rp.id, u.id)
-    r._replies = r._replies.filter((x: any) => x.id !== rp.id)
-    r.repliesCount = Math.max(0, (r.repliesCount || 1) - 1)
-    // 如果删的是当前回复目标，清除 target
-    if (replyTarget.value?.type === 'reply' && replyTarget.value.reply.id === rp.id) {
-      replyTarget.value = { type: 'review', review: r }
-    }
-  } catch (e: any) { alert(e?.message || '删除失败') }
 }
 
 // 楼中楼（共享输入框模式）
