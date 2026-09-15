@@ -371,8 +371,8 @@
                   class="cjx-review-avatar cjx-review-avatar-img"
                   @error="(e: any) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target.nextElementSibling as HTMLElement).style.display = '' }"
                 />
-                <span v-if="!r.avatarUrl" class="cjx-review-avatar">{{ (r.displayName || r.userName || '匿').slice(0, 1) }}</span>
-                <span class="cjx-review-name">{{ r.displayName || r.userName || '匿名用户' }}</span>
+                <span v-if="!r.avatarUrl" class="cjx-review-avatar">{{ (r.displayName || '匿').slice(0, 1) }}</span>
+                <span class="cjx-review-name">{{ r.displayName || '匿名用户' }}</span>
                 <span class="cjx-review-rec" :class="r.recommend === 1 ? 'rec-pos' : 'rec-neg'">
                   {{ r.recommend === 1 ? '👍 推荐' : '👎 不推荐' }}
                 </span>
@@ -423,11 +423,11 @@
                       class="cjx-reply-avatar cjx-reply-avatar-img"
                       @error="(e: any) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target.nextElementSibling as HTMLElement).style.display = '' }"
                     />
-                    <span v-if="!rp.avatarUrl" class="cjx-reply-avatar">{{ (rp.displayName || rp.userName || '匿').slice(0, 1) }}</span>
-                    <span class="cjx-reply-name">{{ rp.displayName || rp.userName || '匿名' }}</span>
-                    <template v-if="rp.replyToDisplayName || rp.replyToUserName">
+                    <span v-if="!rp.avatarUrl" class="cjx-reply-avatar">{{ (rp.displayName || '匿').slice(0, 1) }}</span>
+                    <span class="cjx-reply-name">{{ rp.displayName || '匿名' }}</span>
+                    <template v-if="rp.replyToDisplayName">
                       <span class="cjx-reply-to">回复</span>
-                      <span class="cjx-reply-to-name">@{{ rp.replyToDisplayName || rp.replyToUserName }}</span>
+                      <span class="cjx-reply-to-name">@{{ rp.replyToDisplayName }}</span>
                     </template>
                     <span class="cjx-reply-time">{{ formatTime(rp.createdAt) }}</span>
                   </div>
@@ -469,10 +469,10 @@
                     <span class="cjx-reply-input-hint">
                       回复
                       <template v-if="replyTarget.type === 'review'">
-                        <b>{{ replyTarget.review.userName || '匿名' }}</b> 的评论
+                        <b>{{ replyTarget.review.displayName || '匿名' }}</b> 的评论
                       </template>
                       <template v-else-if="replyTarget.type === 'reply'">
-                        <b>@{{ replyTarget.reply.userName || '匿名' }}</b>
+                        <b>@{{ replyTarget.reply.displayName || '匿名' }}</b>
                       </template>
                     </span>
                     <span class="cjx-reply-input-clear" @click="clearReplyTarget">× 取消</span>
@@ -483,7 +483,7 @@
                       v-model="replyText"
                       class="cjx-reply-input-field"
                       :placeholder="replyTarget
-                        ? (replyTarget.type === 'review' ? `回复评论...` : `回复 @${replyTarget.reply.userName || ''}...`)
+                        ? (replyTarget.type === 'review' ? `回复评论...` : `回复 @${replyTarget.reply.displayName || ''}...`)
                         : '输入回复内容...'"
                       @keyup.enter="submitReplyGlobal"
                     />
@@ -1289,7 +1289,7 @@ async function submitReplyGlobal() {
       const rp = replyTarget.value.reply
       body.parentReplyId = rp.id
       body.replyToUserId = rp.userId
-      body.replyToUserName = rp.userName
+      // 不再传 replyToUserName，后端从 DB 查
     }
     const saved = await reviewAPI.createReply(r.id, body)
     // 乐观更新

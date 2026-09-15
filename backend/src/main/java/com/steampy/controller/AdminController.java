@@ -344,7 +344,26 @@ public class AdminController {
         if (status != null) qw.eq("status", status);
         if (gameId != null) qw.eq("game_id", gameId);
         qw.orderByDesc("report_count").orderByDesc("created_at");
-        return Result.success(reviewMapper.selectList(qw));
+        List<Review> list = reviewMapper.selectList(qw);
+        // 回填实时用户资料
+        Set<String> ids = new HashSet<>();
+        for (Review r : list) ids.add(r.getUserId());
+        if (!ids.isEmpty()) {
+            List<User> users = userMapper.selectBatchIds(ids);
+            Map<String, User> userMap = new HashMap<>();
+            for (User u : users) userMap.put(u.getId(), u);
+            for (Review r : list) {
+                User u = userMap.get(r.getUserId());
+                if (u != null) {
+                    String name = (u.getNickname() != null && !u.getNickname().isBlank()) ? u.getNickname() : u.getUsername();
+                    r.setDisplayName(name != null ? name : "匿名用户");
+                    r.setAvatarUrl(u.getAvatarUrl());
+                } else {
+                    r.setDisplayName("已注销用户");
+                }
+            }
+        }
+        return Result.success(list);
     }
 
     /** 管理员审核后决定：status=1 保留，status=2 拒绝。任何处理都清零 report_count + 清空 reports 记录 */

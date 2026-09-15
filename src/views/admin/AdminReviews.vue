@@ -28,8 +28,8 @@
               <span class="td-strong">{{ r.game_name || ('#' + r.game_id) }}</span>
             </td>
             <td>
-              <div class="td-avatar">{{ (r.user_name || '匿').slice(0, 1) }}</div>
-              <span>{{ r.user_name || '匿名' }}</span>
+              <div class="td-avatar">{{ (r.displayName || '匿').slice(0, 1) }}</div>
+              <span>{{ r.displayName || '已注销用户' }}</span>
             </td>
             <td>
               <span :class="['badge', r.recommend === 1 ? 'badge-pos' : 'badge-neg']">

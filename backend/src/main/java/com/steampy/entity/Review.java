@@ -15,7 +15,6 @@ public class Review {
     private String id;
     private Long gameId;
     private String userId;
-    private String userName;
     /** 1=推荐 0=不推荐 */
     private Integer recommend;
     private String content;
@@ -32,10 +31,10 @@ public class Review {
 
     @TableField(exist = false)
     private String gameName;
-    /** 实时头像（查询时从 users 表回填，不存 DB） */
+    /** 实时头像（查询时从 users 表回填） */
     @TableField(exist = false)
     private String avatarUrl;
-    /** 实时昵称（查询时从 users 表回填，不存 DB，优先 nickname，fallback user_name） */
+    /** 实时昵称（查询时从 users 表回填，优先 nickname，fallback username） */
     @TableField(exist = false)
     private String displayName;
     /** 当前登录用户是否已点赞（仅查询时填充，不映射 DB） */

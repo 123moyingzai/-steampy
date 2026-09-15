@@ -17,9 +17,7 @@ public class Reply {
     /** 非空时表示回复的是某条子评论（也展示在父评论下，保持扁平） */
     private String parentReplyId;
     private String replyToUserId;
-    private String replyToUserName;
     private String userId;
-    private String userName;
     private String content;
     private Integer likesCount;
     /** 被举报次数 */

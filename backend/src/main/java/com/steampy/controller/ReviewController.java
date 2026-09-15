@@ -86,10 +86,7 @@ public class ReviewController {
             return Result.error("请选择推荐或不推荐");
         }
 
-        // 从 DB 取最新用户名（不信任前端传来的 userName）
-        User u = userMapper.selectById(userId);
-        String dbUserName = u != null ? u.getNickname() : null;
-        if (dbUserName == null || dbUserName.isBlank()) dbUserName = u != null ? u.getUsername() : "匿名";
+        // 不再存冗余 userName，查询时从 users 表实时回填
 
         Review review;
         if (id != null && !id.isBlank()) {
@@ -114,7 +111,6 @@ public class ReviewController {
             review.setId(UUID.randomUUID().toString());
             review.setGameId(gameId);
             review.setUserId(userId);
-            review.setUserName(dbUserName);  // 存 DB 最新昵称做 fallback
             review.setRecommend(recommend);
             review.setContent(content.trim());
             review.setImages(images);
@@ -233,7 +229,7 @@ public class ReviewController {
             return Result.error("回复内容不少于两个字");
         }
 
-        // 从 DB 取双方最新昵称（不信任前端传来的）
+        // 取昵称仅用于通知（不再冗余存 DB）
         User me = userMapper.selectById(userId);
         String myName = me != null && me.getNickname() != null && !me.getNickname().isBlank()
                 ? me.getNickname() : (me != null ? me.getUsername() : "匿名");
@@ -242,7 +238,6 @@ public class ReviewController {
         r.setId(UUID.randomUUID().toString());
         r.setReviewId(reviewId);
         r.setUserId(userId);
-        r.setUserName(myName);  // 存 DB 最新昵称做 fallback
         r.setContent(content.trim());
         r.setLikesCount(0);
         r.setStatus(1);
@@ -250,16 +245,8 @@ public class ReviewController {
         // 回复某条子评论（子评论的回复也还是子评论，只是记录了 parentReplyId 便于前端显示 "@xxx"）
         String parentReplyId = (String) body.get("parentReplyId");
         String replyToUserId = (String) body.get("replyToUserId");
-        // 被回复者昵称也从 DB 取
-        String replyToUserName = null;
-        if (replyToUserId != null && !replyToUserId.isBlank()) {
-            User target = userMapper.selectById(replyToUserId);
-            replyToUserName = target != null && target.getNickname() != null && !target.getNickname().isBlank()
-                    ? target.getNickname() : (target != null ? target.getUsername() : null);
-        }
         r.setParentReplyId(parentReplyId);
         r.setReplyToUserId(replyToUserId);
-        r.setReplyToUserName(replyToUserName);
 
         r.setCreatedAt(LocalDateTime.now());
         r.setUpdatedAt(LocalDateTime.now());
@@ -378,16 +365,15 @@ public class ReviewController {
         return map;
     }
 
-    /** 给 Review 回填实时 displayName + avatarUrl（fallback 到 DB 的 user_name） */
+    /** 给 Review 回填实时 displayName + avatarUrl（查不到用户则显示"已注销用户"） */
     private void fillReviewUserFields(Review r, Map<String, User> userMap) {
         User u = userMap.get(r.getUserId());
         if (u != null) {
             String name = (u.getNickname() != null && !u.getNickname().isBlank()) ? u.getNickname() : u.getUsername();
-            r.setDisplayName(name != null ? name : r.getUserName());
+            r.setDisplayName(name != null ? name : "匿名用户");
             r.setAvatarUrl(u.getAvatarUrl());
         } else {
-            // 用户被删，用 DB 存的旧值
-            r.setDisplayName(r.getUserName());
+            r.setDisplayName("已注销用户");
             r.setAvatarUrl(null);
         }
     }
@@ -398,20 +384,20 @@ public class ReviewController {
         User me = userMap.get(r.getUserId());
         if (me != null) {
             String name = (me.getNickname() != null && !me.getNickname().isBlank()) ? me.getNickname() : me.getUsername();
-            r.setDisplayName(name != null ? name : r.getUserName());
+            r.setDisplayName(name != null ? name : "匿名用户");
             r.setAvatarUrl(me.getAvatarUrl());
         } else {
-            r.setDisplayName(r.getUserName());
+            r.setDisplayName("已注销用户");
         }
         // 被回复者
         if (r.getReplyToUserId() != null && !r.getReplyToUserId().isBlank()) {
             User target = userMap.get(r.getReplyToUserId());
             if (target != null) {
                 String name = (target.getNickname() != null && !target.getNickname().isBlank()) ? target.getNickname() : target.getUsername();
-                r.setReplyToDisplayName(name != null ? name : r.getReplyToUserName());
+                r.setReplyToDisplayName(name != null ? name : "匿名用户");
                 r.setReplyToAvatarUrl(target.getAvatarUrl());
             } else {
-                r.setReplyToDisplayName(r.getReplyToUserName());
+                r.setReplyToDisplayName("已注销用户");
             }
         }
     }
