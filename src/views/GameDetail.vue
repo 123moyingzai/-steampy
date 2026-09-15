@@ -1302,7 +1302,6 @@ async function submitReplyGlobal() {
     const r = replyTarget.value.review  // 父评论
     const body: any = {
       userId: u.id,
-      userName: u.username || u.name || '匿名',
       content
     }
     if (replyTarget.value.type === 'reply') {

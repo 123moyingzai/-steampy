@@ -333,6 +333,7 @@ const loadData = () => {
   currentUser.value = authAPI.getCurrentUser()
   if (currentUser.value) {
     loadBalance()
+    loadUnread()   // 登录后立即加载未读数
   }
 }
 

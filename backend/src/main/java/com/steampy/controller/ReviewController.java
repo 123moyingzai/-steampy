@@ -278,6 +278,12 @@ public class ReviewController {
         }
 
         r.setLiked(false);
+        // 回填实时用户资料（前端乐观更新靠这个显示头像/昵称）
+        Set<String> ids = new HashSet<>();
+        ids.add(userId);
+        if (replyToUserId != null && !replyToUserId.isBlank()) ids.add(replyToUserId);
+        Map<String, User> userMap = batchGetUsers(new ArrayList<>(ids));
+        fillReplyUserFields(r, userMap);
         return Result.success(r);
     }
 
