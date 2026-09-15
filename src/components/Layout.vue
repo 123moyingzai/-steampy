@@ -85,6 +85,9 @@
                 <div v-if="msgList.length === 0" class="cjx-popover-empty">暂无消息</div>
                 <div v-for="n in msgList.slice(0, 8)" :key="n.id" class="cjx-popover-item" :class="{ unread: !n.isRead }" @click="openNotification(n)">
                   <div class="cjx-popover-title">
+                    <div class="cjx-popover-actor-avatar" :style="n.actorAvatarUrl ? `background-image:url(${n.actorAvatarUrl});background-size:cover;background-position:center;` : ''">
+                      <span v-if="!n.actorAvatarUrl">{{ (n.actorName || '用').substring(0, 1) }}</span>
+                    </div>
                     <span class="cjx-popover-type">{{ n.type === 'reply' ? '💬 回复了你' : n.type === 'like_review' ? '👍 赞了你的评论' : '👍 赞了你的回复' }}</span>
                     <span v-if="n.actorName" class="cjx-popover-actor">{{ n.actorName }}</span>
                   </div>
@@ -662,10 +665,24 @@ onUnmounted(() => {
 .cjx-popover-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-size: 13px;
   color: #2c3e50;
   margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+.cjx-popover-actor-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #3498db;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 11px;
+  flex-shrink: 0;
 }
 
 .cjx-popover-type { color: #34495e; }

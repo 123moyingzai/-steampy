@@ -1,6 +1,7 @@
 package com.steampy.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -17,6 +18,7 @@ public class Notification {
     private String type;
     /** 触发人 */
     private String actorId;
+    /** 快照昵称（创建时存的，可能过时）— list 接口会用最新昵称覆盖 */
     private String actorName;
     /** review | reply */
     private String targetType;
@@ -29,4 +31,8 @@ public class Notification {
     private String targetContent;
     private Boolean isRead;
     private LocalDateTime createdAt;
+
+    /** 查询时实时回填，不上 DB */
+    @TableField(exist = false)
+    private String actorAvatarUrl;
 }

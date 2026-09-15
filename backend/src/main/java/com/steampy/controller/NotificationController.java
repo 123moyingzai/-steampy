@@ -3,26 +3,51 @@ package com.steampy.controller;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.steampy.dto.Result;
 import com.steampy.entity.Notification;
+import com.steampy.entity.User;
 import com.steampy.mapper.NotificationMapper;
+import com.steampy.mapper.UserMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/notifications")
 public class NotificationController {
 
     @Autowired private NotificationMapper notificationMapper;
+    @Autowired private UserMapper userMapper;
     @Autowired private JdbcTemplate jdbcTemplate;
 
     @GetMapping
     public Result<List<Notification>> list(@RequestParam String userId) {
         QueryWrapper<Notification> qw = new QueryWrapper<>();
         qw.eq("user_id", userId).orderByDesc("created_at").last("LIMIT 50");
-        return Result.success(notificationMapper.selectList(qw));
+        List<Notification> list = notificationMapper.selectList(qw);
+        // 批量回填最新的 actorName + actorAvatarUrl（覆盖 DB 里可能过时的快照昵称）
+        Set<String> actorIds = new LinkedHashSet<>();
+        for (Notification n : list) {
+            if (n.getActorId() != null && !n.getActorId().isBlank()) actorIds.add(n.getActorId());
+        }
+        if (!actorIds.isEmpty()) {
+            List<User> users = userMapper.selectBatchIds(actorIds);
+            Map<String, User> userMap = new HashMap<>();
+            for (User u : users) userMap.put(u.getId(), u);
+            for (Notification n : list) {
+                User u = userMap.get(n.getActorId());
+                if (u != null) {
+                    String name = (u.getNickname() != null && !u.getNickname().isBlank()) ? u.getNickname() : u.getUsername();
+                    n.setActorName(name != null ? name : "匿名用户");
+                    n.setActorAvatarUrl(u.getAvatarUrl());
+                } else {
+                    n.setActorName("已注销用户");
+                    n.setActorAvatarUrl(null);
+                }
+            }
+        }
+        return Result.success(list);
     }
 
     @GetMapping("/unread-count")

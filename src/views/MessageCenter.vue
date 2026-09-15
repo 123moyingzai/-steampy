@@ -22,8 +22,8 @@
     <div v-if="tab === 'msg'" class="cjx-msg-list">
       <div v-if="msgList.length === 0" class="cjx-empty">暂无消息，去评论区互动吧～</div>
       <div v-for="n in msgList" :key="n.id" class="cjx-msg-item" :class="{ unread: !n.isRead }" @click="openNotification(n)">
-        <div class="cjx-msg-avatar">
-          <span>{{ (n.actorName || '用').substring(0, 1) }}</span>
+        <div class="cjx-msg-avatar" :style="n.actorAvatarUrl ? `background-image:url(${n.actorAvatarUrl});background-size:cover;background-position:center;` : ''">
+          <span v-if="!n.actorAvatarUrl">{{ (n.actorName || '用').substring(0, 1) }}</span>
         </div>
         <div class="cjx-msg-body">
           <div class="cjx-msg-title">
