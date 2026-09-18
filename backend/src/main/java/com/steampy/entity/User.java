@@ -19,21 +19,27 @@ public class User {
     private String userType;
     private Boolean isActive;
 
-    // Steam 绑定相关
-    private String steamId;
-    private String steamName;
-    private String steamAvatarUrl;
-    private String steamRegion;
-    private Integer steamLevel;
+    // Steam 绑定状态（DB 列）
+    private Boolean steamBound;
+    private LocalDateTime steamBoundAt;
+    private Long steamAccountId;
+
+    // Steam 统计值（DB 列，从 steam_libraries 实时/准实时刷新）
     private Integer steamGameCount;
     private BigDecimal steamAccountValue;
     private Integer steamPlaytime;
-    private Boolean steamBound;
-    private LocalDateTime steamBoundAt;
 
-    // Steam 账号关联（新架构）
-    private Long steamAccountId;
-    private String accountHash;
+    // ========== 以下字段不是 DB 列，查询时从 steam_accounts 回填 ==========
+    @TableField(exist = false)
+    private String steamId;
+    @TableField(exist = false)
+    private String steamName;
+    @TableField(exist = false)
+    private String steamAvatarUrl;
+    @TableField(exist = false)
+    private String steamRegion;
+    @TableField(exist = false)
+    private Integer steamLevel;
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;

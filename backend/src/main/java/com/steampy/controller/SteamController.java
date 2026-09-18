@@ -270,14 +270,8 @@ public class SteamController {
             }
         }
 
-        // 更新 users 表（无论新旧账号都要）
+        // 更新 users 表 —— 只写绑定状态和外键，不再双写 Steam 资料（走 steam_accounts 回填）
         u.setSteamAccountId(account.getId());
-        u.setAccountHash(accountHash);
-        u.setSteamId(account.getSteamId64());
-        u.setSteamName(account.getSteamName());
-        u.setSteamAvatarUrl(account.getAvatarUrl());
-        u.setSteamRegion(account.getRegion());
-        u.setSteamLevel(account.getLevel());
         u.setSteamBound(true);
         u.setSteamBoundAt(LocalDateTime.now());
         u.setUpdatedAt(LocalDateTime.now());
@@ -340,17 +334,22 @@ public class SteamController {
         if (u == null) return Result.error("用户不存在");
 
         if (Boolean.TRUE.equals(u.getSteamBound())) {
-            // 实时刷新
+            // 实时刷新统计
             steamService.refreshUserSteamStats(userId);
             u = userMapper.selectById(userId);
         }
 
+        // Steam 资料从 steam_accounts 实时查（users 表已删快照字段）
+        SteamAccount account = u.getSteamAccountId() != null
+                ? steamAccountMapper.selectById(u.getSteamAccountId())
+                : null;
+
         Map<String, Object> resp = new LinkedHashMap<>();
-        resp.put("steam_id", u.getSteamId());
-        resp.put("steam_name", u.getSteamName());
-        resp.put("steam_avatar_url", u.getSteamAvatarUrl());
-        resp.put("steam_region", u.getSteamRegion());
-        resp.put("steam_level", u.getSteamLevel());
+        resp.put("steam_id", account != null ? account.getSteamId64() : null);
+        resp.put("steam_name", account != null ? account.getSteamName() : null);
+        resp.put("steam_avatar_url", account != null ? account.getAvatarUrl() : null);
+        resp.put("steam_region", account != null ? account.getRegion() : null);
+        resp.put("steam_level", account != null ? account.getLevel() : null);
         resp.put("steam_game_count", u.getSteamGameCount() != null ? u.getSteamGameCount() : 0);
         resp.put("steam_account_value", u.getSteamAccountValue() != null ? u.getSteamAccountValue() : BigDecimal.ZERO);
         resp.put("steam_playtime", u.getSteamPlaytime() != null ? u.getSteamPlaytime() : 0);
