@@ -3,6 +3,7 @@ package com.steampy.controller;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.steampy.dto.Result;
 import com.steampy.entity.Listing;
+import com.steampy.entity.Order;
 import com.steampy.entity.User;
 import com.steampy.entity.Game;
 import com.steampy.mapper.ListingMapper;
@@ -322,11 +323,10 @@ public class ListingController {
 
     // 标记已售出（内部调用）
     @PutMapping("/{id}/sold")
-    public Result<Void> markSold(@PathVariable String id, @RequestParam String orderId) {
+    public Result<Void> markSold(@PathVariable String id) {
         Listing l = listingMapper.selectById(id);
         if (l == null) return Result.error("不存在");
         l.setStatus("sold");
-        l.setOrderId(orderId);
         l.setSoldAt(LocalDateTime.now());
         l.setUpdatedAt(LocalDateTime.now());
         listingMapper.updateById(l);
@@ -383,7 +383,6 @@ public class ListingController {
         // available: 清掉 order_id/sold_at；sold: 保留原 order_id/sold_at 记录
         l.setStatus("pending_activation");
         if ("available".equals(cur)) {
-            l.setOrderId(null);
             l.setSoldAt(null);
         }
         l.setUpdatedAt(LocalDateTime.now());
@@ -397,9 +396,8 @@ public class ListingController {
         Listing l = listingMapper.selectById(id);
         if (l == null) return Result.error("不存在");
         if (!"pending_activation".equals(l.getStatus())) return Result.error("只有待激活的可以重新上架");
-        // 清除原 order_id/sold_at，重新变成 available
+        // 清除 sold_at，重新变成 available
         l.setStatus("available");
-        l.setOrderId(null);
         l.setSoldAt(null);
         l.setUpdatedAt(LocalDateTime.now());
         listingMapper.updateById(l);
@@ -416,7 +414,11 @@ public class ListingController {
         com.steampy.entity.UserGame ug = new com.steampy.entity.UserGame();
         ug.setId(UUID.randomUUID().toString());
         ug.setUserId(l.getSellerId());
-        ug.setOrderId(l.getOrderId());
+        // 反查是否有订单关联此 listing（listing.order_id 已删）
+        Order relatedOrder = orderMapper.selectOne(
+            new com.baomidou.mybatisplus.core.conditions.query.QueryWrapper<Order>().eq("listing_id", l.getId())
+        );
+        ug.setOrderId(relatedOrder != null ? relatedOrder.getId() : null);
         ug.setGameId(l.getGameId());
         ug.setGameName(l.getGameName());
         ug.setGameImage(l.getGameImage());
@@ -424,8 +426,8 @@ public class ListingController {
         ug.setVersion(l.getVersion());
         ug.setStatus("activated");
         ug.setSource("cdkey"); // 自己激活也算 cdkey 来源
-        ug.setPurchaseDate(java.time.LocalDate.now().toString());
-        ug.setActivationDate(java.time.LocalDate.now().toString());
+        ug.setPurchaseDate(LocalDateTime.now());
+        ug.setActivationDate(LocalDateTime.now());
         ug.setCreatedAt(LocalDateTime.now());
         userGameMapper.insert(ug);
         // 删除 listing（这个 CDK 已经被消耗了）

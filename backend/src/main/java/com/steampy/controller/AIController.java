@@ -185,8 +185,8 @@ public class AIController {
             if (matched.size() == 1) {
                 Game g = matched.get(0);
                 reply.append(String.format("找到了！「%s」¥%s", g.getName(), g.getPrice()));
-                if (g.getDiscount() != null && !g.getDiscount().isBlank()) {
-                    reply.append(String.format("（原价 ¥%s，折扣 %s）", g.getOriginalPrice(), g.getDiscount()));
+                if (g.getDiscount() != null) {
+                    reply.append(String.format("（原价 ¥%s，折扣 %s%%）", g.getOriginalPrice(), g.getDiscount()));
                 }
                 reply.append(String.format("\n开发商：%s | 库存：%d | %s",
                         g.getDeveloper(), g.getStock(),
@@ -200,7 +200,7 @@ public class AIController {
                 for (Game g : matched) {
                     reply.append(String.format("🎮 %s — ¥%s %s\n",
                             g.getName(), g.getPrice(),
-                            g.getDiscount() != null ? g.getDiscount() : ""));
+                            g.getDiscount() != null ? g.getDiscount() + "%" : ""));
                 }
                 reply.append("\n点击下方卡片可以直接跳转到详情页哦～");
             }

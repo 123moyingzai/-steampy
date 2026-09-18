@@ -26,7 +26,7 @@ public class Order {
     private String status;
     private String orderType;
     private String paymentMethod;
-    private String paidAt;
+    private LocalDateTime paidAt;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
     @TableField(fill = FieldFill.INSERT_UPDATE)

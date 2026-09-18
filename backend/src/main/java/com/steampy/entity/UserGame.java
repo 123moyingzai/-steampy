@@ -17,9 +17,9 @@ public class UserGame {
     private String cdkey;
     private String version;
     private String status;
-    private String purchaseDate;
+    private LocalDateTime purchaseDate;
     private String source; // store=PY代购, cdkey=玩家购, official=官方购
-    private String activationDate;
+    private LocalDateTime activationDate;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 }

@@ -31,9 +31,6 @@ public class SteamAccount {
     /** hash(userId)，用于快速查找同一用户之前创建过的账号 */
     private String accountHash;
 
-    /** 曾经绑定过的 userId 列表（逗号分隔） */
-    private String bindUserIds;
-
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 

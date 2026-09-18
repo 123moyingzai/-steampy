@@ -21,7 +21,6 @@ public class Transaction {
     private String status;
     private String referenceType;
     private String referenceId;
-    private String orderId;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 }

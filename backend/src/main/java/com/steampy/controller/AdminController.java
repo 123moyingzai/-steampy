@@ -255,7 +255,6 @@ public class AdminController {
             l.setStatus(status);
             l.setUpdatedAt(LocalDateTime.now());
             if (!"available".equals(status)) {
-                l.setOrderId(null);
                 l.setSoldAt(null);
             }
             listingMapper.updateById(l);

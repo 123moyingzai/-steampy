@@ -87,7 +87,6 @@ public class FavoriteController {
                 item.put("original_price", g.getOriginalPrice());
                 item.put("discount", g.getDiscount());
                 item.put("image", g.getImage());
-                item.put("image_url", g.getImageUrl());
                 item.put("developer", g.getDeveloper());
                 item.put("release_date", g.getReleaseDate());
             } else {

@@ -3,6 +3,7 @@ package com.steampy.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
@@ -14,12 +15,11 @@ public class Game {
     private String nameCn;
     private BigDecimal price;
     private BigDecimal originalPrice;
-    private String discount;
+    private BigDecimal discount; // 折扣（百分比数值，如 89.00 表示 89%）
     private String image;
-    private String imageUrl;
     private String link;
     private String description;
-    private String releaseDate;
+    private LocalDate releaseDate;
     private String developer;
     private Boolean isPresale;
     private Integer stock;

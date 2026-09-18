@@ -6,10 +6,12 @@ import com.steampy.entity.Game;
 import com.steampy.entity.SteamAccount;
 import com.steampy.entity.SteamLibrary;
 import com.steampy.entity.User;
+import com.steampy.entity.UserSteamBinding;
 import com.steampy.mapper.GameMapper;
 import com.steampy.mapper.SteamAccountMapper;
 import com.steampy.mapper.SteamLibraryMapper;
 import com.steampy.mapper.UserMapper;
+import com.steampy.mapper.UserSteamBindingMapper;
 import com.steampy.service.SteamService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -46,6 +48,8 @@ public class SteamController {
     private GameMapper gameMapper;
     @Autowired
     private SteamService steamService;
+    @Autowired
+    private UserSteamBindingMapper bindingMapper;
 
     // ======== Steam 实时价格缓存 ========
     private static final Pattern STEAM_APPID_PATTERN = Pattern.compile("/steam/apps/(\\d+)/");
@@ -204,13 +208,15 @@ public class SteamController {
 
         // === 已有账号 → 直接恢复，不重新生成 ===
         if (!isNewAccount) {
-            // 把 userId 加入 bind_user_ids 列表（如果还没加）
-            String bindIds = account.getBindUserIds();
-            if (bindIds == null) bindIds = "";
-            if (!bindIds.contains(userId)) {
-                account.setBindUserIds(bindIds.isEmpty() ? userId : bindIds + "," + userId);
-                account.setUpdatedAt(LocalDateTime.now());
-                steamAccountMapper.updateById(account);
+            // 绑定关系写入 user_steam_bindings（如不存在）
+            QueryWrapper<UserSteamBinding> bw = new QueryWrapper<>();
+            bw.eq("user_id", userId).eq("steam_account_id", account.getId());
+            if (bindingMapper.selectCount(bw) == 0) {
+                UserSteamBinding b = new UserSteamBinding();
+                b.setUserId(userId);
+                b.setSteamAccountId(account.getId());
+                b.setIsCurrent(1);
+                bindingMapper.insert(b);
             }
         } else {
             // === 新建账号（只在首次绑定此用户时执行）===
@@ -254,8 +260,14 @@ public class SteamController {
             account.setRegion(region);
             account.setLevel(level);
             account.setAccountHash(accountHash);
-            account.setBindUserIds(userId);
             steamAccountMapper.insert(account);
+
+            // 写入 user_steam_bindings（新账号绑定）
+            UserSteamBinding b = new UserSteamBinding();
+            b.setUserId(userId);
+            b.setSteamAccountId(account.getId());
+            b.setIsCurrent(1);
+            bindingMapper.insert(b);
 
             // 写入 steam_libraries
             for (Game g : owned) {
@@ -263,7 +275,7 @@ public class SteamController {
                 sl.setSteamAccountId(account.getId());
                 sl.setGameId(g.getId());
                 sl.setGameName(g.getName());
-                sl.setGameImage(g.getImageUrl() != null ? g.getImageUrl() : g.getImage());
+                sl.setGameImage(g.getImage());
                 sl.setPlaytime(rand.nextInt(500) + 10);
                 steamLibraryMapper.insert(sl);
             }

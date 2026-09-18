@@ -123,7 +123,6 @@ public class OrderController {
                 listing.setQuota(remain);
                 if (remain.compareTo(BigDecimal.ZERO) == 0) {
                     listing.setStatus("sold"); // 额度用完下架
-                    listing.setOrderId(order.getId());
                     listing.setSoldAt(LocalDateTime.now());
                 }
                 listing.setUpdatedAt(LocalDateTime.now());
@@ -134,7 +133,6 @@ public class OrderController {
                 // ===== CDKey：扣 cdkey + 下架 =====
                 order.setCdkey(listing.getCdkey());
                 listing.setStatus("sold");
-                listing.setOrderId(order.getId());
                 listing.setSoldAt(LocalDateTime.now());
                 listing.setUpdatedAt(LocalDateTime.now());
                 listingMapper.updateById(listing);
@@ -163,7 +161,6 @@ public class OrderController {
         t.setStatus("completed");
         t.setReferenceType("order");
         t.setReferenceId(order.getId());
-        t.setOrderId(order.getId());
         t.setCreatedAt(LocalDateTime.now());
         transactionMapper.insert(t);
 
@@ -180,7 +177,7 @@ public class OrderController {
             ug.setCdkey(order.getCdkey());
             ug.setVersion(order.getVersion() != null ? order.getVersion() : "标准版");
             ug.setStatus("pending");
-            ug.setPurchaseDate(LocalDateTime.now().toString());
+            ug.setPurchaseDate(LocalDateTime.now());
             ug.setSource("cdkey");
             userGameMapper.insert(ug);
         }
@@ -208,7 +205,6 @@ public class OrderController {
             st.setStatus("completed");
             st.setReferenceType("order");
             st.setReferenceId(order.getId());
-            st.setOrderId(order.getId());
             st.setCreatedAt(LocalDateTime.now());
             transactionMapper.insert(st);
         }
@@ -285,7 +281,6 @@ public class OrderController {
             Listing l = listingMapper.selectById(o.getListingId());
             if (l != null) {
                 l.setStatus("available");
-                l.setOrderId(null);
                 l.setSoldAt(null);
                 l.setUpdatedAt(LocalDateTime.now());
                 listingMapper.updateById(l);

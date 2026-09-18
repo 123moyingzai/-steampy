@@ -7,6 +7,7 @@ import com.steampy.mapper.UserGameMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -30,7 +31,7 @@ public class UserGameController {
 
     @PostMapping
     public Result<UserGame> createUserGame(@RequestBody UserGame ug) {
-        if (ug.getPurchaseDate() == null) ug.setPurchaseDate(java.time.LocalDateTime.now().toString());
+        if (ug.getPurchaseDate() == null) ug.setPurchaseDate(LocalDateTime.now());
         userGameMapper.insert(ug);
         return Result.success(ug);
     }
@@ -41,7 +42,7 @@ public class UserGameController {
         UserGame ug = userGameMapper.selectById(id);
         if (ug == null) return Result.error("游戏记录不存在");
         ug.setStatus("activated");
-        ug.setActivationDate(java.time.LocalDateTime.now().toString());
+        ug.setActivationDate(LocalDateTime.now());
         userGameMapper.updateById(ug);
         return Result.success(null);
     }
