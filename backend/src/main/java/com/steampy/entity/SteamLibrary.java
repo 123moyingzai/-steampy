@@ -10,10 +10,7 @@ public class SteamLibrary {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    /** 绑定该游戏的用户 ID（保留用于兼容旧查询） */
-    private String userId;
-
-    /** 关联 steam_accounts.id（新结构主键） */
+    /** 关联 steam_accounts.id */
     private Long steamAccountId;
 
     private Long gameId;

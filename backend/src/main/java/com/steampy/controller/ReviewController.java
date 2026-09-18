@@ -154,7 +154,7 @@ public class ReviewController {
             // 通知原作者
             if (!r.getUserId().equals(userId)) {
                 NotificationController.createNotification(notificationMapper,
-                        r.getUserId(), "like_review", userId, null,
+                        r.getUserId(), "like_review", userId,
                         "review", id, r.getGameId() == null ? null : String.valueOf(r.getGameId()),
                         null, r.getContent());
             }
@@ -229,11 +229,6 @@ public class ReviewController {
             return Result.error("回复内容不少于两个字");
         }
 
-        // 取昵称仅用于通知（不再冗余存 DB）
-        User me = userMapper.selectById(userId);
-        String myName = me != null && me.getNickname() != null && !me.getNickname().isBlank()
-                ? me.getNickname() : (me != null ? me.getUsername() : "匿名");
-
         Reply r = new Reply();
         r.setId(UUID.randomUUID().toString());
         r.setReviewId(reviewId);
@@ -259,7 +254,7 @@ public class ReviewController {
         // 通知父评论作者（不能通知自己）
         if (!parent.getUserId().equals(userId)) {
             NotificationController.createNotification(notificationMapper,
-                    parent.getUserId(), "reply", userId, myName,
+                    parent.getUserId(), "reply", userId,
                     "review", reviewId, parent.getGameId() == null ? null : String.valueOf(parent.getGameId()),
                     content, parent.getContent());
         }
@@ -272,7 +267,7 @@ public class ReviewController {
                 if (parentReply != null) parentReplyContent = parentReply.getContent();
             }
             NotificationController.createNotification(notificationMapper,
-                    replyToUserId, "reply", userId, myName,
+                    replyToUserId, "reply", userId,
                     "reply", parentReplyId, parent.getGameId() == null ? null : String.valueOf(parent.getGameId()),
                     content, parentReplyContent);
         }
@@ -309,7 +304,7 @@ public class ReviewController {
                 String gameId = parentReview != null && parentReview.getGameId() != null
                         ? String.valueOf(parentReview.getGameId()) : null;
                 NotificationController.createNotification(notificationMapper,
-                        r.getUserId(), "like_reply", userId, null,
+                        r.getUserId(), "like_reply", userId,
                         "reply", replyId, gameId,
                         null, r.getContent());
             }

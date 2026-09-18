@@ -220,7 +220,6 @@ public class OrderController {
                 && !"cancelled".equalsIgnoreCase(order.getStatus())) {
             if (!steamService.isGameOwned(accountId, order.getGameId(), order.getGameName())) {
                 SteamLibrary sl = new SteamLibrary();
-                sl.setUserId(order.getBuyerId());
                 sl.setSteamAccountId(accountId);
                 sl.setGameId(order.getGameId());
                 sl.setGameName(order.getGameName());

@@ -257,10 +257,9 @@ public class SteamController {
             account.setBindUserIds(userId);
             steamAccountMapper.insert(account);
 
-            // 写入 steam_libraries（用 steam_account_id，不是 user_id）
+            // 写入 steam_libraries
             for (Game g : owned) {
                 SteamLibrary sl = new SteamLibrary();
-                sl.setUserId(userId); // 保留 user_id 方便迁移兼容
                 sl.setSteamAccountId(account.getId());
                 sl.setGameId(g.getId());
                 sl.setGameName(g.getName());

@@ -11,7 +11,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/notifications")
@@ -26,7 +25,7 @@ public class NotificationController {
         QueryWrapper<Notification> qw = new QueryWrapper<>();
         qw.eq("user_id", userId).orderByDesc("created_at").last("LIMIT 50");
         List<Notification> list = notificationMapper.selectList(qw);
-        // 批量回填最新的 actorName + actorAvatarUrl（覆盖 DB 里可能过时的快照昵称）
+        // 批量回填最新的 actorName + actorAvatarUrl（不再存快照，实时查 users 表）
         Set<String> actorIds = new LinkedHashSet<>();
         for (Notification n : list) {
             if (n.getActorId() != null && !n.getActorId().isBlank()) actorIds.add(n.getActorId());
@@ -71,7 +70,7 @@ public class NotificationController {
 
     /** 供业务 Controller 内部调用：创建一条通知 */
     public static void createNotification(NotificationMapper mapper,
-                                          String userId, String type, String actorId, String actorName,
+                                          String userId, String type, String actorId,
                                           String targetType, String targetId, String gameId,
                                           String snippet, String targetContent) {
         Notification n = new Notification();
@@ -79,7 +78,7 @@ public class NotificationController {
         n.setUserId(userId);
         n.setType(type);
         n.setActorId(actorId);
-        n.setActorName(actorName);
+        // actorName 不再存 DB，list 接口实时回填
         n.setTargetType(targetType);
         n.setTargetId(targetId);
         n.setGameId(gameId);
@@ -93,9 +92,9 @@ public class NotificationController {
 
     /** 兼容旧调用（targetContent 传 null） */
     public static void createNotification(NotificationMapper mapper,
-                                          String userId, String type, String actorId, String actorName,
+                                          String userId, String type, String actorId,
                                           String targetType, String targetId, String gameId, String snippet) {
-        createNotification(mapper, userId, type, actorId, actorName,
+        createNotification(mapper, userId, type, actorId,
                 targetType, targetId, gameId, snippet, null);
     }
 }
