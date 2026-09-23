@@ -286,9 +286,9 @@ public class SteamController {
         u.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(u);
 
-        // 实时刷新 stats
+        // 实时刷新 stats（刷新 steam_accounts 表）
         steamService.refreshUserSteamStats(userId);
-        User latest = userMapper.selectById(userId);
+        account = steamAccountMapper.selectById(account.getId());
 
         // 返回前端
         List<SteamLibrary> libs = steamService.getLibraryByAccountId(account.getId());
@@ -299,9 +299,9 @@ public class SteamController {
         resp.put("steam_avatar_url", account.getAvatarUrl());
         resp.put("steam_region", account.getRegion());
         resp.put("steam_level", account.getLevel());
-        resp.put("steam_game_count", latest.getSteamGameCount());
-        resp.put("steam_account_value", latest.getSteamAccountValue());
-        resp.put("steam_playtime", latest.getSteamPlaytime());
+        resp.put("steam_game_count", account.getGameCount());
+        resp.put("steam_account_value", account.getAccountValue());
+        resp.put("steam_playtime", account.getPlaytime());
         resp.put("steam_bound", true);
         resp.put("library", libs.stream().map(sl -> {
             Map<String, Object> m = new LinkedHashMap<>();
@@ -326,11 +326,8 @@ public class SteamController {
             new QueryWrapper<UserSteamBinding>().eq("user_id", userId)
         );
 
-        // 2. 清 users 表外键 + 重置统计缓存
+        // 2. 清 users 表外键（Steam 账号级统计在 steam_accounts 表，解绑不影响）
         u.setSteamAccountId(null);
-        u.setSteamGameCount(0);
-        u.setSteamAccountValue(BigDecimal.ZERO);
-        u.setSteamPlaytime(0);
         u.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(u);
 
@@ -347,12 +344,11 @@ public class SteamController {
         if (u == null) return Result.error("用户不存在");
 
         if (u.getSteamAccountId() != null) {
-            // 实时刷新统计
+            // 实时刷新统计（刷新 steam_accounts 表）
             steamService.refreshUserSteamStats(userId);
-            u = userMapper.selectById(userId);
         }
 
-        // Steam 资料从 steam_accounts 实时查（users 表已删快照字段）
+        // Steam 资料 + 统计全部从 steam_accounts 实时查
         SteamAccount account = u.getSteamAccountId() != null
                 ? steamAccountMapper.selectById(u.getSteamAccountId())
                 : null;
@@ -373,9 +369,9 @@ public class SteamController {
         resp.put("steam_avatar_url", account != null ? account.getAvatarUrl() : null);
         resp.put("steam_region", account != null ? account.getRegion() : null);
         resp.put("steam_level", account != null ? account.getLevel() : null);
-        resp.put("steam_game_count", u.getSteamGameCount() != null ? u.getSteamGameCount() : 0);
-        resp.put("steam_account_value", u.getSteamAccountValue() != null ? u.getSteamAccountValue() : BigDecimal.ZERO);
-        resp.put("steam_playtime", u.getSteamPlaytime() != null ? u.getSteamPlaytime() : 0);
+        resp.put("steam_game_count", account != null && account.getGameCount() != null ? account.getGameCount() : 0);
+        resp.put("steam_account_value", account != null && account.getAccountValue() != null ? account.getAccountValue() : BigDecimal.ZERO);
+        resp.put("steam_playtime", account != null && account.getPlaytime() != null ? account.getPlaytime() : 0);
         resp.put("steam_bound", u.getSteamAccountId() != null);
         resp.put("steam_bound_at", boundAt);
         return Result.success(resp);

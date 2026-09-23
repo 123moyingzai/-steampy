@@ -84,14 +84,16 @@ public class SteamService {
     }
 
     /**
-     * 实时刷新用户 stats（game_count / account_value / playtime）
+     * 实时刷新 Steam 账号 stats（game_count / account_value / playtime）
+     * 数据直接写 steam_accounts 表（统计是账号级属性）
      */
     public void refreshUserSteamStats(String userId) {
         User u = userMapper.selectById(userId);
         if (u == null || u.getSteamAccountId() == null) return;
 
         Long accountId = u.getSteamAccountId();
-        if (accountId == null) return;
+        SteamAccount account = steamAccountMapper.selectById(accountId);
+        if (account == null) return;
 
         QueryWrapper<SteamLibrary> qw = new QueryWrapper<>();
         qw.eq("steam_account_id", accountId);
@@ -117,11 +119,11 @@ public class SteamService {
             }
         }
 
-        u.setSteamGameCount(count);
-        u.setSteamAccountValue(value.setScale(2, RoundingMode.HALF_UP));
-        u.setSteamPlaytime(playtime);
-        u.setUpdatedAt(LocalDateTime.now());
-        userMapper.updateById(u);
+        account.setGameCount(count);
+        account.setAccountValue(value.setScale(2, RoundingMode.HALF_UP));
+        account.setPlaytime(playtime);
+        account.setUpdatedAt(LocalDateTime.now());
+        steamAccountMapper.updateById(account);
     }
 
     /**

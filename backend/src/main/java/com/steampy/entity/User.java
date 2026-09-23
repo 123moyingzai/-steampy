@@ -19,19 +19,20 @@ public class User {
     private String userType;
     private Boolean isActive;
 
-    // Steam 外键（DB 列）
+    // Steam 外键（DB 列）—— Steam 账号级信息（含游戏库统计）在 steam_accounts 表
     private Long steamAccountId;
-
-    // Steam 统计缓存（DB 列，从 steam_libraries 聚合后刷新；可由 SteamService.refreshUserSteamStats 重算）
-    private Integer steamGameCount;
-    private BigDecimal steamAccountValue;
-    private Integer steamPlaytime;
 
     // ========== 以下字段不是 DB 列，查询时回填 ==========
     @TableField(exist = false)
     private Boolean steamBound;       // 由 steamAccountId != null 实时推导
     @TableField(exist = false)
     private LocalDateTime steamBoundAt; // 由 user_steam_bindings.bound_at 最新值回填
+    @TableField(exist = false)
+    private Integer steamGameCount;   // 从 steam_accounts.gameCount 回填
+    @TableField(exist = false)
+    private BigDecimal steamAccountValue; // 从 steam_accounts.accountValue 回填
+    @TableField(exist = false)
+    private Integer steamPlaytime;    // 从 steam_accounts.playtime 回填
     @TableField(exist = false)
     private String steamId;
     @TableField(exist = false)
