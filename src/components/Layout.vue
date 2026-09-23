@@ -427,6 +427,7 @@ onUnmounted(() => {
 /* 中部导航菜单 */
 .cjx-nav-menu {
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -503,6 +504,8 @@ onUnmounted(() => {
   background-color: #34495e;
   padding: 0.4rem 0.75rem;
   border-radius: 4px;
+  max-width: 320px;
+  flex-shrink: 0;
 }
 
 .cjx-wallet-label {
@@ -514,6 +517,11 @@ onUnmounted(() => {
   font-weight: bold;
   color: #2ecc71;
   font-size: 0.9rem;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .cjx-top-btn {

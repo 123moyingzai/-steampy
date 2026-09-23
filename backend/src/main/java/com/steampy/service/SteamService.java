@@ -88,7 +88,7 @@ public class SteamService {
      */
     public void refreshUserSteamStats(String userId) {
         User u = userMapper.selectById(userId);
-        if (u == null || !Boolean.TRUE.equals(u.getSteamBound())) return;
+        if (u == null || u.getSteamAccountId() == null) return;
 
         Long accountId = u.getSteamAccountId();
         if (accountId == null) return;

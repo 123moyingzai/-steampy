@@ -59,7 +59,7 @@ public class OrderController {
         if (buyer == null) {
             return Result.error("用户不存在");
         }
-        if (!Boolean.TRUE.equals(buyer.getSteamBound())) {
+        if (buyer.getSteamAccountId() == null) {
             return Result.error("请先绑定 Steam 账号后再购买");
         }
 

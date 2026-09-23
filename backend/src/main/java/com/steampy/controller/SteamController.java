@@ -281,10 +281,8 @@ public class SteamController {
             }
         }
 
-        // 更新 users 表 —— 只写绑定状态和外键，不再双写 Steam 资料（走 steam_accounts 回填）
+        // 更新 users 表 —— 只写外键 steam_account_id（绑定状态由 steamAccountId != null 自动推导）
         u.setSteamAccountId(account.getId());
-        u.setSteamBound(true);
-        u.setSteamBoundAt(LocalDateTime.now());
         u.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(u);
 
@@ -317,23 +315,27 @@ public class SteamController {
         return Result.success(resp);
     }
 
-    // ========== 解绑（不删除 steam_account + steam_libraries，仅重置用户绑定标志）==========
+    // ========== 解绑 ==========
     @DeleteMapping("/unbind/{userId}")
     public Result<Void> unbind(@PathVariable String userId) {
         User u = userMapper.selectById(userId);
         if (u == null) return Result.error("用户不存在");
 
-        // 保留 steam_account_id 和 account_hash，这样重新绑定时会恢复同一账号
-        u.setSteamBound(false);
-        u.setSteamBoundAt(null);
+        // 1. 从 user_steam_bindings 删除绑定记录
+        bindingMapper.delete(
+            new QueryWrapper<UserSteamBinding>().eq("user_id", userId)
+        );
+
+        // 2. 清 users 表外键 + 重置统计缓存
+        u.setSteamAccountId(null);
         u.setSteamGameCount(0);
         u.setSteamAccountValue(BigDecimal.ZERO);
         u.setSteamPlaytime(0);
         u.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(u);
 
-        // 注意：不删除 steam_accounts 和 steam_libraries 里的数据！
-        // 不清理 users.steam_account_id / account_hash —— 重新绑定时能恢复
+        // 注意：steam_accounts / steam_libraries 原始数据保留（Steam 官方数据不变）
+        // 重新绑定时会重新关联同一 steam_account（steam_accounts.id 不变）
 
         return Result.success(null);
     }
@@ -344,7 +346,7 @@ public class SteamController {
         User u = userMapper.selectById(userId);
         if (u == null) return Result.error("用户不存在");
 
-        if (Boolean.TRUE.equals(u.getSteamBound())) {
+        if (u.getSteamAccountId() != null) {
             // 实时刷新统计
             steamService.refreshUserSteamStats(userId);
             u = userMapper.selectById(userId);
@@ -355,6 +357,16 @@ public class SteamController {
                 ? steamAccountMapper.selectById(u.getSteamAccountId())
                 : null;
 
+        // steam_bound_at 从 user_steam_bindings 取最新绑定时间
+        LocalDateTime boundAt = null;
+        if (u.getSteamAccountId() != null) {
+            QueryWrapper<UserSteamBinding> bw = new QueryWrapper<>();
+            bw.eq("user_id", userId).eq("steam_account_id", u.getSteamAccountId())
+              .orderByDesc("bound_at").last("LIMIT 1");
+            UserSteamBinding latestBinding = bindingMapper.selectOne(bw);
+            if (latestBinding != null) boundAt = latestBinding.getBoundAt();
+        }
+
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("steam_id", account != null ? account.getSteamId64() : null);
         resp.put("steam_name", account != null ? account.getSteamName() : null);
@@ -364,8 +376,8 @@ public class SteamController {
         resp.put("steam_game_count", u.getSteamGameCount() != null ? u.getSteamGameCount() : 0);
         resp.put("steam_account_value", u.getSteamAccountValue() != null ? u.getSteamAccountValue() : BigDecimal.ZERO);
         resp.put("steam_playtime", u.getSteamPlaytime() != null ? u.getSteamPlaytime() : 0);
-        resp.put("steam_bound", Boolean.TRUE.equals(u.getSteamBound()));
-        resp.put("steam_bound_at", u.getSteamBoundAt());
+        resp.put("steam_bound", u.getSteamAccountId() != null);
+        resp.put("steam_bound_at", boundAt);
         return Result.success(resp);
     }
 
@@ -405,7 +417,7 @@ public class SteamController {
             resp.put("steam_bound", false);
             return Result.success(resp);
         }
-        boolean bound = Boolean.TRUE.equals(u.getSteamBound());
+        boolean bound = u.getSteamAccountId() != null;
         if (!bound) {
             resp.put("owned", false);
             resp.put("steam_bound", false);
