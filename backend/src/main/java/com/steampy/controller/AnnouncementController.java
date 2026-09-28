@@ -49,7 +49,7 @@ public class AnnouncementController {
 
     /** 标记一条公告已读 */
     @PostMapping("/{id}/read")
-    public Result<?> markRead(@PathVariable Long id, @RequestParam String userId) {
+    public Result<?> markRead(@PathVariable String id, @RequestParam String userId) {
         jdbcTemplate.update(
                 "INSERT IGNORE INTO announcement_reads (announcement_id, user_id, read_at) VALUES (?, ?, ?)",
                 id, userId, LocalDateTime.now());
@@ -78,7 +78,7 @@ public class AnnouncementController {
 
     /** 管理员：更新 */
     @PutMapping("/{id}")
-    public Result<Announcement> update(@PathVariable Long id, @RequestBody Announcement a) {
+    public Result<Announcement> update(@PathVariable String id, @RequestBody Announcement a) {
         a.setId(id);
         announcementMapper.updateById(a);
         return Result.success(a);
@@ -86,8 +86,9 @@ public class AnnouncementController {
 
     /** 管理员：删除 */
     @DeleteMapping("/{id}")
-    public Result<?> delete(@PathVariable Long id) {
+    public Result<?> delete(@PathVariable String id) {
         announcementMapper.deleteById(id);
         return Result.success();
     }
 }
+

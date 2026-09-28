@@ -11,7 +11,7 @@ public class UserGame {
     private String id;
     private String userId;
     private String orderId;
-    private Long gameId;
+    private String gameId;
     private String gameName;
     private String gameImage;
     private String cdkey;
@@ -23,3 +23,4 @@ public class UserGame {
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 }
+

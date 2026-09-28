@@ -7,10 +7,11 @@ import java.time.LocalDateTime;
 @Data
 @TableName("favorites")
 public class Favorite {
-    @TableId(type = IdType.AUTO)
-    private Long id;
+    @TableId(type = IdType.ASSIGN_UUID)
+    private String id;
     private String userId;
-    private Long gameId;
+    private String gameId;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 }
+

@@ -124,7 +124,7 @@ public class ListingController {
         QueryWrapper<Listing> qw = new QueryWrapper<>();
         qw.eq("status", "available");
         if (game_id != null && !game_id.isEmpty()) {
-            try { qw.eq("game_id", Long.parseLong(game_id)); } catch (Exception e) { return Result.error("game_id 格式错误"); }
+            try { qw.eq("game_id", game_id.toString()); } catch (Exception e) { return Result.error("game_id 格式错误"); }
         } else if (game_name != null && !game_name.isEmpty()) {
             qw.eq("game_name", game_name);
         } else {
@@ -169,7 +169,7 @@ public class ListingController {
         // 查所有游戏的 original_price 做索引
         QueryWrapper<Game> gqw = new QueryWrapper<>();
         List<Game> games = gameMapper.selectList(gqw);
-        Map<Long, BigDecimal> originalPriceMap = new HashMap<>();
+        Map<String, BigDecimal> originalPriceMap = new HashMap<>();
         for (Game g : games) {
             if (g.getOriginalPrice() != null) {
                 originalPriceMap.put(g.getId(), g.getOriginalPrice());
@@ -179,7 +179,7 @@ public class ListingController {
         // 按 game_id + seller_id + price 分组
         Map<String, List<Listing>> groups = new LinkedHashMap<>();
         for (Listing l : all) {
-            String key = (l.getGameId() == null ? 0 : l.getGameId()) + "|" + l.getSellerId() + "|" + l.getPrice();
+            String key = (l.getGameId() == null ? "" : l.getGameId()) + "|" + l.getSellerId() + "|" + l.getPrice();
             groups.computeIfAbsent(key, k -> new ArrayList<>()).add(l);
         }
 
@@ -435,3 +435,5 @@ public class ListingController {
         return Result.success(null);
     }
 }
+
+

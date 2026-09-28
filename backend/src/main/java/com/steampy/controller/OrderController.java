@@ -64,10 +64,11 @@ public class OrderController {
         }
 
         // ===== Steam 库存查重：已拥有禁止重复购买 =====
-        Long accountId = buyer.getSteamAccountId();
+        // 注：用 gameName 匹配（steam_libraries 里存的是 Steam appid，不是本地 games.id）
+        String accountId = buyer.getSteamAccountId();
         if (accountId != null
                 && order.getGameName() != null && !order.getGameName().isBlank()
-                && steamService.isGameOwned(accountId, order.getGameId(), order.getGameName())) {
+                && steamService.isGameOwned(accountId, null, order.getGameName())) {
             return Result.error("您的 Steam 库存中已拥有该游戏，无法重复购买");
         }
 
@@ -214,10 +215,10 @@ public class OrderController {
         if (accountId != null
                 && order.getGameName() != null && !order.getGameName().isBlank()
                 && !"cancelled".equalsIgnoreCase(order.getStatus())) {
-            if (!steamService.isGameOwned(accountId, order.getGameId(), order.getGameName())) {
+            if (!steamService.isGameOwned(accountId, null, order.getGameName())) {
                 SteamLibrary sl = new SteamLibrary();
                 sl.setSteamAccountId(accountId);
-                sl.setGameId(order.getGameId());
+                sl.setGameId(null);  // steam_libraries.game_id 是 Steam appid，本地 games.id 不匹配
                 sl.setGameName(order.getGameName());
                 sl.setGameImage(order.getGameImage());
                 sl.setPlaytime(new Random().nextInt(50) + 1);
@@ -289,3 +290,4 @@ public class OrderController {
         return Result.success(null);
     }
 }
+

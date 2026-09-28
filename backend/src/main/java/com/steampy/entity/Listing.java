@@ -15,7 +15,7 @@ public class Listing {
     @TableId(type = IdType.INPUT)
     private String id;
     private String sellerId;
-    private Long gameId;
+    private String gameId;
     private String gameName;
     private String gameImage;
     private String version;
@@ -34,3 +34,4 @@ public class Listing {
     @TableField(exist = false)
     private String sellerName; // 脱敏后的卖家显示名，非数据库字段
 }
+

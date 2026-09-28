@@ -7,13 +7,13 @@ import java.time.LocalDateTime;
 @Data
 @TableName("steam_libraries")
 public class SteamLibrary {
-    @TableId(type = IdType.AUTO)
-    private Long id;
+    @TableId(type = IdType.ASSIGN_UUID)
+    private String id;
 
     /** 关联 steam_accounts.id */
-    private Long steamAccountId;
+    private String steamAccountId;
 
-    private Long gameId;
+    private String gameId;
     private String gameName;
     private String gameImage;
     private Integer playtime;
@@ -21,3 +21,4 @@ public class SteamLibrary {
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime ownedAt;
 }
+

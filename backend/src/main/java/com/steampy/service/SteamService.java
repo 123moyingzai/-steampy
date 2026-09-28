@@ -77,7 +77,7 @@ public class SteamService {
     /**
      * 根据 steam_account_id 查库存条目
      */
-    public List<SteamLibrary> getLibraryByAccountId(Long accountId) {
+    public List<SteamLibrary> getLibraryByAccountId(String accountId) {
         QueryWrapper<SteamLibrary> qw = new QueryWrapper<>();
         qw.eq("steam_account_id", accountId).orderByDesc("playtime");
         return steamLibraryMapper.selectList(qw);
@@ -91,7 +91,7 @@ public class SteamService {
         User u = userMapper.selectById(userId);
         if (u == null || u.getSteamAccountId() == null) return;
 
-        Long accountId = u.getSteamAccountId();
+        String accountId = u.getSteamAccountId();
         SteamAccount account = steamAccountMapper.selectById(accountId);
         if (account == null) return;
 
@@ -129,7 +129,7 @@ public class SteamService {
     /**
      * 查重：指定 steam_account_id 的 Steam 库中是否已有指定游戏
      */
-    public boolean isGameOwned(Long accountId, Long gameId, String gameName) {
+    public boolean isGameOwned(String accountId, Long gameId, String gameName) {
         if (accountId == null) return false;
         QueryWrapper<SteamLibrary> qw = new QueryWrapper<>();
         qw.eq("steam_account_id", accountId);

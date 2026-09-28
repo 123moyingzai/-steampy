@@ -196,7 +196,7 @@ public class AdminController {
     }
 
     @PutMapping("/games/{id}")
-    public Result<Game> updateGame(@PathVariable Long id, @RequestBody Game body) {
+    public Result<Game> updateGame(@PathVariable String id, @RequestBody Game body) {
         Game g = gameMapper.selectById(id);
         if (g == null) return Result.error("游戏不存在");
         body.setId(id);
@@ -206,7 +206,7 @@ public class AdminController {
     }
 
     @DeleteMapping("/games/{id}")
-    public Result<?> deleteGame(@PathVariable Long id) {
+    public Result<?> deleteGame(@PathVariable String id) {
         gameMapper.deleteById(id);
         return Result.success();
     }
@@ -402,15 +402,16 @@ public class AdminController {
     }
 
     @PutMapping("/announcements/{id}")
-    public Result<Announcement> updateAnnouncement(@PathVariable Long id, @RequestBody Announcement body) {
+    public Result<Announcement> updateAnnouncement(@PathVariable String id, @RequestBody Announcement body) {
         body.setId(id);
         announcementMapper.updateById(body);
         return Result.success(body);
     }
 
     @DeleteMapping("/announcements/{id}")
-    public Result<?> deleteAnnouncement(@PathVariable Long id) {
+    public Result<?> deleteAnnouncement(@PathVariable String id) {
         announcementMapper.deleteById(id);
         return Result.success();
     }
 }
+

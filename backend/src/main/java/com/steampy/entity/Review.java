@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
 public class Review {
     @TableId(type = IdType.INPUT)
     private String id;
-    private Long gameId;
+    private String gameId;
     private String userId;
     /** '1'=推荐 '0'=不推荐 (DB ENUM 强约束只能 0 或 1) */
     private String recommend;
@@ -41,3 +41,4 @@ public class Review {
     @TableField(exist = false)
     private Boolean liked;
 }
+

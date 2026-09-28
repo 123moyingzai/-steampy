@@ -41,7 +41,7 @@ public class FavoriteController {
 
     // 取消收藏
     @DeleteMapping("/{gameId}")
-    public Result<Void> removeFavorite(@RequestParam String userId, @PathVariable Long gameId) {
+    public Result<Void> removeFavorite(@RequestParam String userId, @PathVariable String gameId) {
         QueryWrapper<Favorite> qw = new QueryWrapper<>();
         qw.eq("user_id", userId).eq("game_id", gameId);
         favoriteMapper.delete(qw);
@@ -50,7 +50,7 @@ public class FavoriteController {
 
     // 查用户是否收藏某游戏
     @GetMapping("/check")
-    public Result<Boolean> isFavorited(@RequestParam String userId, @RequestParam Long gameId) {
+    public Result<Boolean> isFavorited(@RequestParam String userId, @RequestParam String gameId) {
         QueryWrapper<Favorite> qw = new QueryWrapper<>();
         qw.eq("user_id", userId).eq("game_id", gameId);
         Long cnt = favoriteMapper.selectCount(qw);
@@ -66,11 +66,11 @@ public class FavoriteController {
         if (favs.isEmpty()) return Result.success(new ArrayList<>());
 
         // 批量查 games
-        List<Long> gameIds = favs.stream().map(Favorite::getGameId).collect(Collectors.toList());
+        List<String> gameIds = favs.stream().map(Favorite::getGameId).collect(Collectors.toList());
         QueryWrapper<Game> gqw = new QueryWrapper<>();
         gqw.in("id", gameIds);
         List<Game> games = gameMapper.selectList(gqw);
-        Map<Long, Game> gameMap = new HashMap<>();
+        Map<String, Game> gameMap = new HashMap<>();
         for (Game g : games) gameMap.put(g.getId(), g);
 
         List<Map<String, Object>> result = new ArrayList<>();
@@ -97,3 +97,5 @@ public class FavoriteController {
         return Result.success(result);
     }
 }
+
+

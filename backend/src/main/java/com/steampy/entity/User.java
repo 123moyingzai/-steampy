@@ -20,7 +20,7 @@ public class User {
     private Boolean isActive;
 
     // Steam 外键（DB 列）—— Steam 账号级信息（含游戏库统计）在 steam_accounts 表
-    private Long steamAccountId;
+    private String steamAccountId;
 
     // ========== 以下字段不是 DB 列，查询时回填 ==========
     @TableField(exist = false)
@@ -49,3 +49,4 @@ public class User {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 }
+

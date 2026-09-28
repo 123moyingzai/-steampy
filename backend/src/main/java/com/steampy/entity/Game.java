@@ -9,8 +9,8 @@ import java.time.LocalDateTime;
 @Data
 @TableName("games")
 public class Game {
-    @TableId(type = IdType.AUTO)
-    private Long id;
+    @TableId(type = IdType.ASSIGN_UUID)
+    private String id;
     private String name;
     private String nameCn;
     private BigDecimal price;
@@ -28,3 +28,4 @@ public class Game {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 }
+

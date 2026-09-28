@@ -10,14 +10,14 @@ import java.time.LocalDateTime;
 @Data
 @TableName("user_steam_bindings")
 public class UserSteamBinding {
-    @TableId(type = IdType.AUTO)
-    private Long id;
+    @TableId(type = IdType.ASSIGN_UUID)
+    private String id;
 
     /** 用户ID → users.id */
     private String userId;
 
     /** Steam账户ID → steam_accounts.id */
-    private Long steamAccountId;
+    private String steamAccountId;
 
     /** 绑定时间 */
     @TableField(fill = FieldFill.INSERT)
@@ -26,3 +26,4 @@ public class UserSteamBinding {
     /** 是否当前活跃绑定 */
     private Integer isCurrent;
 }
+

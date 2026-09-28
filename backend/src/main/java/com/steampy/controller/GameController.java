@@ -35,7 +35,7 @@ public class GameController {
         QueryWrapper<Order> oq = new QueryWrapper<>();
         oq.eq("status", "completed");
         List<Order> allOrders = orderMapper.selectList(oq);
-        Map<Long, Long> salesMap = allOrders.stream()
+        Map<String, Long> salesMap = allOrders.stream()
             .filter(o -> o.getGameId() != null)
             .collect(Collectors.groupingBy(Order::getGameId, Collectors.counting()));
 
@@ -61,7 +61,7 @@ public class GameController {
 
     // 按 ID 获取游戏
     @GetMapping("/{id}")
-    public Result<Game> getGameById(@PathVariable Long id) {
+    public Result<Game> getGameById(@PathVariable String id) {
         return Result.success(gameMapper.selectById(id));
     }
 
@@ -100,7 +100,7 @@ public class GameController {
 
     // 更新游戏
     @PutMapping("/{id}")
-    public Result<Game> updateGame(@PathVariable Long id, @RequestBody Game game) {
+    public Result<Game> updateGame(@PathVariable String id, @RequestBody Game game) {
         game.setId(id);
         game.setUpdatedAt(java.time.LocalDateTime.now());
         gameMapper.updateById(game);
@@ -109,8 +109,9 @@ public class GameController {
 
     // 删除游戏
     @DeleteMapping("/{id}")
-    public Result<?> deleteGame(@PathVariable Long id) {
+    public Result<?> deleteGame(@PathVariable String id) {
         gameMapper.deleteById(id);
         return Result.success();
     }
 }
+

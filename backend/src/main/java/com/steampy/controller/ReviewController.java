@@ -40,7 +40,7 @@ public class ReviewController {
      * @param userId 可选，传了就返回每条评论当前用户是否已点赞
      */
     @GetMapping("/game/{gameId}")
-    public Result<List<Review>> listByGame(@PathVariable Long gameId,
+    public Result<List<Review>> listByGame(@PathVariable String gameId,
                                             @RequestParam(required = false) String userId) {
         QueryWrapper<Review> qw = new QueryWrapper<>();
         qw.eq("game_id", gameId).eq("status", 1).orderByDesc("created_at");
@@ -73,7 +73,7 @@ public class ReviewController {
     @PostMapping
     public Result<Review> createOrUpdate(@RequestBody Map<String, Object> body) {
         String id = (String) body.get("id");
-        Long gameId = Long.valueOf(body.get("gameId").toString());
+        String gameId = String.valueOf(body.get("gameId"));
         String userId = (String) body.get("userId");
         String recommend = String.valueOf(body.get("recommend"));
         String content = (String) body.get("content");
@@ -403,3 +403,5 @@ public class ReviewController {
         }
     }
 }
+
+

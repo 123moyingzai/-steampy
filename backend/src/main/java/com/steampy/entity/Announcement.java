@@ -7,8 +7,8 @@ import java.time.LocalDateTime;
 @Data
 @TableName("announcements")
 public class Announcement {
-    @TableId(type = IdType.AUTO)
-    private Long id;
+    @TableId(type = IdType.ASSIGN_UUID)
+    private String id;
     private String title;
     private String content;
     private String publishDate;
@@ -17,3 +17,4 @@ public class Announcement {
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 }
+

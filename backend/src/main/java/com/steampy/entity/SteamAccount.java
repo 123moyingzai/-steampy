@@ -12,8 +12,8 @@ import java.time.LocalDateTime;
 @Data
 @TableName("steam_accounts")
 public class SteamAccount {
-    @TableId(type = IdType.AUTO)
-    private Long id;
+    @TableId(type = IdType.ASSIGN_UUID)
+    private String id;
 
     /** Steam ID64（17位数字，唯一） */
     private String steamId64;
@@ -47,3 +47,4 @@ public class SteamAccount {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 }
+

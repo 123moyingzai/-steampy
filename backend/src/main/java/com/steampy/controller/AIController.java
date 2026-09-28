@@ -317,7 +317,7 @@ public class AIController {
             QueryWrapper<Order> oq = new QueryWrapper<>();
             oq.eq("status", "completed");
             List<Order> orders = orderMapper.selectList(oq);
-            Map<Long, Long> sales = orders.stream()
+            Map<String, Long> sales = orders.stream()
                     .filter(o -> o.getGameId() != null)
                     .collect(Collectors.groupingBy(Order::getGameId, Collectors.counting()));
             return "🔥 平台热门游戏：\n1. 三更\n2. 东方奇缘记\n3. 生化危机:安魂曲\n\n点击「销量热度」排序可以看到实时排行榜哦～";

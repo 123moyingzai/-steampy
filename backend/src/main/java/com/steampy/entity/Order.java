@@ -14,7 +14,7 @@ public class Order {
     private String buyerId;
     private String sellerId;
     private String listingId;
-    private Long gameId;
+    private String gameId;
     private String gameName;
     private String gameImage;
     private BigDecimal price;
@@ -32,3 +32,4 @@ public class Order {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 }
+
