@@ -75,14 +75,14 @@ public class ReviewController {
         String id = (String) body.get("id");
         Long gameId = Long.valueOf(body.get("gameId").toString());
         String userId = (String) body.get("userId");
-        Integer recommend = Integer.valueOf(body.get("recommend").toString());
+        String recommend = String.valueOf(body.get("recommend"));
         String content = (String) body.get("content");
         String images = (String) body.getOrDefault("images", "");
 
         if (content == null || content.trim().length() < 5) {
             return Result.error("评测内容不少于五个字");
         }
-        if (recommend != 0 && recommend != 1) {
+        if (!"0".equals(recommend) && !"1".equals(recommend)) {
             return Result.error("请选择推荐或不推荐");
         }
 

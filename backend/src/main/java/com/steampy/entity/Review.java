@@ -15,8 +15,8 @@ public class Review {
     private String id;
     private Long gameId;
     private String userId;
-    /** 1=推荐 0=不推荐 */
-    private Integer recommend;
+    /** '1'=推荐 '0'=不推荐 (DB ENUM 强约束只能 0 或 1) */
+    private String recommend;
     private String content;
     /** 逗号分隔的图片 URL 列表 */
     private String images;
