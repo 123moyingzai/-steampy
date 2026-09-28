@@ -54,4 +54,43 @@ public class UploadController {
         resp.put("filename", filename);
         return Result.success(resp);
     }
+
+    /**
+     * 评价配图上传（存到 uploads/reviews/，返回路径供 DB 存储）
+     */
+    @PostMapping("/review-image")
+    public Result<Map<String, String>> uploadReviewImage(@RequestParam("file") MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return Result.error("请选择要上传的图片");
+        }
+        String original = file.getOriginalFilename();
+        if (original == null) return Result.error("文件名无效");
+
+        String lower = original.toLowerCase();
+        if (!lower.endsWith(".jpg") && !lower.endsWith(".jpeg") && !lower.endsWith(".png")
+                && !lower.endsWith(".gif") && !lower.endsWith(".webp")) {
+            return Result.error("只支持 jpg/png/gif/webp 格式");
+        }
+        if (file.getSize() > 5 * 1024 * 1024) {
+            return Result.error("图片不能超过 5MB");
+        }
+
+        File dir = new File(uploadDir, "reviews");
+        if (!dir.exists()) dir.mkdirs();
+        File absDir = dir.getAbsoluteFile();
+
+        String ext = lower.substring(lower.lastIndexOf('.'));
+        String filename = UUID.randomUUID().toString().replace("-", "") + ext;
+        File dest = new File(absDir, filename);
+        try {
+            file.transferTo(dest.getAbsoluteFile());
+        } catch (IOException e) {
+            return Result.error("保存图片失败：" + e.getMessage());
+        }
+
+        Map<String, String> resp = new HashMap<>();
+        resp.put("url", "/uploads/reviews/" + filename);
+        resp.put("filename", filename);
+        return Result.success(resp);
+    }
 }
