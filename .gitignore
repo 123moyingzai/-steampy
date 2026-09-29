@@ -35,6 +35,11 @@ backend/mvnw
 backend/mvnw.cmd
 settings.xml
 
+# 本地 Maven 仓库与自定义 settings（环境相关，不入库）
+.m2repo/
+.mvn-settings.xml
+settings-custom.xml
+
 # SECURITY — API keys / credentials
 backend/src/main/resources/application.properties
 
