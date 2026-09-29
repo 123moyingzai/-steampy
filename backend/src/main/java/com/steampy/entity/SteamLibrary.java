@@ -13,9 +13,10 @@ public class SteamLibrary {
     /** 关联 steam_accounts.id */
     private String steamAccountId;
 
-    private String gameId;
+    private Integer gameId;
     private String gameName;
     private String gameImage;
+    /** 游戏时长（小时） */
     private Integer playtime;
 
     @TableField(fill = FieldFill.INSERT)

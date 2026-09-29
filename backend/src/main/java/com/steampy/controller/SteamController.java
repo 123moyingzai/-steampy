@@ -273,10 +273,10 @@ public class SteamController {
             for (Game g : owned) {
                 SteamLibrary sl = new SteamLibrary();
                 sl.setSteamAccountId(account.getId());
-                sl.setGameId(g.getId());
+                sl.setGameId(null);  // 真实 Steam appid 应从 Steam API 获取，造数据先置空
                 sl.setGameName(g.getName());
                 sl.setGameImage(g.getImage());
-                sl.setPlaytime(rand.nextInt(500) + 10);
+                sl.setPlaytime(rand.nextInt(200) + 5);  // 小时，5-204
                 steamLibraryMapper.insert(sl);
             }
         }

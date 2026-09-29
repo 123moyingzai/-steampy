@@ -221,7 +221,7 @@ public class OrderController {
                 sl.setGameId(null);  // steam_libraries.game_id 是 Steam appid，本地 games.id 不匹配
                 sl.setGameName(order.getGameName());
                 sl.setGameImage(order.getGameImage());
-                sl.setPlaytime(new Random().nextInt(50) + 1);
+                sl.setPlaytime(new Random().nextInt(100) + 1);  // 小时
                 steamLibraryMapper.insert(sl);
             }
             steamService.refreshUserSteamStats(order.getBuyerId());
