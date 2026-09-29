@@ -392,7 +392,6 @@ public class SteamController {
             m.put("game_name", sl.getGameName());
             m.put("game_image", sl.getGameImage());
             m.put("playtime", sl.getPlaytime());
-            m.put("owned_at", sl.getOwnedAt());
             return m;
         }).collect(Collectors.toList());
         return Result.success(resp);
