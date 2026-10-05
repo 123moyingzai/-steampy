@@ -38,6 +38,7 @@
             <td>
               <div>{{ w.real_name }}</div>
               <div class="td-sub">{{ w.account }}</div>
+              <div v-if="w.bank_name" class="td-sub">{{ w.bank_name }}</div>
             </td>
             <td class="td-price">¥{{ Number(w.amount).toFixed(2) }}</td>
             <td class="td-sub">-¥{{ Number(w.fee || 0).toFixed(2) }}</td>

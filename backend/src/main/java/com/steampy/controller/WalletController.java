@@ -2,9 +2,11 @@ package com.steampy.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.steampy.dto.Result;
+import com.steampy.entity.BankCard;
 import com.steampy.entity.Transaction;
 import com.steampy.entity.Wallet;
 import com.steampy.entity.WithdrawRecord;
+import com.steampy.mapper.BankCardMapper;
 import com.steampy.mapper.TransactionMapper;
 import com.steampy.mapper.WalletMapper;
 import com.steampy.mapper.WithdrawRecordMapper;
@@ -30,6 +32,9 @@ public class WalletController {
 
     @Autowired
     private WithdrawRecordMapper withdrawRecordMapper;
+
+    @Autowired
+    private BankCardMapper bankCardMapper;
 
     @GetMapping("/user/{userId}")
     public Result<Wallet> getWallet(@PathVariable String userId) {
@@ -83,23 +88,36 @@ public class WalletController {
         String payMethod = (String) body.getOrDefault("pay_method", "alipay");
         String account = (String) body.getOrDefault("account", "");
         String realName = (String) body.getOrDefault("real_name", "");
+        String bankCardId = (String) body.getOrDefault("bank_card_id", "");
+        String bankName = (String) body.getOrDefault("bank_name", "");
 
         if (amount.compareTo(BigDecimal.ZERO) <= 0) return Result.error("提现金额必须大于 0");
 
-        // 格式校验
-        if (account == null || account.isBlank()) return Result.error("请填写收款账号");
-        if (realName == null || realName.isBlank()) return Result.error("请填写真实姓名");
-
-        if ("alipay".equals(payMethod)) {
-            if (!account.matches("^1[3-9]\\d{9}$") && !account.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"))
-                return Result.error("支付宝账号必须是 11 位手机号（1开头）或有效邮箱地址");
-        } else if ("bank".equals(payMethod)) {
-            if (!account.matches("^\\d{16,19}$")) return Result.error("银行卡号必须为 16-19 位纯数字");
-            if (!luhnCheck(account)) return Result.error("银行卡号校验失败，请检查是否输入正确");
-            if (body.get("bank_name") == null || ((String) body.get("bank_name")).isBlank())
-                return Result.error("请填写开户银行");
+        // 银行卡提现优先走已绑定银行卡（多卡提现，卡数据为唯一事实来源）
+        if ("bank".equals(payMethod) && bankCardId != null && !bankCardId.isBlank()) {
+            BankCard card = bankCardMapper.selectById(bankCardId);
+            if (card == null) return Result.error("银行卡不存在，请重新选择");
+            if (!userId.equals(card.getUserId())) return Result.error("无权使用该银行卡");
+            if (!"active".equals(card.getStatus())) return Result.error("该银行卡已停用");
+            account = card.getCardNumber();
+            realName = card.getCardHolder();
+            bankName = card.getBankName();
         } else {
-            return Result.error("不支持的提现方式: " + payMethod);
+            // 格式校验（手输收款信息路径，兼容旧版）
+            if (account == null || account.isBlank()) return Result.error("请填写收款账号");
+            if (realName == null || realName.isBlank()) return Result.error("请填写真实姓名");
+
+            if ("alipay".equals(payMethod)) {
+                if (!account.matches("^1[3-9]\\d{9}$") && !account.matches("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"))
+                    return Result.error("支付宝账号必须是 11 位手机号（1开头）或有效邮箱地址");
+            } else if ("bank".equals(payMethod)) {
+                if (!account.matches("^\\d{16,19}$")) return Result.error("银行卡号必须为 16-19 位纯数字");
+                if (!luhnCheck(account)) return Result.error("银行卡号校验失败，请检查是否输入正确");
+                if (bankName == null || bankName.isBlank())
+                    return Result.error("请填写开户银行");
+            } else {
+                return Result.error("不支持的提现方式: " + payMethod);
+            }
         }
 
         if (!realName.matches("^[\\u4e00-\\u9fa5·]{2,20}$"))
@@ -127,6 +145,8 @@ public class WalletController {
         wr.setPayMethod(payMethod);
         wr.setAccount(account);
         wr.setRealName(realName);
+        wr.setBankCardId("bank".equals(payMethod) && bankCardId != null && !bankCardId.isBlank() ? bankCardId : null);
+        wr.setBankName("bank".equals(payMethod) ? bankName : null);
         wr.setAmount(amount);
         wr.setFee(fee);
         wr.setNetAmount(netAmount);

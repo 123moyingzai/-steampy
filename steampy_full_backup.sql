@@ -79,6 +79,40 @@ INSERT INTO `announcements` VALUES ('1','系统维护通知','预计今晚20:00-
 UNLOCK TABLES;
 
 --
+-- Table structure for table `bank_cards`
+--
+
+DROP TABLE IF EXISTS `bank_cards`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `bank_cards` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'UUID 主键',
+  `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'FK → users.id',
+  `bank_name` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '开户银行名称（如：中国工商银行）',
+  `card_number` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '银行卡号（仅后端存储，接口一律脱敏返回）',
+  `card_number_masked` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '脱敏卡号（展示用，如 6222 **** **** 1234）',
+  `card_holder` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '持卡人姓名',
+  `status` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'active' COMMENT '状态机：active 可用 / disabled 停用',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_user_card` (`user_id`,`card_number`) COMMENT '同一用户不允许重复绑定同一卡号',
+  KEY `idx_user` (`user_id`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户银行卡表（多卡提现）';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `bank_cards`
+--
+
+LOCK TABLES `bank_cards` WRITE;
+/*!40000 ALTER TABLE `bank_cards` DISABLE KEYS */;
+INSERT INTO `bank_cards` VALUES ();
+/*!40000 ALTER TABLE `bank_cards` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `favorites`
 --
 
@@ -708,21 +742,23 @@ CREATE TABLE `withdraw_records` (
   `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'UUID 主键',
   `order_no` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '提现单号，UNIQUE',
   `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'FK → users.id',
-  `pay_method` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '提现方式: bank, alipay, wechat',
-  `account` varchar(128) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '收款账号',
-  `real_name` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '真实姓名',
+  `pay_method` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '提现方式: bank / alipay',
+  `account` varchar(128) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '收款账号（快照）',
+  `real_name` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '真实姓名（快照）',
+  `bank_card_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '提现所用银行卡 ID（快照引用，支付宝提现为 NULL）',
+  `bank_name` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '开户银行名称快照（支付宝提现为 NULL）',
   `amount` decimal(12,2) NOT NULL COMMENT '申请金额',
-  `fee` decimal(12,2) DEFAULT NULL COMMENT '手续费',
-  `net_amount` decimal(12,2) DEFAULT NULL COMMENT '实际到账金额（快照）',
-  `status` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '状态: pending, approved, rejected, completed',
-  `applied_at` datetime DEFAULT NULL COMMENT '申请时间',
+  `fee` decimal(12,2) NOT NULL COMMENT '手续费',
+  `net_amount` decimal(12,2) NOT NULL COMMENT '实际到账金额（快照）',
+  `status` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'success' COMMENT '状态机: pending 待审核 / success 已通过 / failed 已拒绝',
+  `applied_at` datetime NOT NULL COMMENT '申请时间',
   `reviewed_at` datetime DEFAULT NULL COMMENT '审批时间',
   `review_remark` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '审批备注/拒绝原因',
   PRIMARY KEY (`id`),
   UNIQUE KEY `order_no` (`order_no`),
   KEY `idx_user` (`user_id`),
   KEY `idx_status` (`status`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='提现记录表（含银行卡快照，支持多卡提现）';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --

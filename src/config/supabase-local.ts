@@ -324,7 +324,7 @@ export const walletAPI = {
   async withdraw(
     userId: string | number,
     amount: number,
-    extra: { pay_method?: string; account?: string; real_name?: string; bank_name?: string } = {}
+    extra: { pay_method?: string; account?: string; real_name?: string; bank_name?: string; bank_card_id?: string } = {}
   ): Promise<ApiResponse<any>> {
     try {
       const data = await apiRequest<any>(`/wallets/user/${userId}/withdraw`, 'POST', {
@@ -332,7 +332,8 @@ export const walletAPI = {
         pay_method: extra.pay_method || 'alipay',
         account: extra.account || '',
         real_name: extra.real_name || '',
-        bank_name: extra.bank_name || ''
+        bank_name: extra.bank_name || '',
+        bank_card_id: extra.bank_card_id || ''
       })
       return { data }
     } catch (e: any) {
@@ -360,6 +361,44 @@ export const walletAPI = {
 
   async getBalance(userId: string | number): Promise<ApiResponse<Wallet>> {
     return this.getWallet(userId)
+  }
+}
+
+// ========== 银行卡（多卡提现） ==========
+export const bankCardAPI = {
+  /** 获取用户银行卡列表（接口只返回脱敏卡号） */
+  async listByUser(userId: string | number): Promise<ApiResponse<any[]>> {
+    try {
+      const data = await apiRequest<any[]>(`/bank-cards/user/${userId}`)
+      return { data: data || [] }
+    } catch (e: any) {
+      return { error: e.message, data: [] }
+    }
+  },
+
+  /** 新增银行卡 */
+  async add(userId: string | number, card: { bank_name: string; card_number: string; card_holder: string }): Promise<ApiResponse<any>> {
+    try {
+      const data = await apiRequest<any>('/bank-cards', 'POST', {
+        user_id: String(userId),
+        bank_name: card.bank_name,
+        card_number: card.card_number,
+        card_holder: card.card_holder
+      })
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+
+  /** 停用银行卡 */
+  async disable(cardId: string): Promise<ApiResponse<any>> {
+    try {
+      const data = await apiRequest<any>(`/bank-cards/${cardId}/disable`, 'PUT')
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
+    }
   }
 }
 

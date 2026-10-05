@@ -18,6 +18,8 @@ public class WithdrawRecord {
     private String payMethod;
     private String account;
     private String realName;
+    private String bankCardId;
+    private String bankName;
     private BigDecimal amount;
     private BigDecimal fee;
     private BigDecimal netAmount;

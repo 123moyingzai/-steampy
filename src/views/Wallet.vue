@@ -88,34 +88,104 @@
 
         <!-- 银行卡表单 -->
         <template v-if="payMethod === 'bank'">
-          <div class="cjx-form-row">
-            <label>开户银行</label>
-            <input
-              v-model="bankName"
-              class="cjx-wallet-input"
-              placeholder="如：中国工商银行"
-            />
+          <!-- 已绑定银行卡：选卡提现 -->
+          <div v-if="bankCards.length > 0" class="cjx-form-row">
+            <label>选择提现银行卡</label>
+            <label
+              v-for="c in bankCards"
+              :key="c.id"
+              class="cjx-card-item"
+              :class="{ 'cjx-card-checked': selectedCardId === c.id }"
+            >
+              <input type="radio" :value="c.id" v-model="selectedCardId" />
+              <span class="cjx-card-bank">{{ c.bank_name }}</span>
+              <span class="cjx-card-masked">{{ c.card_number_masked }}</span>
+              <span class="cjx-card-holder">{{ c.card_holder }}</span>
+            </label>
           </div>
-          <div class="cjx-form-row">
-            <label>银行卡号</label>
-            <input
-              v-model="account"
-              class="cjx-wallet-input"
-              :class="{ 'cjx-input-error': accountError }"
-              placeholder="16-19 位纯数字（支持 Luhn 校验）"
-              @input="account = account.replace(/\D/g, '')"
-            />
-            <div v-if="accountError" class="cjx-form-error">{{ accountError }}</div>
+
+          <!-- 绑定新卡入口 -->
+          <div class="cjx-card-manage">
+            <button class="cjx-link-btn" @click="showAddCard = !showAddCard">
+              {{ showAddCard ? '收起' : (bankCards.length ? '＋ 绑定新银行卡' : '＋ 绑定银行卡（支持多卡）') }}
+            </button>
           </div>
-          <div class="cjx-form-row">
-            <label>持卡人姓名</label>
-            <input
-              v-model="realName"
-              class="cjx-wallet-input"
-              :class="{ 'cjx-input-error': nameError }"
-              placeholder="2-20 个中文字符"
-            />
-            <div v-if="nameError" class="cjx-form-error">{{ nameError }}</div>
+
+          <!-- 新增银行卡表单 -->
+          <div v-if="showAddCard" class="cjx-add-card">
+            <div class="cjx-form-row">
+              <label>开户银行</label>
+              <input v-model="newBankName" class="cjx-wallet-input" placeholder="如：中国工商银行" />
+            </div>
+            <div class="cjx-form-row">
+              <label>银行卡号</label>
+              <input
+                v-model="newCardNumber"
+                class="cjx-wallet-input"
+                :class="{ 'cjx-input-error': newCardError }"
+                placeholder="16-19 位纯数字（支持 Luhn 校验）"
+                @input="newCardNumber = newCardNumber.replace(/\D/g, '')"
+              />
+              <div v-if="newCardError" class="cjx-form-error">{{ newCardError }}</div>
+            </div>
+            <div class="cjx-form-row">
+              <label>持卡人姓名</label>
+              <input
+                v-model="newCardHolder"
+                class="cjx-wallet-input"
+                :class="{ 'cjx-input-error': newCardNameError }"
+                placeholder="2-20 个中文字符"
+              />
+              <div v-if="newCardNameError" class="cjx-form-error">{{ newCardNameError }}</div>
+            </div>
+            <button class="cjx-btn-add-card" :disabled="!canAddCard" @click="submitAddCard">保存银行卡</button>
+          </div>
+
+          <!-- 已选卡提示 -->
+          <div v-if="selectedCardId" class="cjx-card-selected-note">
+            提现至：{{ selectedCard?.bank_name }} · {{ selectedCard?.card_number_masked }}
+          </div>
+
+          <!-- 未选卡：手输卡信息（兼容单次提现） -->
+          <template v-else>
+            <div class="cjx-form-row">
+              <label>开户银行</label>
+              <input
+                v-model="bankName"
+                class="cjx-wallet-input"
+                placeholder="如：中国工商银行"
+              />
+            </div>
+            <div class="cjx-form-row">
+              <label>银行卡号</label>
+              <input
+                v-model="account"
+                class="cjx-wallet-input"
+                :class="{ 'cjx-input-error': accountError }"
+                placeholder="16-19 位纯数字（支持 Luhn 校验）"
+                @input="account = account.replace(/\D/g, '')"
+              />
+              <div v-if="accountError" class="cjx-form-error">{{ accountError }}</div>
+            </div>
+            <div class="cjx-form-row">
+              <label>持卡人姓名</label>
+              <input
+                v-model="realName"
+                class="cjx-wallet-input"
+                :class="{ 'cjx-input-error': nameError }"
+                placeholder="2-20 个中文字符"
+              />
+              <div v-if="nameError" class="cjx-form-error">{{ nameError }}</div>
+            </div>
+          </template>
+
+          <!-- 已绑定卡管理（停用） -->
+          <div v-if="allCards.length > 0" class="cjx-card-manage-list">
+            <div v-for="c in allCards" :key="c.id" class="cjx-card-manage-row">
+              <span>{{ c.bank_name }} · {{ c.card_number_masked }} · {{ c.card_holder }}</span>
+              <span v-if="c.status === 'disabled'" class="cjx-card-disabled">已停用</span>
+              <button v-else class="cjx-link-btn cjx-link-danger" @click="disableCard(c)">停用</button>
+            </div>
           </div>
         </template>
 
@@ -201,7 +271,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Layout from '../components/Layout.vue'
-import { authAPI, walletAPI } from '../config/supabase-local.ts'
+import { authAPI, walletAPI, bankCardAPI } from '../config/supabase-local.ts'
 
 const router = useRouter()
 
@@ -215,6 +285,15 @@ const payMethod = ref<'alipay' | 'bank'>('alipay')
 const account = ref('')
 const realName = ref('')
 const bankName = ref('')
+
+// 银行卡（多卡提现）
+const bankCards = ref<any[]>([])
+const allCards = ref<any[]>([])
+const selectedCardId = ref('')
+const showAddCard = ref(false)
+const newBankName = ref('')
+const newCardNumber = ref('')
+const newCardHolder = ref('')
 
 // 记录
 const records = ref<any[]>([])
@@ -234,6 +313,7 @@ const netAmount = computed(() => Math.max(0, withdrawAmount.value - fee.value))
 const canSubmit = computed(() => {
   if (withdrawAmount.value <= 0) return false
   if (withdrawAmount.value > balance.value) return false
+  if (payMethod.value === 'bank' && selectedCardId.value) return true
   if (!account.value.trim()) return false
   if (!realName.value.trim()) return false
   if (payMethod.value === 'bank' && !bankName.value.trim()) return false
@@ -241,6 +321,69 @@ const canSubmit = computed(() => {
   if (nameError.value) return false
   return true
 })
+
+// ==== 银行卡（多卡提现） ====
+const selectedCard = computed(() => bankCards.value.find(c => c.id === selectedCardId.value))
+
+const newCardError = computed(() => {
+  const v = newCardNumber.value.trim()
+  if (!v) return ''
+  if (!bankCardRegex.test(v)) return '银行卡号必须为 16-19 位纯数字'
+  if (!luhnCheck(v)) return '银行卡号校验失败，请检查是否输入正确'
+  return ''
+})
+
+const newCardNameError = computed(() => {
+  const v = newCardHolder.value.trim()
+  if (!v) return ''
+  if (!chineseNameRegex.test(v)) return '持卡人姓名必须为 2-20 个中文字符'
+  return ''
+})
+
+const canAddCard = computed(() => {
+  if (!newBankName.value.trim()) return false
+  if (!newCardHolder.value.trim()) return false
+  if (newCardError.value) return false
+  if (newCardNameError.value) return false
+  return true
+})
+
+async function loadCards() {
+  const u = authAPI.getCurrentUser()
+  if (!u?.id) return
+  const res = await bankCardAPI.listByUser(u.id)
+  allCards.value = res.data || []
+  bankCards.value = allCards.value.filter(c => c.status === 'active')
+  if (selectedCardId.value && !bankCards.value.find(c => c.id === selectedCardId.value)) {
+    selectedCardId.value = ''
+  }
+}
+
+async function submitAddCard() {
+  if (!canAddCard.value) return
+  const u = authAPI.getCurrentUser()
+  if (!u?.id) { showToast('请先登录'); router.push('/login'); return }
+  const res = await bankCardAPI.add(u.id, {
+    bank_name: newBankName.value.trim(),
+    card_number: newCardNumber.value.trim(),
+    card_holder: newCardHolder.value.trim()
+  })
+  if (res.error) { showToast('绑定失败: ' + res.error); return }
+  showToast('✓ 银行卡绑定成功')
+  newBankName.value = ''
+  newCardNumber.value = ''
+  newCardHolder.value = ''
+  showAddCard.value = false
+  await loadCards()
+}
+
+async function disableCard(c: any) {
+  if (!confirm(`确定停用银行卡 ${c.bank_name} ${c.card_number_masked}？停用后该卡不可再用于提现`)) return
+  const res = await bankCardAPI.disable(c.id)
+  if (res.error) { showToast('停用失败: ' + res.error); return }
+  showToast('已停用该银行卡')
+  await loadCards()
+}
 
 // ==== 格式校验 ====
 const phoneRegex = /^1[3-9]\d{9}$/
@@ -318,7 +461,8 @@ async function submitWithdraw() {
     pay_method: payMethod.value,
     account: account.value,
     real_name: realName.value,
-    bank_name: bankName.value
+    bank_name: bankName.value,
+    bank_card_id: selectedCardId.value || undefined
   })
   if (res.error) {
     showToast('提现失败: ' + res.error)
@@ -332,7 +476,10 @@ async function submitWithdraw() {
   await loadBalance()
 }
 
-onMounted(loadBalance)
+onMounted(() => {
+  loadBalance()
+  loadCards()
+})
 </script>
 
 <style scoped>
@@ -409,6 +556,51 @@ onMounted(loadBalance)
 .cjx-pay-tab.active {
   color: #333; border-bottom-color: #333; font-weight: 500;
 }
+
+/* 银行卡（多卡提现） */
+.cjx-card-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; border: 1px solid #ddd; border-radius: 6px;
+  margin-bottom: 8px; cursor: pointer; transition: all .2s;
+  font-size: 14px; color: #444; background: #fff;
+}
+.cjx-card-item:hover { border-color: #3498db; }
+.cjx-card-item.cjx-card-checked {
+  border-color: #3498db; background: #f0f7ff;
+}
+.cjx-card-item input[type="radio"] { accent-color: #3498db; }
+.cjx-card-bank { font-weight: 600; color: #333; }
+.cjx-card-masked { font-family: Consolas, Menlo, monospace; color: #666; }
+.cjx-card-holder { color: #999; }
+.cjx-card-manage { margin: 4px 0 16px; }
+.cjx-link-btn {
+  background: none; border: none; color: #3498db; cursor: pointer;
+  font-size: 13px; padding: 4px 0;
+}
+.cjx-link-btn:hover { text-decoration: underline; }
+.cjx-link-danger { color: #e74c3c; }
+.cjx-add-card {
+  border: 1px dashed #3498db; border-radius: 6px; padding: 14px 16px;
+  margin-bottom: 16px; background: #fbfdff;
+}
+.cjx-btn-add-card {
+  width: 100%; padding: 10px; background: #3498db; color: #fff;
+  border: none; border-radius: 6px; font-size: 14px; cursor: pointer;
+}
+.cjx-btn-add-card:hover:not(:disabled) { background: #2980b9; }
+.cjx-btn-add-card:disabled { opacity: 0.5; cursor: not-allowed; }
+.cjx-card-selected-note {
+  padding: 10px 14px; background: #eef7ee; border: 1px solid #a9dfa9;
+  border-radius: 6px; color: #27ae60; font-size: 13px; margin-bottom: 16px;
+}
+.cjx-card-manage-list {
+  border-top: 1px dashed #ddd; padding-top: 12px; margin-top: 8px;
+}
+.cjx-card-manage-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 2px; font-size: 13px; color: #555;
+}
+.cjx-card-disabled { color: #bbb; font-size: 12px; }
 
 /* 费用预览 */
 .cjx-fee-preview {
