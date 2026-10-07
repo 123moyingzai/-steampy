@@ -402,6 +402,19 @@ export const bankCardAPI = {
   }
 }
 
+// ========== 支付渠道（payment_methods 配置开关） ==========
+export const paymentAPI = {
+  /** 读取指定用途下已启用的支付渠道（提现页/充值页渲染用） */
+  async getActiveMethods(type = 'withdraw'): Promise<ApiResponse<any[]>> {
+    try {
+      const data = await apiRequest<any[]>(`/payment-methods/active?type=${type}`)
+      return { data: data || [] }
+    } catch (e: any) {
+      return { error: e.message, data: [] }
+    }
+  }
+}
+
 // ========== 交易记录 ==========
 interface TransactionData {
   user_id: string | number

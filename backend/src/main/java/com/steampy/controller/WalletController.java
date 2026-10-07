@@ -3,10 +3,12 @@ package com.steampy.controller;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.steampy.dto.Result;
 import com.steampy.entity.BankCard;
+import com.steampy.entity.PaymentMethod;
 import com.steampy.entity.Transaction;
 import com.steampy.entity.Wallet;
 import com.steampy.entity.WithdrawRecord;
 import com.steampy.mapper.BankCardMapper;
+import com.steampy.mapper.PaymentMethodMapper;
 import com.steampy.mapper.TransactionMapper;
 import com.steampy.mapper.WalletMapper;
 import com.steampy.mapper.WithdrawRecordMapper;
@@ -35,6 +37,9 @@ public class WalletController {
 
     @Autowired
     private BankCardMapper bankCardMapper;
+
+    @Autowired
+    private PaymentMethodMapper paymentMethodMapper;
 
     @GetMapping("/user/{userId}")
     public Result<Wallet> getWallet(@PathVariable String userId) {
@@ -93,6 +98,12 @@ public class WalletController {
 
         if (amount.compareTo(BigDecimal.ZERO) <= 0) return Result.error("提现金额必须大于 0");
 
+        // 渠道开关校验（payment_methods 配置：停用渠道直接拒绝）
+        PaymentMethod pm = paymentMethodMapper.selectOne(
+                new QueryWrapper<PaymentMethod>().eq("method_code", payMethod).eq("type", "withdraw"));
+        if (pm == null || !Boolean.TRUE.equals(pm.getIsActive()))
+            return Result.error("该提现渠道已停用，请选择其他方式");
+
         // 银行卡提现优先走已绑定银行卡（多卡提现，卡数据为唯一事实来源）
         if ("bank".equals(payMethod) && bankCardId != null && !bankCardId.isBlank()) {
             BankCard card = bankCardMapper.selectById(bankCardId);
@@ -123,7 +134,13 @@ public class WalletController {
         if (!realName.matches("^[\\u4e00-\\u9fa5·]{2,20}$"))
             return Result.error("真实姓名必须为 2-20 个中文字符");
 
-        BigDecimal fee = amount.multiply(new BigDecimal("0.01")).setScale(2, BigDecimal.ROUND_HALF_UP);
+        // 手续费按 payment_methods 配置：金额 × 费率，并夹在 [最低, 最高] 区间
+        BigDecimal feeRate = pm.getFeeRate() != null ? pm.getFeeRate() : new BigDecimal("0.01");
+        BigDecimal minFee = pm.getMinFee() != null ? pm.getMinFee() : BigDecimal.ONE;
+        BigDecimal maxFee = pm.getMaxFee() != null ? pm.getMaxFee() : new BigDecimal("50.00");
+        BigDecimal fee = amount.multiply(feeRate).setScale(2, BigDecimal.ROUND_HALF_UP);
+        if (fee.compareTo(minFee) < 0) fee = minFee;
+        if (fee.compareTo(maxFee) > 0) fee = maxFee;
         BigDecimal netAmount = amount.subtract(fee);
 
         Wallet w = getOrCreateWallet(userId);
@@ -178,7 +195,7 @@ public class WalletController {
         feeTx.setTransactionNo("TXN" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
         feeTx.setUserId(userId);
         feeTx.setType("fee");
-        feeTx.setTitle("提现手续费（1%）");
+        feeTx.setTitle("提现手续费（" + feeRate.multiply(new BigDecimal("100")).stripTrailingZeros().toPlainString() + "%）");
         feeTx.setAmount(fee.negate());
         feeTx.setBalanceBefore(w.getBalance());
         feeTx.setBalanceAfter(w.getBalance());

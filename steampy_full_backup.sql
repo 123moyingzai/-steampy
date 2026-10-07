@@ -271,6 +271,42 @@ INSERT INTO `orders` VALUES ('0d75de36-0971-49c4-a781-49afcfd38fea','ORDDBBA74FE
 UNLOCK TABLES;
 
 --
+-- Table structure for table `payment_methods`
+--
+
+DROP TABLE IF EXISTS `payment_methods`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `payment_methods` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '主键（可读 ID：pm_渠道_用途）',
+  `method_code` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '渠道编码：alipay 支付宝 / bank 银行卡 / wechat 微信',
+  `method_name` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '渠道名称（展示用）',
+  `type` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'withdraw' COMMENT '用途：withdraw 提现 / recharge 充值',
+  `fee_rate` decimal(6,4) NOT NULL DEFAULT 0.0100 COMMENT '手续费率（0.0100 = 1%）',
+  `min_fee` decimal(12,2) NOT NULL DEFAULT 1.00 COMMENT '单笔最低手续费',
+  `max_fee` decimal(12,2) NOT NULL DEFAULT 50.00 COMMENT '单笔最高手续费',
+  `is_active` tinyint(1) NOT NULL DEFAULT 1 COMMENT '开关：1 启用 / 0 停用',
+  `sort_order` int NOT NULL DEFAULT 0 COMMENT '排序（小在前）',
+  `remark` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '备注',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_method_type` (`method_code`,`type`) COMMENT '同一用途下渠道编码唯一',
+  KEY `idx_type_active` (`type`,`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='支付渠道配置表（管理端开关+费率配置）';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `payment_methods`
+--
+
+LOCK TABLES `payment_methods` WRITE;
+/*!40000 ALTER TABLE `payment_methods` DISABLE KEYS */;
+INSERT INTO `payment_methods` VALUES ('pm_alipay_withdraw','alipay','支付宝','withdraw',0.0100,1.00,50.00,1,1,'支付宝提现','2026-10-07 00:00:00','2026-10-07 00:00:00'),('pm_bank_withdraw','bank','银行卡','withdraw',0.0100,1.00,50.00,1,2,'银行卡提现（支持多卡）','2026-10-07 00:00:00','2026-10-07 00:00:00'),('pm_wechat_withdraw','wechat','微信','withdraw',0.0100,1.00,50.00,0,3,'预留渠道，后端暂未实现','2026-10-07 00:00:00','2026-10-07 00:00:00');
+/*!40000 ALTER TABLE `payment_methods` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `reports`
 --
 

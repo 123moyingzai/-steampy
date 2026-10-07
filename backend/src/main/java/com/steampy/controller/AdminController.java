@@ -25,6 +25,7 @@ public class AdminController {
     @Autowired private AnnouncementMapper announcementMapper;
     @Autowired private TransactionMapper transactionMapper;
     @Autowired private WalletMapper walletMapper;
+    @Autowired private PaymentMethodMapper paymentMethodMapper;
     @Autowired private JdbcTemplate jdbcTemplate;
 
     // ======== 仪表盘统计 ========
@@ -412,6 +413,29 @@ public class AdminController {
     public Result<?> deleteAnnouncement(@PathVariable String id) {
         announcementMapper.deleteById(id);
         return Result.success();
+    }
+
+    // ======== 支付渠道配置 ========
+    @GetMapping("/payment-methods")
+    public Result<List<PaymentMethod>> listPaymentMethods() {
+        QueryWrapper<PaymentMethod> qw = new QueryWrapper<>();
+        qw.orderByAsc("type").orderByAsc("sort_order");
+        return Result.success(paymentMethodMapper.selectList(qw));
+    }
+
+    @PutMapping("/payment-methods/{id}")
+    public Result<PaymentMethod> updatePaymentMethod(@PathVariable String id, @RequestBody PaymentMethod body) {
+        PaymentMethod pm = paymentMethodMapper.selectById(id);
+        if (pm == null) return Result.error("支付渠道不存在");
+        if (body.getMethodName() != null && !body.getMethodName().isBlank()) pm.setMethodName(body.getMethodName());
+        if (body.getFeeRate() != null && body.getFeeRate().compareTo(BigDecimal.ZERO) >= 0) pm.setFeeRate(body.getFeeRate());
+        if (body.getMinFee() != null && body.getMinFee().compareTo(BigDecimal.ZERO) >= 0) pm.setMinFee(body.getMinFee());
+        if (body.getMaxFee() != null && body.getMaxFee().compareTo(BigDecimal.ZERO) >= 0) pm.setMaxFee(body.getMaxFee());
+        if (body.getIsActive() != null) pm.setIsActive(body.getIsActive());
+        if (body.getSortOrder() != null) pm.setSortOrder(body.getSortOrder());
+        if (body.getRemark() != null) pm.setRemark(body.getRemark());
+        paymentMethodMapper.updateById(pm);
+        return Result.success(pm);
     }
 }
 

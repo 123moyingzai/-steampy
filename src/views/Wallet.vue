@@ -48,18 +48,15 @@
           </div>
         </div>
 
-        <!-- 支付方式 Tab -->
+        <!-- 支付方式 Tab（由 payment_methods 配置驱动：仅渲染启用渠道） -->
         <div class="cjx-pay-tabs">
           <button
+            v-for="m in paymentMethods"
+            :key="m.method_code"
             class="cjx-pay-tab"
-            :class="{ active: payMethod === 'alipay' }"
-            @click="payMethod = 'alipay'"
-          >支付宝</button>
-          <button
-            class="cjx-pay-tab"
-            :class="{ active: payMethod === 'bank' }"
-            @click="payMethod = 'bank'"
-          >银行卡</button>
+            :class="{ active: payMethod === m.method_code }"
+            @click="selectMethod(m.method_code)"
+          >{{ m.method_name }}</button>
         </div>
 
         <!-- 支付宝表单 -->
@@ -192,7 +189,7 @@
         <!-- 预估 -->
         <div v-if="withdrawAmount > 0" class="cjx-fee-preview">
           <div class="cjx-fee-line"><span>提现金额</span><span>¥{{ withdrawAmount.toFixed(2) }}</span></div>
-          <div class="cjx-fee-line"><span>手续费（1%，最低¥1）</span><span>-¥{{ fee.toFixed(2) }}</span></div>
+          <div class="cjx-fee-line"><span>手续费（{{ feeLabel }}）</span><span>-¥{{ fee.toFixed(2) }}</span></div>
           <div class="cjx-fee-line cjx-fee-total"><span>预计到账</span><span>¥{{ netAmount.toFixed(2) }}</span></div>
         </div>
 
@@ -271,7 +268,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Layout from '../components/Layout.vue'
-import { authAPI, walletAPI, bankCardAPI } from '../config/supabase-local.ts'
+import { authAPI, walletAPI, bankCardAPI, paymentAPI } from '../config/supabase-local.ts'
 
 const router = useRouter()
 
@@ -281,10 +278,35 @@ const frozenBalance = ref(0)
 
 // 表单
 const withdrawAmount = ref(0)
-const payMethod = ref<'alipay' | 'bank'>('alipay')
+const payMethod = ref<string>('alipay')
 const account = ref('')
 const realName = ref('')
 const bankName = ref('')
+
+// 支付渠道（payment_methods 配置开关驱动；API 失败时回退默认两渠道）
+const paymentMethods = ref<any[]>([
+  { method_code: 'alipay', method_name: '支付宝', fee_rate: 0.01, min_fee: 1, max_fee: 50 },
+  { method_code: 'bank', method_name: '银行卡', fee_rate: 0.01, min_fee: 1, max_fee: 50 }
+])
+
+const currentMethod = computed(() =>
+  paymentMethods.value.find(m => m.method_code === payMethod.value) || paymentMethods.value[0]
+)
+
+function selectMethod(code: string) {
+  payMethod.value = code
+  if (code === 'bank') loadCards()
+}
+
+async function loadPaymentMethods() {
+  const res = await paymentAPI.getActiveMethods('withdraw')
+  if (res.data && res.data.length > 0) {
+    paymentMethods.value = res.data
+    if (!paymentMethods.value.some(m => m.method_code === payMethod.value)) {
+      payMethod.value = paymentMethods.value[0].method_code
+    }
+  }
+}
 
 // 银行卡（多卡提现）
 const bankCards = ref<any[]>([])
@@ -302,11 +324,23 @@ const records = ref<any[]>([])
 const toastMsg = ref('')
 const showToast = (m: string) => { toastMsg.value = m; setTimeout(() => toastMsg.value = '', 2500) }
 
-// 计算
+// 计算（费率由 payment_methods 配置驱动）
+const feeLabel = computed(() => {
+  const m = currentMethod.value
+  const ratePct = Number(m.fee_rate || 0.01) * 100
+  const minTxt = Number(m.min_fee ?? 1) > 0 ? `，最低¥${Number(m.min_fee).toFixed(0)}` : ''
+  const maxTxt = Number(m.max_fee ?? 50) > 0 ? `，上限¥${Number(m.max_fee).toFixed(0)}` : ''
+  return `${ratePct}%${minTxt}${maxTxt}`
+})
+
 const fee = computed(() => {
   if (withdrawAmount.value <= 0) return 0
-  const raw = withdrawAmount.value * 0.01
-  return Math.max(1, Math.min(50, Math.round(raw * 100) / 100))
+  const m = currentMethod.value
+  const rate = Number(m.fee_rate || 0.01)
+  const minFee = Number(m.min_fee ?? 1)
+  const maxFee = Number(m.max_fee ?? 50)
+  const raw = withdrawAmount.value * rate
+  return Math.max(minFee, Math.min(maxFee, Math.round(raw * 100) / 100))
 })
 const netAmount = computed(() => Math.max(0, withdrawAmount.value - fee.value))
 
@@ -479,6 +513,7 @@ async function submitWithdraw() {
 onMounted(() => {
   loadBalance()
   loadCards()
+  loadPaymentMethods()
 })
 </script>
 
