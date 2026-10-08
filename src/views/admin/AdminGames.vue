@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="admin-games">
     <!-- 工具栏 -->
     <div class="toolbar">
@@ -32,7 +32,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="game in filteredGames" :key="game.id">
+          <tr v-for="game in paginatedGames" :key="game.id">
             <td class="mono">{{ game.id }}</td>
             <td>
               <div class="game-thumb">
@@ -60,6 +60,23 @@
       </table>
       <div v-if="filteredGames.length === 0" class="empty-state">
         <p>暂无游戏数据</p>
+      </div>
+
+      <!-- 分页 -->
+      <div v-if="filteredGames.length > 0" class="pagination">
+        <span class="page-info">共 {{ filteredGames.length }} 条</span>
+        <select v-model.number="pageSize" @change="currentPage = 1" class="page-size">
+          <option :value="20">20 条/页</option>
+          <option :value="50">50 条/页</option>
+          <option :value="100">100 条/页</option>
+        </select>
+        <button class="page-btn" :disabled="currentPage === 1" @click="currentPage--">上一页</button>
+        <template v-for="p in displayPages" :key="p">
+          <span v-if="p === '...'" class="page-ellipsis">...</span>
+          <button v-else class="page-btn" :class="{ active: p === currentPage }" @click="currentPage = p">{{ p }}</button>
+        </template>
+        <button class="page-btn" :disabled="currentPage === totalPages" @click="currentPage++">下一页</button>
+        <span class="page-info">第 {{ currentPage }} / {{ totalPages }} 页</span>
       </div>
     </div>
 
@@ -138,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted } from 'vue'
 import axios from 'axios'
 
 const games = ref<any[]>([])
@@ -147,6 +164,28 @@ const searchKeyword = ref('')
 const showModal = ref(false)
 const editingGame = ref<any>(null)
 const saving = ref(false)
+
+// 分页
+const currentPage = ref(1)
+const pageSize = ref(20)
+
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredGames.value.length / pageSize.value)))
+const paginatedGames = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return filteredGames.value.slice(start, start + pageSize.value)
+})
+const displayPages = computed(() => {
+  const total = totalPages.value, cur = currentPage.value
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const pages: (number | string)[] = [1]
+  if (cur > 3) pages.push('...')
+  for (let i = Math.max(2, cur - 1); i <= Math.min(total - 1, cur + 1); i++) pages.push(i)
+  if (cur < total - 2) pages.push('...')
+  pages.push(total)
+  return pages
+})
+
+watch(filteredGames, () => { currentPage.value = 1 })
 
 const formData = reactive({
   name: '', developer: '', price: 0, original_price: 0, discount: 0,
@@ -422,6 +461,39 @@ onMounted(loadGames)
   padding: 40px;
   color: #999;
 }
+
+/* 分页 */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 16px;
+  border-top: 1px solid #eee;
+  background: #fafafa;
+}
+.page-info { font-size: 12px; color: #666; }
+.page-size {
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #fff;
+}
+.page-btn {
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fff;
+  color: #333;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.page-btn:hover:not(:disabled) { border-color: #3498db; color: #3498db; }
+.page-btn.active { background: #3498db; color: #fff; border-color: #3498db; }
+.page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.page-ellipsis { font-size: 12px; color: #999; padding: 0 4px; }
 
 /* 弹窗 */
 .modal-overlay {
