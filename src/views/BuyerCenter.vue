@@ -67,9 +67,11 @@
                   <span :class="['cjx-status', `cjx-status-${order.status}`]">
                     {{ getStatusText(order.status) }}
                   </span>
+                  <span v-if="refundStatus(order)" class="cjx-refund-tag">{{ refundStatus(order) }}</span>
                 </td>
                 <td>
                   <button class="cjx-btn cjx-btn-small" @click="viewOrder(order)">查看</button>
+                  <button v-if="canRefund(order)" class="cjx-btn cjx-btn-small cjx-btn-refund" @click="openRefundModal(order)">申请退款</button>
                 </td>
               </tr>
             </tbody>
@@ -118,9 +120,11 @@
                   <span :class="['cjx-status', `cjx-status-${order.status}`]">
                     {{ getOrderStatusText(order.status) }}
                   </span>
+                  <span v-if="refundStatus(order)" class="cjx-refund-tag">{{ refundStatus(order) }}</span>
                 </td>
                 <td>
                   <button class="cjx-btn cjx-btn-small" @click="viewOrderDetail(order)">查看</button>
+                  <button v-if="canRefund(order)" class="cjx-btn cjx-btn-small cjx-btn-refund" @click="openRefundModal(order)">申请退款</button>
                 </td>
               </tr>
             </tbody>
@@ -200,13 +204,53 @@
         </div>
       </div>
     </div>
+
+    <!-- 退款申请弹窗 -->
+    <div class="cjx-modal" v-if="refundOrder" @click.self="closeRefundModal">
+      <div class="cjx-modal-content">
+        <div class="cjx-modal-header">
+          <h3>申请退款</h3>
+          <button class="cjx-modal-close" @click="closeRefundModal">×</button>
+        </div>
+        <div class="cjx-modal-body">
+          <div class="cjx-detail-row">
+            <span class="cjx-detail-label">订单号</span>
+            <span class="cjx-detail-value">{{ refundOrder.order_no }}</span>
+          </div>
+          <div class="cjx-detail-row">
+            <span class="cjx-detail-label">游戏名称</span>
+            <span class="cjx-detail-value">{{ refundOrder.game_name }}</span>
+          </div>
+          <div class="cjx-detail-row">
+            <span class="cjx-detail-label">退款金额</span>
+            <span class="cjx-detail-value cjx-price">¥{{ (refundOrder.total_price || 0).toFixed(2) }}</span>
+          </div>
+          <div class="cjx-refund-reason">
+            <label>退款原因</label>
+            <textarea
+              v-model="refundReason"
+              class="cjx-refund-textarea"
+              rows="4"
+              maxlength="500"
+              placeholder="请填写退款原因（必填，2-500 字）"
+            ></textarea>
+          </div>
+        </div>
+        <div class="cjx-modal-footer">
+          <button class="cjx-btn cjx-btn-small" @click="closeRefundModal">取消</button>
+          <button class="cjx-btn cjx-btn-primary" :disabled="refundSubmitting" @click="submitRefund">
+            {{ refundSubmitting ? '提交中...' : '提交申请' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </Layout>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { authAPI, orderAPI } from '../config/supabase-local.ts'
+import { authAPI, orderAPI, refundAPI } from '../config/supabase-local.ts'
 import Layout from '../components/Layout.vue'
 
 const router = useRouter()
@@ -221,14 +265,18 @@ const cdkeyStatusFilter = ref('')
 const cdkeyOrders = ref([])
 const showRequestForm = ref(false)
 const selectedOrder = ref(null)
+const refunds = ref([])
+const refundOrder = ref(null)
+const refundReason = ref('')
+const refundSubmitting = ref(false)
 
 // 计算属性
 // PY代购订单 - 显示order_type为'py'或没有cdkey的订单
 const filteredOrders = computed(() => {
   let result = orders.value
   
-  // 只显示已完成的订单，且是PY代购类型
-  result = result.filter(o => o.status === 'completed' && (o.order_type === 'py' || !o.order_type || !o.cdkey))
+  // 只显示已完成/已退款的订单，且是PY代购类型
+  result = result.filter(o => (o.status === 'completed' || o.status === 'refunded') && (o.order_type === 'py' || !o.order_type || !o.cdkey))
   
   if (searchQuery.value) {
     result = result.filter(o => o.game_name?.includes(searchQuery.value))
@@ -245,8 +293,8 @@ const filteredOrders = computed(() => {
 const filteredCdkeyOrders = computed(() => {
   let result = cdkeyOrders.value
   
-  // 只显示已完成的订单，且是CDKey类型
-  result = result.filter(o => o.status === 'completed' && o.order_type === 'cdkey')
+  // 只显示已完成/已退款的订单，且是CDKey类型
+  result = result.filter(o => (o.status === 'completed' || o.status === 'refunded') && o.order_type === 'cdkey')
   
   if (cdkeySearchQuery.value) {
     const query = cdkeySearchQuery.value.toLowerCase()
@@ -366,6 +414,60 @@ const loadData = async () => {
       orders.value = JSON.parse(savedOrders)
       cdkeyOrders.value = JSON.parse(savedOrders)
     }
+  }
+
+  // 加载我的退款记录
+  const rf = await refundAPI.getUserRefunds(userId)
+  if (rf.data) refunds.value = rf.data
+}
+
+// ===== 退款相关 =====
+const refundOf = (order) => {
+  return refunds.value.find(r => r.order_id === order.id) || null
+}
+
+// 该订单当前是否存在进行中的退款（待审核）
+const canRefund = (order) => {
+  if (order.status !== 'completed') return false
+  const r = refundOf(order)
+  return !r || r.status === 'rejected'
+}
+
+// 退款状态文案（挂在状态列）
+const refundStatus = (order) => {
+  const r = refundOf(order)
+  if (!r) return ''
+  return ({ pending: '退款审核中', approved: '已退款', rejected: '退款被拒' })[r.status] || ''
+}
+
+const openRefundModal = (order) => {
+  refundOrder.value = order
+  refundReason.value = ''
+}
+
+const closeRefundModal = () => {
+  refundOrder.value = null
+  refundReason.value = ''
+}
+
+const submitRefund = async () => {
+  const reason = refundReason.value.trim()
+  if (reason.length < 2) {
+    alert('请填写退款原因（至少 2 个字）')
+    return
+  }
+  refundSubmitting.value = true
+  try {
+    const res = await refundAPI.apply(refundOrder.value.id, reason)
+    if (res.error) {
+      alert(res.error)
+      return
+    }
+    alert('退款申请已提交，等待管理员审核')
+    closeRefundModal()
+    loadData()
+  } finally {
+    refundSubmitting.value = false
   }
 }
 
@@ -653,6 +755,58 @@ onMounted(() => {
 
 .cjx-btn-copy:hover {
   background: #2980b9;
+}
+
+/* 退款相关样式 */
+.cjx-btn-refund {
+  background: #fff3cd;
+  color: #8a6d1a;
+  border: 1px solid #f0d88a;
+}
+
+.cjx-btn-refund:hover {
+  background: #ffe9a3;
+}
+
+.cjx-refund-tag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  background: #eef3ff;
+  color: #4a6cf7;
+}
+
+.cjx-refund-reason {
+  padding: 10px 0;
+}
+
+.cjx-refund-reason label {
+  display: block;
+  color: #666;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.cjx-refund-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.cjx-refund-textarea:focus {
+  outline: none;
+  border-color: #3498db;
+}
+
+.cjx-modal-footer .cjx-btn + .cjx-btn {
+  margin-left: 10px;
 }
 
 .cjx-modal-footer {

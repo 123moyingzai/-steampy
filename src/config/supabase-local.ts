@@ -415,6 +415,26 @@ export const paymentAPI = {
   }
 }
 
+// ========== 退款 ==========
+export const refundAPI = {
+  async apply(orderId: string, reason: string): Promise<ApiResponse<any>> {
+    try {
+      const data = await apiRequest<any>('/refunds', 'POST', { order_id: orderId, reason })
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+  async getUserRefunds(userId: string): Promise<ApiResponse<any[]>> {
+    try {
+      const data = await apiRequest<any[]>(`/refunds/user/${userId}`)
+      return { data: data || [] }
+    } catch (e: any) {
+      return { data: [] }
+    }
+  }
+}
+
 // ========== 交易记录 ==========
 interface TransactionData {
   user_id: string | number

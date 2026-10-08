@@ -307,6 +307,47 @@ INSERT INTO `payment_methods` VALUES ('pm_alipay_withdraw','alipay','支付宝',
 UNLOCK TABLES;
 
 --
+-- Table structure for table `refunds`
+--
+
+DROP TABLE IF EXISTS `refunds`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `refunds` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'UUID 主键',
+  `refund_no` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '退款单号，UNIQUE',
+  `order_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'FK → orders.id',
+  `order_no` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '订单号（快照）',
+  `buyer_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'FK → users.id（买家）',
+  `seller_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'FK → users.id（卖家，可空）',
+  `game_name` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '游戏名称（订单快照）',
+  `game_image` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '游戏图片（订单快照）',
+  `amount` decimal(12,2) NOT NULL COMMENT '退款金额（订单总额快照）',
+  `reason` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '退款原因',
+  `status` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending' COMMENT '状态: pending 待审核 / approved 已通过 / rejected 已拒绝',
+  `applied_at` datetime DEFAULT NULL COMMENT '申请时间',
+  `reviewed_at` datetime DEFAULT NULL COMMENT '审核时间',
+  `review_remark` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '审核备注',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `refund_no` (`refund_no`),
+  KEY `idx_refunds_status` (`status`),
+  KEY `idx_refunds_buyer` (`buyer_id`),
+  KEY `idx_refunds_order` (`order_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='退款申请表（用户申请+管理员审核闭环）';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `refunds`
+--
+
+LOCK TABLES `refunds` WRITE;
+/*!40000 ALTER TABLE `refunds` DISABLE KEYS */;
+/*!40000 ALTER TABLE `refunds` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `reports`
 --
 

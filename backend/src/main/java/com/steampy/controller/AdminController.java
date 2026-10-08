@@ -6,6 +6,7 @@ import com.steampy.entity.*;
 import com.steampy.mapper.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -26,6 +27,7 @@ public class AdminController {
     @Autowired private TransactionMapper transactionMapper;
     @Autowired private WalletMapper walletMapper;
     @Autowired private PaymentMethodMapper paymentMethodMapper;
+    @Autowired private RefundMapper refundMapper;
     @Autowired private JdbcTemplate jdbcTemplate;
 
     // ======== 仪表盘统计 ========
@@ -331,6 +333,117 @@ public class AdminController {
         }
         withdrawMapper.updateById(w);
         return Result.success(w);
+    }
+
+    // ======== 退款审核 Refunds ========
+    @GetMapping("/refunds")
+    public Result<List<Map<String, Object>>> getAllRefunds(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String keyword) {
+        StringBuilder where = new StringBuilder("WHERE 1=1");
+        List<Object> params = new ArrayList<>();
+        if (status != null && !status.isBlank()) {
+            where.append(" AND r.status = ?");
+            params.add(status);
+        }
+        if (keyword != null && !keyword.isBlank()) {
+            where.append(" AND (r.refund_no LIKE ? OR r.order_no LIKE ? OR r.game_name LIKE ?)");
+            String like = "%" + keyword + "%";
+            params.add(like); params.add(like); params.add(like);
+        }
+        String sql = "SELECT r.*, u.username AS buyer_username, u.nickname AS buyer_nickname " +
+                "FROM refunds r LEFT JOIN users u ON u.id = r.buyer_id " +
+                where + " ORDER BY r.applied_at DESC";
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, params.toArray());
+        return Result.success(rows);
+    }
+
+    @PutMapping("/refunds/{id}/review")
+    @Transactional
+    public Result<Refund> reviewRefund(@PathVariable String id, @RequestBody Map<String, String> body) {
+        Refund r = refundMapper.selectById(id);
+        if (r == null) return Result.error("退款申请不存在");
+        if (!"pending".equals(r.getStatus())) return Result.error("该退款申请已审核过");
+
+        String action = body.getOrDefault("action", "approve");
+        String remark = body.getOrDefault("remark", "");
+        LocalDateTime now = LocalDateTime.now();
+        r.setReviewedAt(now);
+        r.setReviewRemark(remark);
+
+        if ("approve".equals(action)) {
+            r.setStatus("approved");
+            // ① 订单置为已退款
+            Order o = orderMapper.selectById(r.getOrderId());
+            if (o != null) {
+                o.setStatus("refunded");
+                o.setUpdatedAt(now);
+                orderMapper.updateById(o);
+            }
+            // ② 退款金额退回买家钱包 + 流水（资金快照：变动前后余额）
+            Wallet ww = walletMapper.selectOne(new QueryWrapper<Wallet>().eq("user_id", r.getBuyerId()));
+            if (ww == null) {
+                ww = new Wallet();
+                ww.setId(UUID.randomUUID().toString());
+                ww.setUserId(r.getBuyerId());
+                ww.setBalance(BigDecimal.ZERO);
+                ww.setFrozenBalance(BigDecimal.ZERO);
+                ww.setCreatedAt(now);
+                walletMapper.insert(ww);
+            }
+            BigDecimal before = ww.getBalance();
+            ww.setBalance(before.add(r.getAmount()));
+            ww.setUpdatedAt(now);
+            walletMapper.updateById(ww);
+
+            Transaction t = new Transaction();
+            t.setId(UUID.randomUUID().toString());
+            t.setTransactionNo("TXN" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
+            t.setUserId(r.getBuyerId());
+            t.setType("refund");
+            t.setTitle("订单退款 " + (r.getGameName() != null ? r.getGameName() : ""));
+            t.setAmount(r.getAmount());
+            t.setBalanceBefore(before);
+            t.setBalanceAfter(ww.getBalance());
+            t.setStatus("completed");
+            t.setReferenceType("refund");
+            t.setReferenceId(r.getId());
+            t.setCreatedAt(now);
+            transactionMapper.insert(t);
+
+            // ③ 卖家收入扣回（有卖家且余额充足才扣，不足则平台兜底，保证审核必成）
+            if (r.getSellerId() != null && !r.getSellerId().isBlank()) {
+                Wallet sw = walletMapper.selectOne(new QueryWrapper<Wallet>().eq("user_id", r.getSellerId()));
+                if (sw != null && sw.getBalance() != null && sw.getBalance().compareTo(r.getAmount()) >= 0) {
+                    BigDecimal sb = sw.getBalance();
+                    sw.setBalance(sb.subtract(r.getAmount()));
+                    sw.setUpdatedAt(now);
+                    walletMapper.updateById(sw);
+
+                    Transaction st = new Transaction();
+                    st.setId(UUID.randomUUID().toString());
+                    st.setTransactionNo("TXN" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
+                    st.setUserId(r.getSellerId());
+                    st.setType("refund_deduct");
+                    st.setTitle("订单退款扣回 " + (r.getGameName() != null ? r.getGameName() : ""));
+                    st.setAmount(r.getAmount().negate());
+                    st.setBalanceBefore(sb);
+                    st.setBalanceAfter(sw.getBalance());
+                    st.setStatus("completed");
+                    st.setReferenceType("refund");
+                    st.setReferenceId(r.getId());
+                    st.setCreatedAt(now);
+                    transactionMapper.insert(st);
+                }
+            }
+        } else if ("reject".equals(action)) {
+            r.setStatus("rejected");
+        } else {
+            return Result.error("未知操作: " + action);
+        }
+        r.setUpdatedAt(now);
+        refundMapper.updateById(r);
+        return Result.success(r);
     }
 
     // ======== 评测审核 Reviews（仅显示被举报过的） ========

@@ -125,6 +125,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../views/admin/AdminWithdrawals.vue')
       },
       {
+        path: 'refunds',
+        name: 'AdminRefunds',
+        component: () => import('../views/admin/AdminRefunds.vue')
+      },
+      {
         path: 'payment-methods',
         name: 'AdminPaymentMethods',
         component: () => import('../views/admin/AdminPaymentMethods.vue')
