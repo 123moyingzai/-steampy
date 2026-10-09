@@ -16,6 +16,7 @@
           <option value="completed">已完成</option>
           <option value="pending">处理中</option>
           <option value="cancelled">已取消</option>
+          <option value="closed">超时关闭</option>
           <option value="failed">失败</option>
         </select>
       </div>
@@ -101,6 +102,7 @@
                 <option value="completed">已完成</option>
                 <option value="pending">处理中</option>
                 <option value="cancelled">已取消</option>
+                <option value="closed">超时关闭</option>
               </select>
               <button class="btn-link danger" @click="handleDelete(order)">删除</button>
             </td>

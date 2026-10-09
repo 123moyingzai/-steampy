@@ -1,6 +1,7 @@
 package com.steampy.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.steampy.constant.OrderStatus;
 import com.steampy.dto.Result;
 import com.steampy.entity.*;
 import com.steampy.mapper.*;
@@ -227,10 +228,12 @@ public class AdminController {
         Order o = orderMapper.selectById(id);
         if (o == null) return Result.error("订单不存在");
         String status = body.get("status");
-        if (status != null && (status.equals("pending") || status.equals("completed") || status.equals("cancelled") || status.equals("refunded"))) {
+        if (status != null && OrderStatus.isValid(status)) {
             o.setStatus(status);
             o.setUpdatedAt(LocalDateTime.now());
             orderMapper.updateById(o);
+        } else {
+            return Result.error("非法订单状态: " + status);
         }
         return Result.success(o);
     }

@@ -337,7 +337,8 @@ const getOrderStatusText = (status) => {
     'pending': '待支付',
     'cancelled': '已取消',
     'shipped': '已发货',
-    'paid': '已支付'
+    'paid': '已支付',
+    'closed': '超时关闭'
   }
   return statusMap[status] || status
 }

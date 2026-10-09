@@ -1,6 +1,7 @@
 package com.steampy.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.steampy.constant.OrderStatus;
 import com.steampy.dto.Result;
 import com.steampy.entity.Game;
 import com.steampy.entity.Listing;
@@ -275,7 +276,10 @@ public class OrderController {
     public Result<Void> cancelOrder(@PathVariable String id) {
         Order o = orderMapper.selectById(id);
         if (o == null) return Result.error("订单不存在");
-        o.setStatus("cancelled");
+        if (!OrderStatus.canTransition(o.getStatus(), OrderStatus.CANCELLED)) {
+            return Result.error("当前订单状态不可取消");
+        }
+        o.setStatus(OrderStatus.CANCELLED);
         o.setUpdatedAt(LocalDateTime.now());
         orderMapper.updateById(o);
         if (o.getListingId() != null) {
