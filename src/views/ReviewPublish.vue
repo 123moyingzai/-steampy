@@ -119,8 +119,8 @@ const uploadCooldownLeft = computed(() => {
   return 0
 })
 
-// 把 base64 图暂存 localStorage（后端无文件服务，简化方案）
-function onUpload(e: Event) {
+// 上传评价配图：POST multipart 到后端，拿到 /uploads/reviews/xxx.jpg 路径
+async function onUpload(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
@@ -129,24 +129,38 @@ function onUpload(e: Event) {
     input.value = ''
     return
   }
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-    alert('仅支持 jpg / png / webp')
+  if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+    alert('仅支持 jpg / png / webp / gif')
     input.value = ''
     return
   }
-  if (file.size > 3 * 1024 * 1024) {
-    alert('图片不超过 3MB')
+  if (file.size > 5 * 1024 * 1024) {
+    alert('图片不超过 5MB')
+    input.value = ''
+    return
+  }
+  if (form.imagesList.length >= 4) {
+    alert('最多上传 4 张图片')
     input.value = ''
     return
   }
 
-  const reader = new FileReader()
-  reader.onload = () => {
-    form.imagesList.push(reader.result as string)
-    lastUploadTimes.value.push(Date.now())
+  const fd = new FormData()
+  fd.append('file', file)
+  try {
+    const res = await fetch('/api/upload/review-image', { method: 'POST', body: fd })
+    const payload = await res.json()
+    if (payload?.code === 200 && payload.data?.url) {
+      form.imagesList.push(payload.data.url)
+      lastUploadTimes.value.push(Date.now())
+    } else {
+      alert(payload?.message || '上传失败')
+    }
+  } catch (err: any) {
+    alert('上传失败：' + (err?.message || '网络错误'))
+  } finally {
+    input.value = ''
   }
-  reader.readAsDataURL(file)
-  input.value = ''
 }
 
 function removeImage(i: number) {

@@ -52,6 +52,8 @@ public class ReviewController {
         for (Review r : list) {
             r.setGameName(name);
             fillReviewUserFields(r, userMap);
+            // 实时聚合：点赞数 + 当前用户是否已点赞
+            r.setLikesCount(reviewMapper.countLikes(r.getId()));
             if (userId != null && !userId.isBlank()) {
                 r.setLiked(reviewMapper.countLike(r.getId(), userId) > 0);
             } else {
@@ -75,14 +77,14 @@ public class ReviewController {
         String id = (String) body.get("id");
         String gameId = String.valueOf(body.get("gameId"));
         String userId = (String) body.get("userId");
-        String recommend = String.valueOf(body.get("recommend"));
+        int recommend = Integer.parseInt(String.valueOf(body.get("recommend")));
         String content = (String) body.get("content");
         String images = (String) body.getOrDefault("images", "");
 
         if (content == null || content.trim().length() < 5) {
             return Result.error("评测内容不少于五个字");
         }
-        if (!"0".equals(recommend) && !"1".equals(recommend)) {
+        if (recommend != 0 && recommend != 1) {
             return Result.error("请选择推荐或不推荐");
         }
 
@@ -138,7 +140,6 @@ public class ReviewController {
 
     /** 点赞（幂等：已点赞则返回成功但不加数） */
     @PostMapping("/{id}/like")
-    @Transactional
     public Result<Map<String, Object>> like(@PathVariable String id, @RequestParam String userId) {
         Review r = reviewMapper.selectById(id);
         if (r == null) return Result.error("评论不存在");
@@ -149,7 +150,6 @@ public class ReviewController {
         if (existing == 0) {
             jdbcTemplate.update(
                     "INSERT INTO review_likes (review_id, user_id) VALUES (?, ?)", id, userId);
-            reviewMapper.incrementLikesCount(id, 1);
             liked = true;
             // 通知原作者
             if (!r.getUserId().equals(userId)) {
@@ -159,32 +159,28 @@ public class ReviewController {
                         null, r.getContent());
             }
         } else {
-            liked = true; // 已经点过了，不算错误
+            liked = true;
         }
-        int count = r.getLikesCount() == null ? 0 : r.getLikesCount();
-        if (liked && existing == 0) count++;
+        int count = reviewMapper.countLikes(id);
         return Result.success(Map.of("liked", liked, "likesCount", count));
     }
 
     /** 取消点赞 */
     @DeleteMapping("/{id}/like")
-    @Transactional
     public Result<Map<String, Object>> unlike(@PathVariable String id, @RequestParam String userId) {
         Review r = reviewMapper.selectById(id);
         if (r == null) return Result.error("评论不存在");
 
         int existing = reviewMapper.countLike(id, userId);
         boolean liked;
-        int count = r.getLikesCount() == null ? 0 : r.getLikesCount();
         if (existing > 0) {
             jdbcTemplate.update(
                     "DELETE FROM review_likes WHERE review_id = ? AND user_id = ?", id, userId);
-            reviewMapper.incrementLikesCount(id, -1);
-            count = Math.max(0, count - 1);
             liked = false;
         } else {
             liked = false;
         }
+        int count = reviewMapper.countLikes(id);
         return Result.success(Map.of("liked", liked, "likesCount", count));
     }
 
@@ -206,6 +202,8 @@ public class ReviewController {
         Map<String, User> userMap = batchGetUsers(new ArrayList<>(allIds));
         for (Reply r : list) {
             fillReplyUserFields(r, userMap);
+            // 实时聚合点赞数
+            r.setLikesCount(replyMapper.countLikes(r.getId()));
             if (userId != null && !userId.isBlank()) {
                 r.setLiked(replyMapper.countLike(r.getId(), userId) > 0);
             } else {
@@ -284,7 +282,6 @@ public class ReviewController {
 
     /** 子评论点赞 */
     @PostMapping("/replies/{replyId}/like")
-    @Transactional
     public Result<Map<String, Object>> likeReply(@PathVariable String replyId,
                                                   @RequestParam String userId) {
         Reply r = replyMapper.selectById(replyId);
@@ -295,9 +292,6 @@ public class ReviewController {
         if (existing == 0) {
             jdbcTemplate.update(
                     "INSERT INTO review_reply_likes (reply_id, user_id) VALUES (?, ?)", replyId, userId);
-            jdbcTemplate.update(
-                    "UPDATE review_replies SET likes_count = likes_count + 1 WHERE id = ?", replyId);
-            r.setLikesCount((r.getLikesCount() == null ? 0 : r.getLikesCount()) + 1);
             // 通知子评论作者
             if (!r.getUserId().equals(userId)) {
                 Review parentReview = reviewMapper.selectById(r.getReviewId());
@@ -309,12 +303,12 @@ public class ReviewController {
                         null, r.getContent());
             }
         }
-        return Result.success(Map.of("liked", true, "likesCount", r.getLikesCount()));
+        int count = replyMapper.countLikes(replyId);
+        return Result.success(Map.of("liked", true, "likesCount", count));
     }
 
     /** 子评论取消点赞 */
     @DeleteMapping("/replies/{replyId}/like")
-    @Transactional
     public Result<Map<String, Object>> unlikeReply(@PathVariable String replyId,
                                                      @RequestParam String userId) {
         Reply r = replyMapper.selectById(replyId);
@@ -322,17 +316,14 @@ public class ReviewController {
 
         int existing = replyMapper.countLike(replyId, userId);
         boolean liked;
-        int count = r.getLikesCount() == null ? 0 : r.getLikesCount();
         if (existing > 0) {
             jdbcTemplate.update(
                     "DELETE FROM review_reply_likes WHERE reply_id = ? AND user_id = ?", replyId, userId);
-            jdbcTemplate.update(
-                    "UPDATE review_replies SET likes_count = likes_count - 1 WHERE id = ?", replyId);
-            count = Math.max(0, count - 1);
             liked = false;
         } else {
             liked = false;
         }
+        int count = replyMapper.countLikes(replyId);
         return Result.success(Map.of("liked", liked, "likesCount", count));
     }
 

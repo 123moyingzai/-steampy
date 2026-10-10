@@ -19,6 +19,8 @@ public class Reply {
     private String replyToUserId;
     private String userId;
     private String content;
+    /** 实时聚合的点赞数（不映射 DB 列，从 review_reply_likes 表 COUNT 得出） */
+    @TableField(exist = false)
     private Integer likesCount;
     /** 被举报次数 */
     private Integer reportCount;

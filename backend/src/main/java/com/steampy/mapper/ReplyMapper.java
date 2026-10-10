@@ -14,4 +14,8 @@ public interface ReplyMapper extends BaseMapper<Reply> {
 
     @Select("SELECT COUNT(*) FROM review_reply_likes WHERE reply_id = #{replyId} AND user_id = #{userId}")
     int countLike(@Param("replyId") String replyId, @Param("userId") String userId);
+
+    /** 实时统计某子评论的总点赞数（从 review_reply_likes 表 COUNT） */
+    @Select("SELECT COUNT(*) FROM review_reply_likes WHERE reply_id = #{replyId}")
+    int countLikes(@Param("replyId") String replyId);
 }
