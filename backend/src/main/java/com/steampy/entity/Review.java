@@ -15,13 +15,15 @@ public class Review {
     private String id;
     private String gameId;
     private String userId;
-    /** '1'=推荐 '0'=不推荐 (DB ENUM 强约束只能 0 或 1) */
-    private String recommend;
+    /** 1=推荐 0=不推荐 (DB ENUM('0','1')，MyBatis-Plus 自动把字符串转 Integer) */
+    private Integer recommend;
     private String content;
     /** 逗号分隔的图片 URL 列表 */
     private String images;
     /** 0=待审核 1=已通过 2=被拒 */
     private Integer status;
+    /** 实时聚合的点赞数（不映射 DB 列，从 review_likes 表 COUNT 得出） */
+    @TableField(exist = false)
     private Integer likesCount;
     private Integer repliesCount;
     /** 被举报次数，达到阈值进入审核队列 */
