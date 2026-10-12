@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <Layout>
     <div class="cjx-gift-page">
 
@@ -11,8 +11,8 @@
         <div class="cjx-detail-header">
           <img :src="getImageUrl(selectedGame.image)" class="cjx-detail-cover" />
           <div class="cjx-detail-info">
-            <h1 class="cjx-detail-name">{{ selectedGame.name }}</h1>
-            <p class="cjx-detail-subname">{{ selectedGame.name }}</p>
+            <h1 class="cjx-detail-name">{{ selectedGame.name_cn || selectedGame.name }}</h1>
+            <p class="cjx-detail-subname" v-if="selectedGame.name_cn && selectedGame.name !== selectedGame.name_cn">{{ selectedGame.name }}</p>
             <div class="cjx-detail-meta">
               <span class="cjx-detail-rating">🎮 游戏评分: {{ selectedGame.rating || '9.5' }}</span>
             </div>
@@ -101,7 +101,7 @@
               <span v-if="item.is_presale" class="cjx-hot-presale">预售</span>
             </div>
             <div class="cjx-hot-info">
-              <div class="cjx-hot-name" :title="item.name">{{ item.name }}</div>
+              <div class="cjx-hot-name" :title="item.name_cn || item.name">{{ item.name_cn || item.name }}</div>
               <div class="cjx-hot-price-row">
                 <span class="cjx-hot-original" v-if="item.original_price">¥{{ item.original_price }}</span>
                 <span class="cjx-hot-current">¥{{ item.price.toFixed(2) }}</span>
@@ -129,7 +129,7 @@
       <div v-if="buyDialogVisible" class="cjx-dialog-mask" @click.self="buyDialogVisible = false">
         <div class="cjx-dialog">
           <div class="cjx-dialog-header">
-            <h3>确认代购 · {{ selectedGame?.name }}</h3>
+            <h3>确认代购 · {{ selectedGame?.name_cn || selectedGame?.name }}</h3>
             <button class="cjx-dialog-close" @click="buyDialogVisible = false">✕</button>
           </div>
           <div class="cjx-dialog-body" v-if="selectedBuyer">
@@ -201,6 +201,8 @@ const allGames = computed(() => {
       uid: 'g-' + g.id,
       game_id: g.id,
       name: g.name,
+      name_cn: g.name_cn || g.nameCn,
+      nameCn: g.name_cn || g.nameCn,
       image: g.image_url || g.image,
       price: p,
       original_price: op || null,
@@ -357,7 +359,8 @@ const showBuyDialog = async (s: any) => {
   // 不能买自己的
   if (s.sellerId === user.id) { showToast('不能购买您自己上架的商品'); return }
   // Steam 绑定预检查
-  const bound = user.steam_bound === true || !!user.steamId || !!user.steam_id
+  const bound = !!(user.steamAccountId || user.steam_account_id)
+    || user.steam_bound === true
   if (!bound) {
     const go = confirm('请先绑定 Steam 账号后才能代购。\n\n是否前往绑定页面？')
     if (go) router.push('/settings')

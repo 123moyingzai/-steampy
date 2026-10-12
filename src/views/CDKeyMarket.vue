@@ -17,7 +17,7 @@
               <span class="cjx-presale-badge">预售</span>
             </div>
             <div class="cjx-card-info">
-              <div class="cjx-card-name">{{ item.name }}</div>
+              <div class="cjx-card-name">{{ item.name_cn || item.name }}</div>
               <div class="cjx-card-price-row">
                 <span class="cjx-card-original" v-if="item.original_price">¥{{ item.original_price }}</span>
                 <span class="cjx-card-price cjx-presale-price">¥{{ item.price.toFixed(2) }}</span>
@@ -64,7 +64,7 @@
               <span v-if="item.discount" class="cjx-card-discount">{{ item.discount }}</span>
             </div>
             <div class="cjx-card-info">
-              <div class="cjx-card-name">{{ item.name }}</div>
+              <div class="cjx-card-name">{{ item.name_cn || item.name }}</div>
               <div class="cjx-card-price-row">
                 <span class="cjx-card-original" v-if="item.original_price">¥{{ item.original_price }}</span>
                 <span class="cjx-card-price">¥{{ item.price.toFixed(2) }}</span>
@@ -141,6 +141,8 @@ const allGames = computed(() => {
       uid: 'g-' + g.id,
       game_id: g.id,
       name: g.name,
+      name_cn: g.name_cn || g.nameCn,
+      nameCn: g.name_cn || g.nameCn,
       image: g.image_url || g.image,
       price: p,
       original_price: op || null,

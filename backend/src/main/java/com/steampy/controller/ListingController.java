@@ -310,13 +310,12 @@ public class ListingController {
         return Result.success(l);
     }
 
-    // 下架 / 删除（只有 available 可以硬删除；sold 用 soft-delete；pending_activation 用 relist/self-activate）
+    // 删除（available / pending_activation 可直接删除；sold 不可删）
     @DeleteMapping("/{id}")
     public Result<Void> deleteListing(@PathVariable String id) {
         Listing l = listingMapper.selectById(id);
         if (l == null) return Result.error("不存在");
-        if ("sold".equals(l.getStatus())) return Result.error("已售出的 CDK 不能直接删除，请使用'下架拿回'");
-        if ("pending_activation".equals(l.getStatus())) return Result.error("待激活的 CDK 不能直接删除，请使用'自己激活'或'重新上架'");
+        if ("sold".equals(l.getStatus())) return Result.error("已售出的 CDK 不能删除");
         listingMapper.deleteById(id);
         return Result.success(null);
     }
@@ -402,6 +401,67 @@ public class ListingController {
         l.setUpdatedAt(LocalDateTime.now());
         listingMapper.updateById(l);
         return Result.success(null);
+    }
+
+    // ======== 批量下架: available → pending_activation ========
+    @PutMapping("/batch-soft-delete")
+    public Result<Map<String, Object>> batchSoftDelete(@RequestBody Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
+        java.util.List<String> ids = (java.util.List<String>) body.get("ids");
+        if (ids == null || ids.isEmpty()) return Result.error("未选择");
+        int ok = 0, skip = 0;
+        for (String id : ids) {
+            Listing l = listingMapper.selectById(id);
+            if (l == null || !"available".equals(l.getStatus())) { skip++; continue; }
+            l.setStatus("pending_activation");
+            l.setSoldAt(null);
+            l.setUpdatedAt(LocalDateTime.now());
+            listingMapper.updateById(l);
+            ok++;
+        }
+        Map<String, Object> r = new java.util.HashMap<>();
+        r.put("updated", ok); r.put("skipped", skip);
+        return Result.success(r);
+    }
+
+    // ======== 批量上架: pending_activation → available ========
+    @PutMapping("/batch-relist")
+    public Result<Map<String, Object>> batchRelist(@RequestBody Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
+        java.util.List<String> ids = (java.util.List<String>) body.get("ids");
+        if (ids == null || ids.isEmpty()) return Result.error("未选择");
+        int ok = 0, skip = 0;
+        for (String id : ids) {
+            Listing l = listingMapper.selectById(id);
+            if (l == null || !"pending_activation".equals(l.getStatus())) { skip++; continue; }
+            l.setStatus("available");
+            l.setSoldAt(null);
+            l.setUpdatedAt(LocalDateTime.now());
+            listingMapper.updateById(l);
+            ok++;
+        }
+        Map<String, Object> r = new java.util.HashMap<>();
+        r.put("updated", ok); r.put("skipped", skip);
+        return Result.success(r);
+    }
+
+    // ======== 批量删除: available + pending_activation 可删，sold 跳过 ========
+    @DeleteMapping("/batch")
+    public Result<Map<String, Object>> batchDelete(@RequestBody Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
+        java.util.List<String> ids = (java.util.List<String>) body.get("ids");
+        if (ids == null || ids.isEmpty()) return Result.error("未选择");
+        int ok = 0, skip = 0;
+        for (String id : ids) {
+            Listing l = listingMapper.selectById(id);
+            if (l == null) { skip++; continue; }
+            if ("sold".equals(l.getStatus())) { skip++; continue; }
+            listingMapper.deleteById(id);
+            ok++;
+        }
+        Map<String, Object> r = new java.util.HashMap<>();
+        r.put("deleted", ok); r.put("skipped", skip);
+        return Result.success(r);
     }
 
     // ======== 待激活 → 自己激活（加入 user_games 并删除 listing）=======
