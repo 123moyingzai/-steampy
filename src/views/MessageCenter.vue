@@ -18,6 +18,16 @@
       <button v-if="(tab === 'msg' ? msgUnread : annUnread) > 0" class="cjx-mark-all" @click="markAllRead">全部已读</button>
     </div>
 
+    <!-- 交互消息筛选栏 -->
+    <div v-if="tab === 'msg'" class="cjx-filter-bar">
+      <div class="cjx-filter-tabs">
+        <button :class="['cjx-filter-tab', { active: msgFilter === 'all' }]" @click="setFilter('all')">全部</button>
+        <button :class="['cjx-filter-tab', { active: msgFilter === 'unread' }]" @click="setFilter('unread')">未读</button>
+        <button :class="['cjx-filter-tab', { active: msgFilter === 'read' }]" @click="setFilter('read')">已读</button>
+      </div>
+      <span class="cjx-filter-count">共 {{ msgTotal }} 条</span>
+    </div>
+
     <!-- 交互消息列表 -->
     <div v-if="tab === 'msg'" class="cjx-msg-list">
       <div v-if="msgList.length === 0" class="cjx-empty">暂无消息，去评论区互动吧～</div>
@@ -45,6 +55,13 @@
         </div>
         <div v-if="!n.isRead" class="cjx-unread-dot"></div>
       </div>
+    </div>
+
+    <!-- 分页 -->
+    <div v-if="tab === 'msg' && msgTotal > msgSize" class="cjx-pagination">
+      <button :disabled="msgPage <= 1" class="cjx-page-btn" @click="changePage(msgPage - 1)">上一页</button>
+      <span class="cjx-page-info">{{ msgPage }} / {{ msgTotalPages }}</span>
+      <button :disabled="msgPage >= msgTotalPages" class="cjx-page-btn" @click="changePage(msgPage + 1)">下一页</button>
     </div>
 
     <!-- 公告列表 -->
@@ -77,6 +94,13 @@ const msgUnread = ref(0)
 const annUnread = ref(0)
 const currentUser = ref<any>(null)
 
+// 分页 + 筛选
+const msgPage = ref(1)
+const msgSize = ref(10)
+const msgTotal = ref(0)
+const msgFilter = ref<'all' | 'unread' | 'read'>('all')
+const msgTotalPages = computed(() => Math.max(1, Math.ceil(msgTotal.value / msgSize.value)))
+
 const typeText = (t: string) => {
   if (t === 'reply') return '回复了你'
   if (t === 'like_review') return '赞了你的评论'
@@ -97,6 +121,14 @@ const formatTime = (t: string) => {
   } catch { return t }
 }
 
+const loadNotifications = async () => {
+  if (!currentUser.value?.id) return
+  const isRead = msgFilter.value === 'all' ? undefined : (msgFilter.value === 'read')
+  const res = await notificationAPI.list(currentUser.value.id, msgPage.value, msgSize.value, isRead)
+  msgList.value = res.list
+  msgTotal.value = res.total
+}
+
 const loadData = async () => {
   currentUser.value = authAPI.getCurrentUser()
   if (!currentUser.value?.id) {
@@ -104,19 +136,30 @@ const loadData = async () => {
     router.push('/login')
     return
   }
-  const [list, mCount, r] = await Promise.all([
-    notificationAPI.list(currentUser.value.id),
+  const [mCount, r] = await Promise.all([
     notificationAPI.unreadCount(currentUser.value.id),
     announcementAPI.getAnnouncements(50)
   ])
-  msgList.value = list
   msgUnread.value = mCount
   annList.value = r.data || []
   annUnread.value = await announcementAPI.unreadCount(currentUser.value.id)
+  await loadNotifications()
 }
 
 const switchTab = async (t: 'msg' | 'ann') => {
   tab.value = t
+}
+
+const setFilter = async (f: 'all' | 'unread' | 'read') => {
+  msgFilter.value = f
+  msgPage.value = 1
+  await loadNotifications()
+}
+
+const changePage = async (p: number) => {
+  if (p < 1 || p > msgTotalPages.value) return
+  msgPage.value = p
+  await loadNotifications()
 }
 
 const markAllRead = async () => {
@@ -125,6 +168,10 @@ const markAllRead = async () => {
     await notificationAPI.markAllRead(currentUser.value.id)
     msgList.value.forEach(n => n.isRead = true)
     msgUnread.value = 0
+    if (msgFilter.value === 'unread') {
+      msgPage.value = 1
+      await loadNotifications()
+    }
   } else {
     await announcementAPI.markAllRead(currentUser.value.id)
     annUnread.value = 0
@@ -223,6 +270,74 @@ onMounted(loadData)
   font-size: 13px;
 }
 .cjx-mark-all:hover { background: #ebf5fb; }
+
+/* 筛选栏 */
+.cjx-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  padding: 0 4px;
+}
+.cjx-filter-tabs {
+  display: flex;
+  gap: 8px;
+}
+.cjx-filter-tab {
+  padding: 5px 14px;
+  font-size: 13px;
+  border: 1px solid #ddd;
+  background: #fff;
+  border-radius: 4px;
+  cursor: pointer;
+  color: #666;
+  transition: all 0.15s;
+}
+.cjx-filter-tab:hover {
+  border-color: #3498db;
+  color: #3498db;
+}
+.cjx-filter-tab.active {
+  background: #3498db;
+  color: #fff;
+  border-color: #3498db;
+}
+.cjx-filter-count {
+  font-size: 13px;
+  color: #999;
+}
+
+/* 分页 */
+.cjx-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 12px 0;
+}
+.cjx-page-btn {
+  padding: 6px 16px;
+  font-size: 13px;
+  border: 1px solid #3498db;
+  background: #fff;
+  color: #3498db;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.cjx-page-btn:hover:not(:disabled) {
+  background: #3498db;
+  color: #fff;
+}
+.cjx-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.cjx-page-info {
+  font-size: 13px;
+  color: #666;
+}
 
 .cjx-empty {
   text-align: center;

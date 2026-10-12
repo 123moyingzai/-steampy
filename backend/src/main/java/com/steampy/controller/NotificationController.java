@@ -21,11 +21,22 @@ public class NotificationController {
     @Autowired private JdbcTemplate jdbcTemplate;
 
     @GetMapping
-    public Result<List<Notification>> list(@RequestParam String userId) {
+    public Result<Map<String, Object>> list(@RequestParam String userId,
+                                            @RequestParam(defaultValue = "1") int page,
+                                            @RequestParam(defaultValue = "20") int size,
+                                            @RequestParam(required = false) Boolean isRead) {
         QueryWrapper<Notification> qw = new QueryWrapper<>();
-        qw.eq("user_id", userId).orderByDesc("created_at").last("LIMIT 50");
+        qw.eq("user_id", userId);
+        if (isRead != null) {
+            qw.eq("is_read", isRead);
+        }
+        qw.orderByDesc("created_at");
+        qw.last("LIMIT " + ((page - 1) * size) + "," + size);
+
         List<Notification> list = notificationMapper.selectList(qw);
-        // 批量回填最新的 actorName + actorAvatarUrl（不再存快照，实时查 users 表）
+        long total = notificationMapper.selectCount(new QueryWrapper<Notification>().eq("user_id", userId).eq(isRead != null, "is_read", isRead));
+
+        // 批量回填 actorName + actorAvatarUrl
         Set<String> actorIds = new LinkedHashSet<>();
         for (Notification n : list) {
             if (n.getActorId() != null && !n.getActorId().isBlank()) actorIds.add(n.getActorId());
@@ -46,7 +57,13 @@ public class NotificationController {
                 }
             }
         }
-        return Result.success(list);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("list", list);
+        result.put("total", total);
+        result.put("page", page);
+        result.put("size", size);
+        return Result.success(result);
     }
 
     @GetMapping("/unread-count")

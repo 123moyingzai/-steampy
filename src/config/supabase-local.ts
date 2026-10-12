@@ -181,12 +181,18 @@ interface UserNotification {
 }
 
 export const notificationAPI = {
-  async list(userId: string): Promise<UserNotification[]> {
+  async list(userId: string, page: number = 1, size: number = 20, isRead?: boolean): Promise<{ list: UserNotification[]; total: number; page: number; size: number }> {
     try {
-      const list = await apiRequest<UserNotification[]>(
-        '/notifications?userId=' + userId)
-      return snakeToCamel(list || [])
-    } catch { return [] }
+      let url = '/notifications?userId=' + userId + '&page=' + page + '&size=' + size
+      if (isRead !== undefined) url += '&isRead=' + isRead
+      const res = await apiRequest<any>(url)
+      return {
+        list: snakeToCamel(res.list || []),
+        total: Number(res.total) || 0,
+        page: Number(res.page) || 1,
+        size: Number(res.size) || 20
+      }
+    } catch { return { list: [], total: 0, page: 1, size: 20 } }
   },
   async unreadCount(userId: string): Promise<number> {
     try {
