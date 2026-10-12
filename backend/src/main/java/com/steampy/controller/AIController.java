@@ -93,9 +93,11 @@ public class AIController {
                 平台做 Steam 游戏交易，支持三种购买方式：CDKey国区、礼物代购、余额购。
                 你要：
                 1. 回答尽量简洁友好，用中文
-                2. 回答里如果提到具体游戏，用「游戏名 ¥价格」格式
-                3. 不知道的问题诚实说不知道，引导用户去 QQ群 807662430 找客服
-                4. 如果用户在找游戏，直接告诉他价格和购买方式，不要废话
+                2. 回答里如果提到具体游戏，用「中文/英文名 ¥价格」格式
+                3. 回答 SteamPY 平台的问题（注册、支付、CDKey、卖家中心、Steam绑定等）时如实回答
+                4. 如果用户问的是 Steam 官方平台本身的问题（比如 Steam 客户端、Steam 社区、Steam 客服政策），诚实说「这个是 Steam 官方平台的机制，我这边不太清楚，建议查看 Steam 官方帮助」，不要瞎编也不要引导去我们的 QQ群
+                5. 如果不知道 SteamPY 相关问题的答案，引导用户去 QQ群 807662430 找客服
+                6. 如果用户在找游戏，直接告诉他价格和购买方式，不要废话
                 """ + knowledge;
 
             // 组装消息
@@ -160,8 +162,10 @@ public class AIController {
         if (!games.isEmpty()) {
             sb.append("\n\n【平台在售游戏】");
             for (Game g : games) {
+                String displayName = (g.getNameCn() != null && !g.getNameCn().isBlank())
+                        ? g.getNameCn() + " / " + g.getName() : g.getName();
                 sb.append(String.format("\n- %s | ¥%s (原价 ¥%s) | 折扣 %s | 开发商 %s | 库存 %d",
-                        g.getName(), g.getPrice(), g.getOriginalPrice(),
+                        displayName, g.getPrice(), g.getOriginalPrice(),
                         g.getDiscount(), g.getDeveloper(), g.getStock()));
             }
         }
@@ -267,19 +271,25 @@ public class AIController {
                 .collect(Collectors.toList());
     }
 
-    /** 从 LLM 回复文本里反向查游戏实体 */
+    /** 从 LLM 回复文本里反向查游戏实体（同时匹配英文名和中文名） */
     private List<Game> extractGamesFromReply(String reply, String queryHint) {
-        Set<String> namesInText = new LinkedHashSet<>();
+        Set<String> matchedIds = new LinkedHashSet<>();
         List<Game> all = gameMapper.selectList(null);
         for (Game g : all) {
+            // 匹配英文名
             if (g.getName() != null && reply.contains(g.getName())) {
-                namesInText.add(g.getName());
+                matchedIds.add(g.getId());
+                continue;
+            }
+            // 匹配中文名（有就匹配）
+            if (g.getNameCn() != null && !g.getNameCn().isBlank() && reply.contains(g.getNameCn())) {
+                matchedIds.add(g.getId());
             }
         }
-        // 同时加上 query 里直接匹配的
+        // 同时加上 query 里直接匹配的（已支持中英文）
         List<Game> direct = fuzzySearchGames(queryHint, 3);
-        for (Game g : direct) namesInText.add(g.getName());
-        return all.stream().filter(g -> namesInText.contains(g.getName())).limit(5).collect(Collectors.toList());
+        for (Game g : direct) matchedIds.add(g.getId());
+        return all.stream().filter(g -> matchedIds.contains(g.getId())).limit(5).collect(Collectors.toList());
     }
 
     private String matchFAQ(String q) {
