@@ -142,6 +142,7 @@ public class AuthController {
 
         Map<String, Object> data = new HashMap<>();
         u.setPasswordHash(null);  // 返回前清空敏感字段
+        fillSteamDerived(u);      // 回填 steamBound 派生字段
         data.put("user", u);
         return Result.success(data);
     }
@@ -150,8 +151,21 @@ public class AuthController {
     @GetMapping("/user/{id}")
     public Result<User> getUser(@PathVariable String id) {
         User u = userMapper.selectById(id);
-        if (u != null) u.setPasswordHash(null);
+        if (u != null) {
+            u.setPasswordHash(null);
+            fillSteamDerived(u);
+        }
         return Result.success(u);
+    }
+
+    /**
+     * 回填 Steam 非 DB 派生字段（steamBound / steamId 等）
+     * 确保登录、查用户等接口返回完整绑定状态
+     */
+    private void fillSteamDerived(User u) {
+        if (u == null) return;
+        boolean bound = u.getSteamAccountId() != null && !u.getSteamAccountId().isBlank();
+        u.setSteamBound(bound);
     }
 
     // ========== 更新基础资料 ==========

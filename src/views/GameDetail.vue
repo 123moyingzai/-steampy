@@ -20,7 +20,8 @@
           </div>
 
           <div class="cjx-game-info-section">
-            <h1 class="cjx-game-name">{{ game.name }}</h1>
+            <h1 class="cjx-game-name">{{ game.name_cn || game.name }}</h1>
+            <p v-if="game.name_cn && game.name !== game.name_cn" class="cjx-game-en-name">{{ game.name }}</p>
             <p class="cjx-game-desc">{{ game.description || '暂无描述' }}</p>
             
             <!-- 版本切换 - 仅当存在多个版本时显示 -->
@@ -207,7 +208,7 @@
           <div class="cjx-order-info">
             <div class="cjx-order-row">
               <span class="cjx-order-label">游戏名称：</span>
-              <span class="cjx-order-value">{{ game?.name }}</span>
+              <span class="cjx-order-value">{{ game?.name_cn || game?.name }}</span>
             </div>
             <div class="cjx-order-row">
               <span class="cjx-order-label">出售方：</span>
@@ -707,7 +708,8 @@ const buyCDKey = async (cdkey) => {
     return
   }
   // Steam 绑定预检查（sessionStorage 标志，不请求后端）
-  const bound = currentUser.steam_bound === true || !!currentUser.steamId || !!currentUser.steam_id
+  const bound = !!(currentUser.steamAccountId || currentUser.steam_account_id)
+    || currentUser.steam_bound === true
   if (!bound) {
     const go = confirm('请先绑定 Steam 账号后才能购买游戏。\n\n是否前往绑定页面？')
     if (go) router.push('/settings')
@@ -1042,6 +1044,8 @@ const loadData = async () => {
   game.value = {
     id: matched.id,
     name: matched.name,
+    name_cn: matched.name_cn || matched.nameCn,
+    nameCn: matched.name_cn || matched.nameCn,
     description: matched.description || '暂无描述',
     current_price: currentPrice,
     original_price: originalPrice,

@@ -605,8 +605,9 @@ const loadSteamData = async () => {
   const currentUser = authAPI.getCurrentUser()
   if (!currentUser) return
 
-  // 先从 sessionStorage 取状态快速响应
-  steamBound.value = !!currentUser.steam_bound || !!currentUser.steamId || currentUser.steam_bound === true
+  // 绑定状态判断：优先用 steamAccountId（DB 外键，最可靠），兼容后端派生字段 steam_bound
+  steamBound.value = !!(currentUser.steamAccountId || currentUser.steam_account_id)
+    || !!currentUser.steam_bound || currentUser.steam_bound === true
 
   if (steamBound.value) {
     // 从后端拉最新数据
@@ -746,8 +747,9 @@ const loadData = () => {
     steam_url: currentUser.steam_url || ''
   }
 
-  // 同步 Steam 绑定状态
-  steamBound.value = !!currentUser.steam_bound || !!currentUser.steamId
+  // 同步 Steam 绑定状态：优先用 steamAccountId（DB 外键，最可靠）
+  steamBound.value = !!(currentUser.steamAccountId || currentUser.steam_account_id)
+    || !!currentUser.steam_bound || currentUser.steam_bound === true
   if (steamBound.value) {
     steamInfo.value = {
       steam_id: currentUser.steam_id || currentUser.steamId,
