@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="cjx-login-page">
     <div class="cjx-logo">
       <svg viewBox="0 0 24 24">
@@ -613,6 +613,7 @@ onMounted(() => {
   border-radius: 4px;
   color: #ffffff;
   font-size: 14px;
+  box-sizing: border-box;
 }
 
 .cjx-form-control::placeholder {
@@ -658,6 +659,7 @@ onMounted(() => {
   border-radius: 4px;
   color: #ffffff;
   font-size: 14px;
+  box-sizing: border-box;
 }
 
 .cjx-verify-code-group {
@@ -676,6 +678,7 @@ onMounted(() => {
   cursor: pointer;
   transition: background-color 0.2s;
   white-space: nowrap;
+  box-sizing: border-box;
 }
 
 .cjx-get-code-btn:hover {
@@ -726,6 +729,7 @@ onMounted(() => {
   font-weight: 500;
   cursor: pointer;
   transition: opacity 0.2s;
+  box-sizing: border-box;
 }
 
 .cjx-btn:hover {

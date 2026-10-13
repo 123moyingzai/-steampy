@@ -294,6 +294,7 @@ public class SteamController {
         List<SteamLibrary> libs = steamService.getLibraryByAccountId(account.getId());
 
         Map<String, Object> resp = new LinkedHashMap<>();
+        resp.put("steam_account_id", account.getId());
         resp.put("steam_id", account.getSteamId64());
         resp.put("steam_name", account.getSteamName());
         resp.put("steam_avatar_url", account.getAvatarUrl());

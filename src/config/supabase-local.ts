@@ -776,6 +776,36 @@ export const listingAPI = {
     }
   },
 
+  /** 批量下架 available → pending_activation */
+  async batchSoftDelete(ids: string[]): Promise<ApiResponse<{ updated: number; skipped: number }>> {
+    try {
+      const data = await apiRequest<any>('/listings/batch-soft-delete', 'PUT', { ids })
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+
+  /** 批量上架 pending_activation → available */
+  async batchRelist(ids: string[]): Promise<ApiResponse<{ updated: number; skipped: number }>> {
+    try {
+      const data = await apiRequest<any>('/listings/batch-relist', 'PUT', { ids })
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+
+  /** 批量删除 available + pending_activation 可删，sold 跳过 */
+  async batchDelete(ids: string[]): Promise<ApiResponse<{ deleted: number; skipped: number }>> {
+    try {
+      const data = await apiRequest<any>('/listings/batch', 'DELETE', { ids })
+      return { data }
+    } catch (e: any) {
+      return { error: e.message }
+    }
+  },
+
   /** 待激活 → 重新上架 */
   async relistPending(id: string): Promise<ApiResponse<any>> {
     try {
@@ -803,13 +833,16 @@ export const steamAPI = {
   async bind(userId: string): Promise<ApiResponse<any>> {
     try {
       const data = await apiRequest<any>(`/steam/bind/${userId}`, 'POST')
-      // 绑定成功后刷新 sessionStorage 里的用户信息
+      const camelData = snakeToCamel(data)
+      // 绑定成功后刷新 sessionStorage 里的用户信息，确保 steamAccountId 等字段持久化
       const current = authAPI.getCurrentUser()
       if (current) {
-        const merged = { ...current, ...data, steam_bound: true }
+        const merged: any = { ...current, ...camelData, steam_bound: true, steamBound: true }
+        // 同时确保 steamAccountId 存在（绑定后一定有）
+        if (camelData.steamAccountId) merged.steamAccountId = camelData.steamAccountId
         sessionStorage.setItem('steampy_user', JSON.stringify(merged))
       }
-      return { data }
+      return { data: camelData }
     } catch (e: any) {
       return { error: e.message }
     }
@@ -819,14 +852,17 @@ export const steamAPI = {
   async unbind(userId: string): Promise<ApiResponse<any>> {
     try {
       await apiRequest<any>(`/steam/unbind/${userId}`, 'DELETE')
-      // 刷新 sessionStorage
+      // 刷新 sessionStorage：清空所有 Steam 相关字段
       const current = authAPI.getCurrentUser()
       if (current) {
         const cleared: any = { ...current }
-        ;['steam_id', 'steam_name', 'steam_avatar_url', 'steam_region',
-          'steam_level', 'steam_game_count', 'steam_account_value',
-          'steam_playtime', 'steam_bound', 'steam_bound_at'].forEach(k => delete cleared[k])
+        ;['steamAccountId', 'steam_account_id', 'steam_id', 'steamId',
+          'steam_name', 'steamName', 'steam_avatar_url', 'steamAvatarUrl',
+          'steam_region', 'steamRegion', 'steam_level', 'steamLevel',
+          'steam_game_count', 'steamGameCount', 'steam_account_value', 'steamAccountValue',
+          'steam_playtime', 'steamPlaytime', 'steam_bound', 'steamBound', 'steam_bound_at'].forEach(k => delete cleared[k])
         cleared.steam_bound = false
+        cleared.steamBound = false
         sessionStorage.setItem('steampy_user', JSON.stringify(cleared))
       }
       return { data: null }

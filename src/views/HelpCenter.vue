@@ -42,7 +42,13 @@
             :key="idx"
             :class="['cjx-chat-message', msg.role]"
           >
-            <div class="cjx-msg-avatar">{{ msg.role === 'user' ? '👤' : '🤖' }}</div>
+            <div
+              class="cjx-msg-avatar"
+              :style="msg.role === 'user' && userAvatarUrl ? `background-image:url(${userAvatarUrl});background-size:cover;background-position:center;` : ''"
+            >
+              <span v-if="msg.role === 'user' ? !userAvatarUrl : false">{{ userAvatarText }}</span>
+              <span v-else-if="msg.role === 'assistant'">🤖</span>
+            </div>
             <div class="cjx-msg-bubble">
               <!-- 普通文本回复 -->
               <div v-if="msg.content" v-html="formatMessage(msg.content)"></div>
@@ -61,7 +67,8 @@
                     @error="handleImgError"
                   />
                   <div class="cjx-game-card-info">
-                    <div class="cjx-game-card-title">{{ game.name }}</div>
+                    <div class="cjx-game-card-title">{{ game.name_cn || game.nameCn || game.name }}</div>
+                    <div v-if="(game.name_cn || game.nameCn) && (game.name_cn || game.nameCn) !== game.name" class="cjx-game-card-subtitle">{{ game.name }}</div>
                     <div class="cjx-game-card-tags">
                       <span
                         class="cjx-game-tag"
@@ -78,7 +85,10 @@
                       <span>库存: {{ game.stock }}</span>
                     </div>
                     <div class="cjx-game-card-price-row">
-                      <span class="cjx-game-card-price">{{ game.price }}</span>
+                      <span class="cjx-game-card-price">¥{{ Number(game.price ?? 0).toFixed(2) }}</span>
+                      <span class="cjx-game-card-original" v-if="game.originalPrice && Number(game.originalPrice) > Number(game.price)">
+                        ¥{{ Number(game.originalPrice).toFixed(2) }}
+                      </span>
                       <span class="cjx-game-card-discount" v-if="game.discount">
                         {{ game.discount }}
                       </span>
@@ -223,8 +233,24 @@ import { ref, computed, nextTick, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import Layout from '../components/Layout.vue'
+import { authAPI } from '../config/supabase-local.ts'
 
 const router = useRouter()
+
+// ========== 用户头像 ==========
+const userAvatarUrl = computed(() => {
+  const u = authAPI.getCurrentUser()
+  const raw = u?.avatarUrl || u?.avatar_url || u?.avatar
+  if (!raw || !String(raw).trim()) return ''
+  const url = String(raw).trim()
+  if (url.startsWith('http')) return url
+  return url.startsWith('/') ? url : '/' + url
+})
+const userAvatarText = computed(() => {
+  const u = authAPI.getCurrentUser()
+  const name = u?.nickname || u?.username || '我'
+  return name.substring(0, 1)
+})
 
 // ========== 类型定义 ==========
 interface Game {
@@ -291,6 +317,8 @@ onMounted(async () => {
     games.value = list.map((g: any) => ({
       id: g.id,
       name: g.name,
+      name_cn: g.name_cn || g.nameCn,
+      nameCn: g.name_cn || g.nameCn,
       price: String(g.price ?? 0),
       originalPrice: g.original_price != null ? String(g.original_price) : undefined,
       discount: g.discount,
@@ -342,9 +370,13 @@ function isGameSearchIntent(query: string): boolean {
   // 1. 包含游戏搜索关键词
   if (GAME_SEARCH_KEYWORDS.some(k => q.includes(k))) return true
 
-  // 2. 游戏名直接匹配：从 games 里找是否有名称或开发商包含用户输入
+  // 2. 游戏名直接匹配：从 games 里找是否有名称/中文名/开发商包含用户输入
   for (const g of games.value) {
     if (g.name.toLowerCase().includes(q) || q.includes(g.name.toLowerCase())) {
+      return true
+    }
+    const cn = (g.name_cn || g.nameCn || '').toLowerCase()
+    if (cn && (cn.includes(q) || q.includes(cn))) {
       return true
     }
     if (g.developer && g.developer.toLowerCase().includes(q)) {
@@ -371,12 +403,14 @@ function searchGames(query: string): GameMatch[] {
     let score = 0
 
     const nameLower = g.name.toLowerCase()
+    const cnLower = (g.name_cn || g.nameCn || '').toLowerCase()
     const devLower = (g.developer || '').toLowerCase()
     const descLower = (g.description || '').toLowerCase()
 
     // 精确包含
-    if (nameLower === q) score += 100
-    else if (nameLower.includes(q) || q.includes(nameLower)) score += 50
+    if (nameLower === q || cnLower === q) score += 100
+    else if (nameLower.includes(q) || q.includes(nameLower)
+         || (cnLower && (cnLower.includes(q) || q.includes(cnLower)))) score += 50
 
     // 开发者
     if (devLower.includes(q) || q.includes(devLower)) score += 20
@@ -669,6 +703,8 @@ async function sendMessage(text?: string) {
       reply.games = data.games.map((g: any) => ({
         id: g.id,
         name: g.name,
+        name_cn: g.name_cn || g.nameCn,
+        nameCn: g.name_cn || g.nameCn,
         price: String(g.price ?? 0),
         originalPrice: g.original_price != null ? String(g.original_price) : undefined,
         discount: g.discount,
@@ -829,7 +865,11 @@ const filteredSections = computed(() => {
   width: 32px; height: 32px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 16px; flex-shrink: 0;
-  background: #f0f0f0;
+  background: #f0f0f0; overflow: hidden;
+}
+.cjx-avatar-img {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
 }
 .cjx-chat-message.user .cjx-msg-avatar { background: #3498db; }
 .cjx-chat-message.assistant .cjx-msg-avatar { background: #667eea; }
@@ -897,6 +937,10 @@ const filteredSections = computed(() => {
   color: #2c3e50;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+.cjx-game-card-subtitle {
+  font-size: 0.7rem; color: #999;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .cjx-game-card-tags {
   display: flex; gap: 4px; flex-wrap: wrap;
 }
@@ -918,6 +962,10 @@ const filteredSections = computed(() => {
 }
 .cjx-game-card-price {
   font-size: 1rem; font-weight: bold; color: #e74c3c;
+}
+.cjx-game-card-original {
+  font-size: 0.75rem; color: #999;
+  text-decoration: line-through;
 }
 .cjx-game-card-discount {
   font-size: 0.7rem; color: #27ae60;

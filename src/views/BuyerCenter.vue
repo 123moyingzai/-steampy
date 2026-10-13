@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <Layout>
     <div class="cjx-buyer-page">
       <!-- 标签页导航 -->
@@ -59,7 +59,7 @@
               <tr v-for="order in filteredOrders" :key="order.id">
                 <td>{{ order.order_no }}</td>
                 <td>{{ formatDate(order.created_at) }}</td>
-                <td>{{ order.game_name || '未知游戏' }}</td>
+                <td>{{ order.game_name_display || order.game_name || '未知游戏' }}</td>
                 <td>¥{{ (order.price || 0).toFixed(2) }}</td>
                 <td>{{ order.quantity || 1 }}</td>
                 <td>¥{{ (order.total_price || 0).toFixed(2) }}</td>
@@ -113,7 +113,7 @@
               <tr v-for="order in filteredCdkeyOrders" :key="order.id">
                 <td>{{ order.order_no }}</td>
                 <td>{{ formatDateTime(order.created_at) }}</td>
-                <td>{{ order.game_name || '未知游戏' }}</td>
+                <td>{{ order.game_name_display || order.game_name || '未知游戏' }}</td>
                 <td class="cjx-price">¥{{ order.total_price?.toFixed(2) }}</td>
                 <td>Steam PY官方</td>
                 <td>
@@ -173,7 +173,7 @@
           </div>
           <div class="cjx-detail-row">
             <span class="cjx-detail-label">游戏名称</span>
-            <span class="cjx-detail-value">{{ selectedOrder.game_name }}</span>
+            <span class="cjx-detail-value">{{ selectedOrder.game_name_display || selectedOrder.game_name }}</span>
           </div>
           <div class="cjx-detail-row">
             <span class="cjx-detail-label">单价</span>
@@ -219,7 +219,7 @@
           </div>
           <div class="cjx-detail-row">
             <span class="cjx-detail-label">游戏名称</span>
-            <span class="cjx-detail-value">{{ refundOrder.game_name }}</span>
+            <span class="cjx-detail-value">{{ refundOrder.game_name_display || refundOrder.game_name }}</span>
           </div>
           <div class="cjx-detail-row">
             <span class="cjx-detail-label">退款金额</span>
@@ -250,7 +250,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { authAPI, orderAPI, refundAPI } from '../config/supabase-local.ts'
+import { authAPI, orderAPI, refundAPI, fetchAllGames } from '../config/supabase-local.ts'
 import Layout from '../components/Layout.vue'
 
 const router = useRouter()
@@ -279,7 +279,10 @@ const filteredOrders = computed(() => {
   result = result.filter(o => (o.status === 'completed' || o.status === 'refunded') && (o.order_type === 'py' || !o.order_type || !o.cdkey))
   
   if (searchQuery.value) {
-    result = result.filter(o => o.game_name?.includes(searchQuery.value))
+    const q = searchQuery.value
+    result = result.filter(o =>
+      o.game_name_display?.includes(q) || o.game_name?.includes(q)
+    )
   }
   
   if (statusFilter.value) {
@@ -299,8 +302,8 @@ const filteredCdkeyOrders = computed(() => {
   if (cdkeySearchQuery.value) {
     const query = cdkeySearchQuery.value.toLowerCase()
     result = result.filter(o => 
-      o.order_no?.toLowerCase().includes(query) || 
-      o.game_name?.toLowerCase().includes(query)
+      o.order_no?.toLowerCase().includes(query) ||
+      (o.game_name_display || o.game_name)?.toLowerCase().includes(query)
     )
   }
   
@@ -386,6 +389,32 @@ const viewOrder = (order) => {
   alert(`查看订单详情：${order.order_no}`)
 }
 
+// 从 games 表建 game_id → 显示名 映射（有汉化用汉化，没有用原名）
+const buildGameNameMap = async () => {
+  try {
+    const all = await fetchAllGames()
+    const map = new Map()
+    for (const g of all) {
+      const display = g.name_cn || g.nameCn || g.name
+      // 同时支持 game_id 匹配 和 game_name 原名匹配
+      if (g.id) map.set(String(g.id), display)
+      if (g.name) map.set('name:' + g.name, display)
+    }
+    return map
+  } catch {
+    return new Map()
+  }
+}
+
+const applyGameNames = (list, nameMap) => {
+  for (const o of list) {
+    const gid = String(o.game_id ?? o.gameId ?? '')
+    const byId = gid && nameMap.get(gid)
+    const byName = o.game_name && nameMap.get('name:' + o.game_name)
+    o.game_name_display = byId || byName || o.game_name
+  }
+}
+
 // 加载数据 - 从 Supabase 数据库获取
 const loadData = async () => {
   const currentUser = authAPI.getCurrentUser()
@@ -405,6 +434,11 @@ const loadData = async () => {
       orders.value = result.data
       cdkeyOrders.value = result.data
       console.log(`✓ 从数据库加载了 ${result.data.length} 条订单`)
+
+      // 关联 games 表的 name_cn 汉化显示
+      const nameMap = await buildGameNameMap()
+      applyGameNames(orders.value, nameMap)
+      applyGameNames(cdkeyOrders.value, nameMap)
     }
   } catch (error) {
     console.error('从数据库加载订单失败，尝试本地存储:', error)

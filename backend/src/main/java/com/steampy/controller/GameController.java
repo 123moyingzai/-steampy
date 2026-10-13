@@ -44,6 +44,7 @@ public class GameController {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("id", g.getId());
             m.put("name", g.getName());
+            m.put("name_cn", g.getNameCn());
             m.put("developer", g.getDeveloper());
             m.put("price", g.getPrice());
             m.put("original_price", g.getOriginalPrice());

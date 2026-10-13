@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <Layout>
     <div class="cjx-list-header">
       <h2 class="cjx-list-title">余额购 · 平台热门游戏</h2>
@@ -20,7 +20,7 @@
           <span v-if="game.discount" class="cjx-hot-discount">{{ game.discount }}</span>
         </div>
         <div class="cjx-hot-info">
-          <div class="cjx-hot-name" :title="game.name">{{ game.name }}</div>
+          <div class="cjx-hot-name" :title="game.name_cn || game.name">{{ game.name_cn || game.name }}</div>
           <div class="cjx-hot-price-row">
             <span class="cjx-hot-original" v-if="game.originalPrice">¥{{ game.originalPrice.toFixed(2) }}</span>
             <span class="cjx-hot-current">¥{{ getRawPrice(game.price).toFixed(2) }}</span>

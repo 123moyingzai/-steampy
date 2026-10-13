@@ -37,12 +37,17 @@
       <!-- ======= Tab 1: CDKey 管理 ======= -->
       <div class="cjx-section" v-if="activeTab === 'listings'">
         <div class="cjx-filter-bar">
-          <input type="text" v-model="listingSearch" placeholder="搜索游戏名" class="cjx-search-input" />
-          <select v-model="listingStatusFilter" class="cjx-select">
+          <input type="text" v-model="listingSearch" placeholder="搜索游戏名" class="cjx-search-input" @input="currentPage = 1" />
+          <select v-model="listingStatusFilter" class="cjx-select" @change="currentPage = 1">
             <option value="">全部状态</option>
             <option value="available">在售</option>
-            <option value="sold">已售出</option>
             <option value="pending_activation">待激活</option>
+            <option value="sold">已售出</option>
+          </select>
+          <select v-model="pageSize" class="cjx-select" @change="currentPage = 1">
+            <option :value="10">每页 10 条</option>
+            <option :value="20">每页 20 条</option>
+            <option :value="50">每页 50 条</option>
           </select>
           <button class="cjx-btn cjx-btn-primary" @click="loadAll">刷新</button>
         </div>
@@ -51,6 +56,9 @@
         <div class="cjx-batch-bar" v-if="selectedIds.size > 0">
           <span class="cjx-batch-info">已选 {{ selectedIds.size }} 个</span>
           <button class="cjx-btn cjx-btn-quick" @click="openBatchPrice">批量改价</button>
+          <button class="cjx-btn cjx-btn-small cjx-btn-danger" @click="batchSoftDelete">批量下架</button>
+          <button class="cjx-btn cjx-btn-small cjx-btn-primary" @click="batchRelist">批量上架</button>
+          <button class="cjx-btn cjx-btn-small cjx-btn-danger-outline" @click="batchDelete">批量删除</button>
           <button class="cjx-btn cjx-btn-small" @click="toggleSelectAll">全选/全不选</button>
           <button class="cjx-btn cjx-btn-small cjx-btn-danger-outline" @click="clearSelection">取消</button>
         </div>
@@ -69,7 +77,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="l in filteredListings" :key="l.id">
+            <tr v-for="l in pagedListings" :key="l.id">
               <td>
                 <input type="checkbox" v-model="selectedIdsArr" :value="l.id" :disabled="l.status === 'sold'" />
               </td>
@@ -92,19 +100,21 @@
               </td>
               <td>{{ formatDate(l.created_at) }}</td>
               <td>
-                <!-- 在售 → 下架(变成待激活) + 定价 -->
+                <!-- 在售 → 定价 / 下架 / 删除 -->
                 <template v-if="l.status === 'available'">
                   <button class="cjx-btn cjx-btn-small cjx-btn-quick" @click="openQuickPrice(l)">定价</button>
                   <button class="cjx-btn cjx-btn-small cjx-btn-danger" @click="softDeleteListing(l)">下架</button>
+                  <button class="cjx-btn cjx-btn-small cjx-btn-danger-outline" @click="deletePending(l)">删除</button>
                 </template>
-                <!-- 已售 → 不可操作 -->
-                <template v-else-if="l.status === 'sold'">
-                  <span class="cjx-text-muted">-</span>
-                </template>
-                <!-- 待激活 → 重新上架 或 自己激活 -->
+                <!-- 待激活 → 重新上架 / 自己激活 / 删除 -->
                 <template v-else-if="l.status === 'pending_activation'">
                   <button class="cjx-btn cjx-btn-small cjx-btn-primary" @click="jumpToRelist(l)">重新上架</button>
                   <button class="cjx-btn cjx-btn-small cjx-btn-generate" @click="selfActivate(l)">自己激活</button>
+                  <button class="cjx-btn cjx-btn-small cjx-btn-danger-outline" @click="deletePending(l)">删除</button>
+                </template>
+                <!-- 已售 → 不可操作（保护订单溯源）-->
+                <template v-else-if="l.status === 'sold'">
+                  <span class="cjx-text-muted">-</span>
                 </template>
                 <span v-else class="cjx-text-muted">-</span>
               </td>
@@ -114,6 +124,25 @@
         <div class="cjx-empty" v-else>
           <p>暂无 CDKey 上架记录</p>
           <button class="cjx-btn cjx-btn-primary" @click="activeTab = 'new'">去上架</button>
+        </div>
+
+        <!-- 分页菜单 -->
+        <div class="cjx-pagination" v-if="filteredListings.length > 0">
+          <span class="cjx-page-info">共 {{ filteredListings.length }} 条 · 第 {{ currentPage }}/{{ totalPages }} 页</span>
+          <div class="cjx-page-buttons">
+            <button class="cjx-btn cjx-btn-small" :disabled="currentPage === 1" @click="goToPage(1)">首页</button>
+            <button class="cjx-btn cjx-btn-small" :disabled="currentPage === 1" @click="goToPage(currentPage - 1)">上一页</button>
+            <template v-for="p in pageNumbers" :key="p">
+              <button
+                v-if="p !== '...'"
+                :class="['cjx-btn', 'cjx-btn-small', currentPage === p ? 'cjx-btn-primary' : '']"
+                @click="goToPage(p as number)"
+              >{{ p }}</button>
+              <span v-else class="cjx-page-ellipsis">...</span>
+            </template>
+            <button class="cjx-btn cjx-btn-small" :disabled="currentPage === totalPages" @click="goToPage(currentPage + 1)">下一页</button>
+            <button class="cjx-btn cjx-btn-small" :disabled="currentPage === totalPages" @click="goToPage(totalPages)">末页</button>
+          </div>
         </div>
 
         <!-- 批量改价弹窗 -->
@@ -396,11 +425,11 @@ const filteredListings = computed(() => {
   let r = sellerListings.value
   if (listingSearch.value) r = r.filter(x => x.game_name?.includes(listingSearch.value))
   if (listingStatusFilter.value) r = r.filter(x => x.status === listingStatusFilter.value)
-  // 排序：在售新 → 在售旧 → 已售新 → 已售旧 → 待激活新 → 待激活旧
+  // 排序：在售 → 待激活 → 已售出；同状态按时间新→旧
   const statusRank = (s: string) => {
     if (s === 'available') return 0
-    if (s === 'sold') return 1
-    if (s === 'pending_activation') return 2
+    if (s === 'pending_activation') return 1
+    if (s === 'sold') return 2
     return 3
   }
   return r.sort((a, b) => {
@@ -410,6 +439,36 @@ const filteredListings = computed(() => {
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   })
 })
+
+// ======== 分页 ========
+const pageSize = ref(20)
+const currentPage = ref(1)
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredListings.value.length / pageSize.value)))
+const pagedListings = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  return filteredListings.value.slice(start, start + pageSize.value)
+})
+const goToPage = (p: number) => {
+  if (p < 1 || p > totalPages.value) return
+  currentPage.value = p
+}
+
+// 智能分页：最多显示 7 个页码，带省略号
+const pageNumbers = computed(() => {
+  const total = totalPages.value
+  const cur = currentPage.value
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const pages: (number | string)[] = [1]
+  const left = Math.max(2, cur - 1)
+  const right = Math.min(total - 1, cur + 1)
+  if (left > 2) pages.push('...')
+  for (let i = left; i <= right; i++) pages.push(i)
+  if (right < total - 1) pages.push('...')
+  pages.push(total)
+  return pages
+})
+
+const _resetPage = () => { currentPage.value = 1 }
 
 const stats = computed(() => {
   const available = sellerListings.value.filter(l => l.status === 'available').length
@@ -646,6 +705,84 @@ const selfActivate = async (l: any) => {
     if (r.error) showToast('激活失败: ' + r.error)
     else { showToast('✅ 已激活，CDKey 已加入你的游戏库'); loadAll() }
   } catch (e: any) { showToast('激活失败: ' + e.message) }
+}
+
+/** 待激活 → 彻底删除（不可恢复）*/
+const deletePending = async (l: any) => {
+  if (!confirm(`⚠️ 确定永久删除该 CDKey？此操作不可恢复！\n游戏: ${l.game_name}\nCDKey: ${l.cdkey?.substring(0, 8)}...`)) return
+  try {
+    const r = await listingAPI.deleteListing(l.id)
+    if (r.error) showToast('删除失败: ' + r.error)
+    else { showToast('✅ 已删除'); loadAll() }
+  } catch (e: any) { showToast('删除失败: ' + e.message) }
+}
+
+// ======== 批量操作 ========
+const batchSoftDelete = async () => {
+  const ids = Array.from(selectedIds.value)
+  if (ids.length === 0) { showToast('请先选择'); return }
+  // 前置提醒：哪些会被下架、哪些会被跳过
+  const sel = sellerListings.value.filter(l => ids.includes(l.id))
+  const availCount = sel.filter(l => l.status === 'available').length
+  const nonAvail = sel.length - availCount
+  if (availCount === 0) { showToast('所选 CDKey 中没有"在售"状态可下架'); return }
+  const tip = nonAvail > 0
+    ? `将下架 ${availCount} 个在售 CDKey（${nonAvail} 个非在售状态将被跳过）。确定？`
+    : `确定批量下架 ${availCount} 个 CDKey？下架后将进入"待激活"状态，可随时重新上架。`
+  if (!confirm(tip)) return
+  try {
+    const r = await listingAPI.batchSoftDelete(ids)
+    if (r.error) showToast('批量下架失败: ' + r.error)
+    else {
+      const d = r.data as any
+      showToast(`✅ 已下架 ${d?.updated ?? 0} 个${d?.skipped ? `，跳过 ${d.skipped} 个` : ''}`)
+      clearSelection(); loadAll()
+    }
+  } catch (e: any) { showToast('批量下架失败: ' + e.message) }
+}
+
+const batchRelist = async () => {
+  const ids = Array.from(selectedIds.value)
+  if (ids.length === 0) { showToast('请先选择'); return }
+  const sel = sellerListings.value.filter(l => ids.includes(l.id))
+  const pendingCount = sel.filter(l => l.status === 'pending_activation').length
+  const nonPending = sel.length - pendingCount
+  if (pendingCount === 0) { showToast('所选 CDKey 中没有"待激活"状态可上架'); return }
+  const tip = nonPending > 0
+    ? `将上架 ${pendingCount} 个待激活 CDKey（${nonPending} 个非待激活状态将被跳过）。确定？`
+    : `确定批量上架 ${pendingCount} 个 CDKey？`
+  if (!confirm(tip)) return
+  try {
+    const r = await listingAPI.batchRelist(ids)
+    if (r.error) showToast('批量上架失败: ' + r.error)
+    else {
+      const d = r.data as any
+      showToast(`✅ 已上架 ${d?.updated ?? 0} 个${d?.skipped ? `，跳过 ${d.skipped} 个` : ''}`)
+      clearSelection(); loadAll()
+    }
+  } catch (e: any) { showToast('批量上架失败: ' + e.message) }
+}
+
+const batchDelete = async () => {
+  const ids = Array.from(selectedIds.value)
+  if (ids.length === 0) { showToast('请先选择'); return }
+  const sel = sellerListings.value.filter(l => ids.includes(l.id))
+  const delCount = sel.filter(l => l.status !== 'sold').length
+  const soldCount = sel.length - delCount
+  if (delCount === 0) { showToast('所选 CDKey 全部是"已售"状态，不可删除'); return }
+  const tip = soldCount > 0
+    ? `⚠️ 确定永久删除 ${delCount} 个 CDKey？（${soldCount} 个已售将被跳过）此操作不可恢复！`
+    : `⚠️ 确定永久删除选中的 ${delCount} 个 CDKey？此操作不可恢复！`
+  if (!confirm(tip)) return
+  try {
+    const r = await listingAPI.batchDelete(ids)
+    if (r.error) showToast('批量删除失败: ' + r.error)
+    else {
+      const d = r.data as any
+      showToast(`✅ 已删除 ${d?.deleted ?? 0} 个${d?.skipped ? `，跳过 ${d.skipped} 个` : ''}`)
+      clearSelection(); loadAll()
+    }
+  } catch (e: any) { showToast('批量删除失败: ' + e.message) }
 }
 
 
@@ -1075,4 +1212,15 @@ input[type="checkbox"]:disabled { cursor: not-allowed; opacity: .4; }
 .cjx-batch-group-meta { font-size: 12px; color: #999; margin-top: 4px; padding-left: 58px; }
 .cjx-batch-input-row { display: flex; gap: 10px; align-items: center; }
 .cjx-batch-input-row .cjx-input { flex: 1; }
+
+/* ======== Pagination ======== */
+.cjx-pagination {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 4px 4px; gap: 12px; flex-wrap: wrap;
+}
+.cjx-page-info { font-size: 13px; color: #666; }
+.cjx-page-buttons { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.cjx-page-buttons .cjx-btn-small { min-width: 34px; text-align: center; padding: 6px 10px; }
+.cjx-page-ellipsis { color: #999; font-size: 13px; padding: 0 4px; }
+.cjx-page-buttons .cjx-btn:disabled { background: #ecf0f1; color: #bdc3c7; cursor: not-allowed; border-color: #eaeaea; }
 </style>
