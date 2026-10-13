@@ -10,8 +10,13 @@
         <span>Steam PY匹歪</span>
       </div>
 
+      <!-- 汉堡按钮（移动端） -->
+      <button class="cjx-hamburger" @click="mobileNavOpen = !mobileNavOpen">
+        <span></span><span></span><span></span>
+      </button>
+
       <!-- 中间导航菜单 -->
-      <nav class="cjx-nav-menu">
+      <nav class="cjx-nav-menu" :class="{ 'cjx-nav-menu--open': mobileNavOpen }">
         <div class="cjx-nav-group">
           <span class="cjx-nav-group-title">市场</span>
           <div class="cjx-nav-items">
@@ -182,6 +187,11 @@ const router = useRouter()
 const currentUser = ref(null)
 const walletBalance = ref(0)
 const showMenu = ref(false)
+const mobileNavOpen = ref(false)
+
+// 路由切换时自动关闭移动端菜单
+import { watch } from 'vue'
+watch(() => router.currentRoute.value.path, () => { mobileNavOpen.value = false })
 
 // 通知面板
 const showMsgPanel = ref(false)     // 信封（用户交互）
@@ -846,6 +856,26 @@ onUnmounted(() => {
   margin: 0.25rem 0;
 }
 
+/* 汉堡按钮 */
+.cjx-hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.cjx-hamburger span {
+  display: block;
+  width: 24px;
+  height: 2px;
+  background: #333;
+  border-radius: 2px;
+  transition: transform 0.2s, opacity 0.2s;
+}
+
 /* 响应式 */
 @media (max-width: 1024px) {
   .cjx-top-nav {
@@ -873,8 +903,49 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
-  .cjx-nav-group-title {
+  .cjx-hamburger {
+    display: flex;
+    margin-left: auto;
+  }
+
+  .cjx-nav-menu {
     display: none;
+    flex-direction: column;
+    width: 100%;
+    order: 4;
+    background: #fff;
+    border-top: 1px solid #eee;
+    padding: 0.5rem 0;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+  }
+  .cjx-nav-menu--open {
+    display: flex;
+  }
+  .cjx-nav-menu .cjx-nav-group {
+    flex-direction: column;
+    padding: 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .cjx-nav-menu .cjx-nav-group:last-child { border-bottom: none; }
+  .cjx-nav-menu .cjx-nav-group-title {
+    display: block;
+    font-size: 0.75rem;
+    color: #999;
+    padding: 0.5rem 1rem 0.25rem;
+    text-transform: uppercase;
+  }
+  .cjx-nav-menu .cjx-nav-items {
+    flex-wrap: wrap;
+    gap: 0;
+  }
+  .cjx-nav-menu .cjx-nav-item {
+    flex: 1 1 auto;
+    padding: 0.6rem 1rem;
+    min-width: 50%;
+  }
+
+  .cjx-nav-group-title {
+    /* 已在上面 override */
   }
 
   .cjx-wallet-label {
@@ -883,6 +954,12 @@ onUnmounted(() => {
 
   .cjx-nav-item span {
     font-size: 0.85rem;
+  }
+
+  .cjx-top-btn.cjx-withdraw,
+  .cjx-top-btn.cjx-details {
+    padding: 4px 8px;
+    font-size: 0.75rem;
   }
 }
 </style>

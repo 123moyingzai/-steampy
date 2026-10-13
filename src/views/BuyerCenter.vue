@@ -57,19 +57,19 @@
             </thead>
             <tbody>
               <tr v-for="order in filteredOrders" :key="order.id">
-                <td>{{ order.order_no }}</td>
-                <td>{{ formatDate(order.created_at) }}</td>
-                <td>{{ order.game_name_display || order.game_name || '未知游戏' }}</td>
-                <td>¥{{ (order.price || 0).toFixed(2) }}</td>
-                <td>{{ order.quantity || 1 }}</td>
-                <td>¥{{ (order.total_price || 0).toFixed(2) }}</td>
-                <td>
+                <td data-label="订单号">{{ order.order_no }}</td>
+                <td data-label="下单时间">{{ formatDate(order.created_at) }}</td>
+                <td data-label="游戏">{{ order.game_name_display || order.game_name || '未知游戏' }}</td>
+                <td data-label="单价">¥{{ (order.price || 0).toFixed(2) }}</td>
+                <td data-label="数量">{{ order.quantity || 1 }}</td>
+                <td data-label="总价">¥{{ (order.total_price || 0).toFixed(2) }}</td>
+                <td data-label="状态">
                   <span :class="['cjx-status', `cjx-status-${order.status}`]">
                     {{ getStatusText(order.status) }}
                   </span>
                   <span v-if="refundStatus(order)" class="cjx-refund-tag">{{ refundStatus(order) }}</span>
                 </td>
-                <td>
+                <td data-label="操作" class="cjx-td-actions">
                   <button class="cjx-btn cjx-btn-small" @click="viewOrder(order)">查看</button>
                   <button v-if="canRefund(order)" class="cjx-btn cjx-btn-small cjx-btn-refund" @click="openRefundModal(order)">申请退款</button>
                 </td>
@@ -111,18 +111,18 @@
             </thead>
             <tbody>
               <tr v-for="order in filteredCdkeyOrders" :key="order.id">
-                <td>{{ order.order_no }}</td>
-                <td>{{ formatDateTime(order.created_at) }}</td>
-                <td>{{ order.game_name_display || order.game_name || '未知游戏' }}</td>
-                <td class="cjx-price">¥{{ order.total_price?.toFixed(2) }}</td>
-                <td>Steam PY官方</td>
-                <td>
+                <td data-label="订单号">{{ order.order_no }}</td>
+                <td data-label="购买日期">{{ formatDateTime(order.created_at) }}</td>
+                <td data-label="游戏">{{ order.game_name_display || order.game_name || '未知游戏' }}</td>
+                <td data-label="金额" class="cjx-price">¥{{ order.total_price?.toFixed(2) }}</td>
+                <td data-label="卖家">Steam PY官方</td>
+                <td data-label="状态">
                   <span :class="['cjx-status', `cjx-status-${order.status}`]">
                     {{ getOrderStatusText(order.status) }}
                   </span>
                   <span v-if="refundStatus(order)" class="cjx-refund-tag">{{ refundStatus(order) }}</span>
                 </td>
-                <td>
+                <td data-label="操作" class="cjx-td-actions">
                   <button class="cjx-btn cjx-btn-small" @click="viewOrderDetail(order)">查看</button>
                   <button v-if="canRefund(order)" class="cjx-btn cjx-btn-small cjx-btn-refund" @click="openRefundModal(order)">申请退款</button>
                 </td>
@@ -848,5 +848,68 @@ onMounted(() => {
   padding: 15px 20px;
   border-top: 1px solid #e0e0e0;
   text-align: center;
+}
+
+/* ===== 移动端适配 ===== */
+@media (max-width: 768px) {
+  .cjx-tabs-nav {
+    padding: 0 0.5rem;
+    margin: -20px -16px 16px -16px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .cjx-tabs-list {
+    gap: 0;
+    min-width: max-content;
+  }
+  .cjx-tab-item {
+    padding: 0.75rem 1rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+
+  /* 表格 → 卡片堆叠 */
+  .cjx-table thead {
+    display: none;
+  }
+  .cjx-table tbody tr {
+    display: block;
+    margin-bottom: 12px;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .cjx-table tbody td {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border: none;
+    font-size: 0.85rem;
+  }
+  .cjx-table tbody td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: #999;
+    margin-right: 8px;
+  }
+  .cjx-table tbody td.cjx-td-actions {
+    justify-content: flex-end;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .cjx-filter-bar {
+    flex-wrap: wrap;
+  }
+  .cjx-search-input {
+    flex: 1 1 100%;
+  }
+
+  .cjx-btn-small {
+    padding: 6px 10px;
+    font-size: 0.78rem;
+  }
 }
 </style>
