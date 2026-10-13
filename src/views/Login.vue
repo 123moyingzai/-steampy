@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="cjx-login-page">
     <div class="cjx-logo">
       <svg viewBox="0 0 24 24">
@@ -90,7 +90,7 @@
         </form>
 
         <!-- 手机号登录面板 -->
-        <form v-show="loginTab === 'phone'" class="cjx-login-tab-panel" @submit.prevent="handlePhoneLogin">
+        <form v-show="loginTab === 'phone'" class="cjx-login-tab-panel" @submit.prevent="handlePhoneCodeLogin">
           <div class="cjx-form-group cjx-phone-input-group">
             <select class="cjx-country-code">
               <option>+86(中国)</option>
@@ -104,25 +104,67 @@
           </div>
           <div class="cjx-error-message">{{ errors.phone }}</div>
 
-          <div class="cjx-form-group cjx-password-toggle">
-            <input 
-              :type="showPhonePassword ? 'text' : 'password'"
-              class="cjx-form-control" 
-              placeholder="请输入密码"
-              v-model="phoneForm.password"
-            >
-            <span class="cjx-toggle-icon" @click="showPhonePassword = !showPhonePassword">
-              <svg v-if="showPhonePassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                <circle cx="12" cy="12" r="3"/>
-              </svg>
-              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                <line x1="1" y1="1" x2="23" y2="23"/>
-              </svg>
-            </span>
+          <!-- 子切换：密码登录 / 验证码登录 -->
+          <div class="cjx-sub-tabs">
+            <span 
+              :class="['cjx-sub-tab', { active: phoneSubMode === 'password' }]" 
+              @click="phoneSubMode = 'password'"
+            >密码登录</span>
+            <span 
+              :class="['cjx-sub-tab', { active: phoneSubMode === 'code' }]" 
+              @click="switchPhoneSubMode('code')"
+            >验证码登录</span>
           </div>
-          <div class="cjx-error-message">{{ errors.phoneCode }}</div>
+
+          <!-- 密码登录模式 -->
+          <template v-if="phoneSubMode === 'password'">
+            <div class="cjx-form-group cjx-password-toggle">
+              <input 
+                :type="showPhonePassword ? 'text' : 'password'"
+                class="cjx-form-control" 
+                placeholder="请输入密码"
+                v-model="phoneForm.password"
+              >
+              <span class="cjx-toggle-icon" @click="showPhonePassword = !showPhonePassword">
+                <svg v-if="showPhonePassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+              </span>
+            </div>
+            <div class="cjx-error-message">{{ errors.phoneCode }}</div>
+          </template>
+
+          <!-- 验证码登录模式 -->
+          <template v-else>
+            <div class="cjx-form-group">
+              <div class="cjx-code-generate-row">
+                <input 
+                  type="text" 
+                  class="cjx-form-control" 
+                  placeholder="请输入验证码"
+                  v-model="phoneForm.code"
+                  maxlength="6"
+                >
+                <button 
+                  type="button"
+                  class="cjx-get-code-btn"
+                  @click="generatePhoneCode"
+                  :disabled="phoneCodeCountdown > 0"
+                >
+                  {{ phoneCodeCountdown > 0 ? `${phoneCodeCountdown}s` : '获取验证码' }}
+                </button>
+              </div>
+              <div v-if="generatedPhoneCode" class="cjx-code-hint">
+                本次验证码：<strong>{{ generatedPhoneCode }}</strong>
+              </div>
+            </div>
+            <div class="cjx-error-message">{{ errors.phoneCode }}</div>
+          </template>
 
           <div class="cjx-options">
             <div class="cjx-checkbox-group">
@@ -138,7 +180,12 @@
           </div>
           <div class="cjx-error-message">{{ errors.phoneAgree }}</div>
 
-          <button type="button" class="cjx-btn cjx-btn-primary" @click="handlePhoneLogin" :disabled="phoneLoading">
+          <button 
+            type="button" 
+            class="cjx-btn cjx-btn-primary" 
+            @click="phoneSubMode === 'password' ? handlePhoneLogin() : handlePhoneCodeLogin()" 
+            :disabled="phoneLoading"
+          >
             {{ phoneLoading ? '登录中...' : '登录' }}
           </button>
 
@@ -255,12 +302,14 @@ const route = useRoute()
 // 响应式数据
 const isLogin = ref(true)
 const loginTab = ref('password')
+const phoneSubMode = ref<'password' | 'code'>('password')  // 手机号面板子切换
 const loading = ref(false)
 const phoneLoading = ref(false)
 const showPassword = ref(false)
 const showPhonePassword = ref(false)
 const showRegPassword = ref(false)
 const captchaCode = ref('')
+const generatedPhoneCode = ref('')  // 手机号验证码登录的随机码
 const phoneCodeCountdown = ref(0)
 const regCodeCountdown = ref(0)
 
@@ -275,6 +324,7 @@ const loginForm = reactive({
 const phoneForm = reactive({
   phone: '',
   password: '',
+  code: '',
   autoLogin: true,
   agree: false
 })
@@ -482,6 +532,89 @@ const handlePhoneLogin = async () => {
   }
 }
 
+// 手机号面板子切换
+const switchPhoneSubMode = (mode: 'password' | 'code') => {
+  phoneSubMode.value = mode
+  clearErrors()
+  generatedPhoneCode.value = ''
+  phoneForm.code = ''
+  phoneForm.password = ''
+}
+
+// 生成随机 6 位验证码 + 60s 倒计时
+const generatePhoneCode = () => {
+  if (!/^1[3-9]\d{9}$/.test(phoneForm.phone)) {
+    errors.phone = '请输入正确的手机号'
+    return
+  }
+  errors.phone = ''
+  const code = Math.floor(100000 + Math.random() * 900000).toString()
+  generatedPhoneCode.value = code
+  phoneForm.code = ''
+  // 60 秒倒计时
+  phoneCodeCountdown.value = 60
+  const timer = setInterval(() => {
+    phoneCodeCountdown.value--
+    if (phoneCodeCountdown.value <= 0) {
+      clearInterval(timer)
+      generatedPhoneCode.value = ''
+    }
+  }, 1000)
+}
+
+// 手机号 + 验证码登录
+const handlePhoneCodeLogin = async () => {
+  clearErrors()
+  let isValid = true
+
+  if (!/^1[3-9]\d{9}$/.test(phoneForm.phone)) {
+    errors.phone = '请输入正确的手机号'
+    isValid = false
+  }
+  if (!generatedPhoneCode.value) {
+    errors.phoneCode = '请先获取验证码'
+    isValid = false
+  } else if (!phoneForm.code) {
+    errors.phoneCode = '请输入验证码'
+    isValid = false
+  } else if (phoneForm.code !== generatedPhoneCode.value) {
+    errors.phoneCode = '验证码不正确'
+    isValid = false
+  }
+  if (!phoneForm.agree) {
+    errors.phoneAgree = '请同意用户协议和隐私政策'
+    isValid = false
+  }
+
+  if (!isValid) return
+
+  phoneLoading.value = true
+  try {
+    const res = await fetch('/api/auth/phone-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: phoneForm.phone })
+    })
+    const json = await res.json()
+    if (json.code === 200) {
+      const user = snakeToCamel(json.data.user)
+      sessionStorage.setItem('steampy_user', JSON.stringify(user))
+      sessionStorage.removeItem('steampy_admin')
+      const isAdmin = (user as any)?.userType === '管理员'
+      if (isAdmin) sessionStorage.setItem('steampy_admin', 'true')
+      alert('登录成功！')
+      window.dispatchEvent(new Event('user-logged-in'))
+      router.replace(isAdmin ? '/admin/dashboard' : '/')
+    } else {
+      errors.phoneCode = json.message || '登录失败'
+    }
+  } catch (e: any) {
+    errors.phoneCode = '登录异常：' + (e?.message || '网络错误')
+  } finally {
+    phoneLoading.value = false
+  }
+}
+
 // 注册处理
 const handleRegister = async () => {
   clearErrors()
@@ -665,6 +798,59 @@ onMounted(() => {
 .cjx-verify-code-group {
   display: flex;
   gap: 10px;
+}
+
+/* 子切换：密码登录 / 验证码登录 */
+.cjx-sub-tabs {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #555;
+}
+.cjx-sub-tab {
+  font-size: 14px;
+  color: #bbbbbb;
+  cursor: pointer;
+  padding: 4px 0;
+  position: relative;
+}
+.cjx-sub-tab:hover {
+  color: #fff;
+}
+.cjx-sub-tab.active {
+  color: #2ecc71;
+  font-weight: 500;
+}
+.cjx-sub-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -9px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: #2ecc71;
+}
+
+/* 验证码行 */
+.cjx-code-generate-row {
+  display: flex;
+  gap: 10px;
+}
+.cjx-code-generate-row .cjx-form-control {
+  flex: 1;
+}
+.cjx-code-hint {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #2ecc71;
+  background: rgba(46, 204, 113, 0.1);
+  padding: 6px 10px;
+  border-radius: 4px;
+}
+.cjx-code-hint strong {
+  font-size: 16px;
+  letter-spacing: 3px;
 }
 
 .cjx-get-code-btn {

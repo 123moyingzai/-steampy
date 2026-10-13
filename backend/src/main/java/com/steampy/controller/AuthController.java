@@ -142,7 +142,24 @@ public class AuthController {
 
         Map<String, Object> data = new HashMap<>();
         u.setPasswordHash(null);  // 返回前清空敏感字段
-        fillSteamDerived(u);      // 回填 steamBound 派生字段
+        fillSteamDerived(u);
+        data.put("user", u);
+        return Result.success(data);
+    }
+
+    // ========== 手机号验证码登录（前端生成随机码 + 后端校验手机号存在）==========
+    @PostMapping("/phone-login")
+    public Result<Map<String, Object>> phoneLogin(@RequestBody Map<String, String> body) {
+        String phone = body.get("phone");
+        if (phone == null || phone.isBlank()) return Result.error("请输入手机号");
+
+        User u = userMapper.selectOne(new QueryWrapper<User>().eq("phone", phone));
+        if (u == null) return Result.error("该手机号未注册");
+        if ("已封禁".equals(u.getUserType())) return Result.error("您的账号已被封禁，无法登录");
+
+        Map<String, Object> data = new HashMap<>();
+        u.setPasswordHash(null);
+        fillSteamDerived(u);
         data.put("user", u);
         return Result.success(data);
     }
