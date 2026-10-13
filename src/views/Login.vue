@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="cjx-login-page">
     <div class="cjx-logo">
       <svg viewBox="0 0 24 24">
@@ -90,7 +90,7 @@
         </form>
 
         <!-- 手机号登录面板 -->
-        <form v-show="loginTab === 'phone'" class="cjx-login-tab-panel" @submit.prevent="handlePhoneCodeLogin">
+        <form v-show="loginTab === 'phone'" class="cjx-login-tab-panel" @submit.prevent="phoneSubMode === 'password' ? handlePhoneLogin() : handlePhoneCodeLogin()">
           <div class="cjx-form-group cjx-phone-input-group">
             <select class="cjx-country-code">
               <option>+86(中国)</option>
@@ -104,19 +104,7 @@
           </div>
           <div class="cjx-error-message">{{ errors.phone }}</div>
 
-          <!-- 子切换：密码登录 / 验证码登录 -->
-          <div class="cjx-sub-tabs">
-            <span 
-              :class="['cjx-sub-tab', { active: phoneSubMode === 'password' }]" 
-              @click="phoneSubMode = 'password'"
-            >密码登录</span>
-            <span 
-              :class="['cjx-sub-tab', { active: phoneSubMode === 'code' }]" 
-              @click="switchPhoneSubMode('code')"
-            >验证码登录</span>
-          </div>
-
-          <!-- 密码登录模式 -->
+          <!-- 密码模式输入 -->
           <template v-if="phoneSubMode === 'password'">
             <div class="cjx-form-group cjx-password-toggle">
               <input 
@@ -137,9 +125,17 @@
               </span>
             </div>
             <div class="cjx-error-message">{{ errors.phoneCode }}</div>
+
+            <div class="cjx-options">
+              <div class="cjx-checkbox-group">
+                <input type="checkbox" class="cjx-form-checkbox" v-model="phoneForm.autoLogin">
+                <label>自动登录</label>
+              </div>
+              <a href="#" class="cjx-forgot-password">忘记密码</a>
+            </div>
           </template>
 
-          <!-- 验证码登录模式 -->
+          <!-- 验证码模式输入（默认主流程） -->
           <template v-else>
             <div class="cjx-form-group">
               <div class="cjx-code-generate-row">
@@ -164,15 +160,11 @@
               </div>
             </div>
             <div class="cjx-error-message">{{ errors.phoneCode }}</div>
-          </template>
 
-          <div class="cjx-options">
-            <div class="cjx-checkbox-group">
-              <input type="checkbox" class="cjx-form-checkbox" v-model="phoneForm.autoLogin">
-              <label>自动登录</label>
+            <div class="cjx-auto-register-hint">
+              未注册绑定手机号验证成功后自动注册
             </div>
-            <a href="#" class="cjx-forgot-password">忘记密码</a>
-          </div>
+          </template>
 
           <div class="cjx-checkbox-group" style="margin-bottom: 20px;">
             <input type="checkbox" class="cjx-form-checkbox" v-model="phoneForm.agree">
@@ -186,8 +178,30 @@
             @click="phoneSubMode === 'password' ? handlePhoneLogin() : handlePhoneCodeLogin()" 
             :disabled="phoneLoading"
           >
-            {{ phoneLoading ? '登录中...' : '登录' }}
+            {{ phoneLoading ? '登录中...' : (phoneSubMode === 'password' ? '密码登录' : '验证登录') }}
           </button>
+
+          <!-- 底部切换入口 -->
+          <div class="cjx-bottom-switch">
+            <span class="cjx-switch-divider">其他渠道</span>
+            <button 
+              class="cjx-switch-btn" 
+              @click="switchPhoneSubMode(phoneSubMode === 'password' ? 'code' : 'password')"
+              type="button"
+            >
+              <!-- 切到密码模式：显示锁图标 -->
+              <svg v-if="phoneSubMode === 'code'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+              <!-- 切到验证码模式：显示锁开启图标 -->
+              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+              </svg>
+              {{ phoneSubMode === 'code' ? '账号密码' : '验证码登录' }}
+            </button>
+          </div>
 
           <div class="cjx-link-text">
             <a @click="switchToRegister">注册账户</a>
@@ -302,7 +316,7 @@ const route = useRoute()
 // 响应式数据
 const isLogin = ref(true)
 const loginTab = ref('password')
-const phoneSubMode = ref<'password' | 'code'>('password')  // 手机号面板子切换
+const phoneSubMode = ref<'password' | 'code'>('code')  // 默认验证码登录（主流程）
 const loading = ref(false)
 const phoneLoading = ref(false)
 const showPassword = ref(false)
@@ -800,36 +814,54 @@ onMounted(() => {
   gap: 10px;
 }
 
-/* 子切换：密码登录 / 验证码登录 */
-.cjx-sub-tabs {
+/* 底部切换入口（密码登录 / 验证码登录 二选一） */
+.cjx-bottom-switch {
+  margin-top: 20px;
   display: flex;
-  gap: 20px;
-  margin-bottom: 16px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #555;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
 }
-.cjx-sub-tab {
-  font-size: 14px;
-  color: #bbbbbb;
-  cursor: pointer;
-  padding: 4px 0;
-  position: relative;
-}
-.cjx-sub-tab:hover {
-  color: #fff;
-}
-.cjx-sub-tab.active {
-  color: #2ecc71;
-  font-weight: 500;
-}
-.cjx-sub-tab.active::after {
-  content: '';
-  position: absolute;
-  bottom: -9px;
-  left: 0;
+.cjx-switch-divider {
+  display: flex;
+  align-items: center;
   width: 100%;
-  height: 2px;
-  background-color: #2ecc71;
+  color: #777;
+  font-size: 12px;
+}
+.cjx-switch-divider::before,
+.cjx-switch-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #555;
+}
+.cjx-switch-divider::before { margin-right: 12px; }
+.cjx-switch-divider::after { margin-left: 12px; }
+.cjx-switch-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: #bbbbbb;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+.cjx-switch-btn:hover {
+  color: #2ecc71;
+  background: rgba(46, 204, 113, 0.08);
+}
+
+/* 验证码登录自动注册提示 */
+.cjx-auto-register-hint {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 8px;
+  line-height: 1.4;
 }
 
 /* 验证码行 */
