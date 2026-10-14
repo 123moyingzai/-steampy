@@ -22,6 +22,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * WalletController
+ * 负责钱包（余额）管理、充值、提现的 HTTP 接口层
+ * 提供的核心接口：
+ *   - GET  /api/wallets/user/{userId}                — 查询用户钱包（不存在则自动创建一个初始余额为 0 的钱包）
+ *   - POST /api/wallets/user/{userId}/recharge       — 用户充值（从外部向钱包入账，内部只加余额）
+ *   - POST /api/wallets/user/{userId}/withdraw        — 用户提现（支持已绑银行卡快捷提现和手输支付宝/银行卡号两种路径）
+ *   - GET  /api/wallets/user/{userId}/withdraw-records — 查询用户的提现申请记录列表
+ *
+ * 提现核心流程：
+ *   1. 校验金额 > 0 + 渠道开关启用 + 收款信息格式校验 + 姓名正则
+ *   2. 手续费按 payment_methods 配置：金额 × 费率，夹在 [最低, 最高] 区间
+ *   3. 立即扣余额（非冻结，直接减 balance）
+ *   4. 写 WithdrawRecord（状态 pending）+ 两条 Transaction（amount 支出 + fee 手续费，均 pending 等审核）
+ *
+ * @author steampy
+ * @date 2026-10-14
+ */
 @RestController
 @RequestMapping("/api/wallets")
 public class WalletController {
@@ -41,6 +59,12 @@ public class WalletController {
     @Autowired
     private PaymentMethodMapper paymentMethodMapper;
 
+    /**
+     * 查询指定用户的钱包；若钱包不存在则自动创建一个初始余额为 0、冻结余额为 0 的钱包并入库
+     *
+     * @param userId 用户 ID
+     * @return {@link Result} 包含钱包对象（保证非 null）
+     */
     @GetMapping("/user/{userId}")
     public Result<Wallet> getWallet(@PathVariable String userId) {
         QueryWrapper<Wallet> qw = new QueryWrapper<>();
@@ -59,7 +83,17 @@ public class WalletController {
         return Result.success(w);
     }
 
-    // 充值
+    /**
+     * 用户充值（从外部向钱包入账）
+     * <p>
+     * 内部仅做余额增加 + 写入一条 type=recharge 的 Transaction，
+     * 真实外部支付流程需由前端/支付网关回调完成（此处为简化版）。
+     * </p>
+     *
+     * @param userId 用户 ID
+     * @param body   JSON 请求体，需包含 amount（充值金额，BigDecimal）
+     * @return {@link Result} 包含更新后的钱包对象
+     */
     @PostMapping("/user/{userId}/recharge")
     public Result<Wallet> recharge(@PathVariable String userId, @RequestBody Map<String, Object> body) {
         BigDecimal amount = new BigDecimal(body.get("amount").toString());
@@ -86,7 +120,28 @@ public class WalletController {
         return Result.success(w);
     }
 
-    // 提现（1% 手续费）
+    /**
+     * 用户申请提现
+     * <p>
+     * 收款信息有两种路径：
+     *   1. 银行卡快捷提现（pay_method=bank + bank_card_id）：直接使用已绑卡信息为唯一事实来源，
+     *      不再接收 account / real_name / bank_name 手输值
+     *   2. 手动填写路径（兼容旧版）：前端直接传 account、real_name，需做正则格式校验
+     *
+     * 格式校验规则：
+     *   - 支付宝账号：11 位手机号（1 开头）或有效邮箱
+     *   - 银行卡号：16-19 位纯数字 + Luhn 算法校验
+     *   - 真实姓名：2-20 个中文字符（含间隔号 ·）
+     *
+     * 手续费按 payment_methods 配置：金额 × feeRate，夹在 [minFee, maxFee] 区间。
+     * 成功后立即扣减余额，写入 WithdrawRecord + 两条 Transaction（均为 pending 状态，等后台审核）。
+     * </p>
+     *
+     * @param userId 用户 ID
+     * @param body   JSON 请求体，包含：amount（提现金额）、pay_method（alipay / bank）、
+     *               account、real_name、bank_name（手动填路径）或 bank_card_id（绑卡路径）
+     * @return {@link Result} 包含 balance（剩余余额）、amount、fee（手续费）、net_amount（实际到账）、order_no（提现单号）
+     */
     @PostMapping("/user/{userId}/withdraw")
     public Result<Map<String, Object>> withdraw(@PathVariable String userId, @RequestBody Map<String, Object> body) {
         BigDecimal amount = new BigDecimal(body.get("amount").toString());
@@ -214,7 +269,12 @@ public class WalletController {
         ));
     }
 
-    // 提现记录列表
+    /**
+     * 查询指定用户的提现申请记录列表（按申请时间倒序）
+     *
+     * @param userId 用户 ID
+     * @return {@link Result} 包含提现记录列表；无记录时返回空数组而非 null
+     */
     @GetMapping("/user/{userId}/withdraw-records")
     public Result<List<WithdrawRecord>> getWithdrawRecords(@PathVariable String userId) {
         QueryWrapper<WithdrawRecord> qw = new QueryWrapper<>();
@@ -223,7 +283,13 @@ public class WalletController {
         return Result.success(list != null ? list : new ArrayList<>());
     }
 
-    // Luhn 算法校验银行卡号
+    /**
+     * 私有工具：Luhn 算法校验银行卡号（ISO/IEC 7812:1983 标准）。
+     * 从右向左，偶数位乘 2（大于 9 则减 9），总和能被 10 整除则通过。
+     *
+     * @param num 银行卡号纯数字字符串
+     * @return 合法则返回 true；非纯数字或校验失败返回 false
+     */
     private static boolean luhnCheck(String num) {
         if (num == null || !num.matches("^\\d+$")) return false;
         int sum = 0;
@@ -237,6 +303,13 @@ public class WalletController {
         return sum % 10 == 0;
     }
 
+    /**
+     * 私有工具：根据 userId 获取钱包；若不存在则自动创建一个初始余额为 0 的钱包并立即入库。
+     * 与 OrderController 中的同名工具方法不同，本方法会直接写入 DB。
+     *
+     * @param userId 用户 ID
+     * @return 钱包对象（保证非 null，且已在 DB 中存在）
+     */
     private Wallet getOrCreateWallet(String userId) {
         QueryWrapper<Wallet> qw = new QueryWrapper<>();
         qw.eq("user_id", userId);

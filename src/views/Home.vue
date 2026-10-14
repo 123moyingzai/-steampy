@@ -1,4 +1,12 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿/**
+ * Home — 网站首页，展示横幅轮播图、公告栏、推荐游戏和平台介绍
+ * 路由路径：/
+ * 核心功能：
+ *   - 5 秒自动轮播横幅（从 slider-data.json 或默认图片加载）
+ *   - 右侧公告栏（从 announcementAPI 拉取）
+ *   - 底部关于平台说明区块
+ */
+<template>
   <Layout>
       <!-- 横幅轮播区 -->
       <div class="cjx-banner">
@@ -92,16 +100,27 @@ import Layout from '../components/Layout.vue'
 const router = useRouter()
 
 // Home 页面特有的响应式数据
+/** 轮播图数组（从 slider-data.json 加载） */
 const slides = ref([])
+/** 当前轮播图索引 */
 const currentSlide = ref(0)
+/** 公告列表 */
 const announcements = ref([])
+/** 侧边公告列表 */
 const sideAnnouncements = ref([])
+/** 游戏数据（首页暂未直接展示，预加载备用） */
 const games = ref([])
+/** 用户配置 */
 const userSettings = ref({})
 
+/** 自动轮播定时器句柄 */
 let slideInterval = null
 
-// 获取图片URL - 处理本地图片路径
+/**
+ * 解析图片路径，兼容多种格式
+ * @param path 原始图片路径
+ * @returns 可访问的 URL
+ */
 const getImageUrl = (path) => {
   if (!path) return '/picture/安魂曲.jpg'
   if (path.startsWith('http')) return path
@@ -114,22 +133,32 @@ const getImageUrl = (path) => {
   return path.startsWith('/') ? path : `/${path}`
 }
 
+/**
+ * 切换到指定轮播图
+ * @param index 目标索引
+ */
 const setSlide = (index) => {
   currentSlide.value = index
 }
 
+/** 切换到下一张轮播图 */
 const nextSlide = () => {
   if (slides.value.length) {
     currentSlide.value = (currentSlide.value + 1) % slides.value.length
   }
 }
 
+/** 切换到上一张轮播图 */
 const prevSlide = () => {
   if (slides.value.length) {
     currentSlide.value = (currentSlide.value - 1 + slides.value.length) % slides.value.length
   }
 }
 
+/**
+ * 跳转到游戏详情页或外部链接
+ * @param game 游戏对象，可能包含 link 字段
+ */
 const goToGame = (game) => {
   if (game.link) {
     if (game.link.includes('.html')) {

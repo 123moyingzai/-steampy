@@ -15,6 +15,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * PaymentMethodController
+ * 负责支付方式（渠道配置）的 HTTP 接口层
+ * 提供的核心接口：
+ *   - GET /api/payment-methods/active?type=withdraw — 查询指定用途下已启用的支付渠道列表
+ *
+ * @author steampy
+ * @date 2026-10-14
+ */
 @RestController
 @RequestMapping("/api/payment-methods")
 public class PaymentMethodController {
@@ -22,7 +31,16 @@ public class PaymentMethodController {
     @Autowired
     private PaymentMethodMapper paymentMethodMapper;
 
-    // 用户端：读取指定用途下已启用的支付渠道（按 sort_order 排序）
+    /**
+     * 查询指定用途下已启用的支付渠道列表（按 sort_order 升序排序）
+     * <p>
+     * 仅返回 is_active = 1 的渠道，用于前端下拉菜单展示。
+     * 返回字段经过精简，不包含内部管理字段。
+     * </p>
+     *
+     * @param type 用途类型，默认 withdraw（提现）；也可传 recharge（充值）等
+     * @return {@link Result} 包含渠道配置列表，每项含 id、method_code、method_name、fee_rate、min_fee、max_fee
+     */
     @GetMapping("/active")
     public Result<List<Map<String, Object>>> listActive(@RequestParam(defaultValue = "withdraw") String type) {
         QueryWrapper<PaymentMethod> qw = new QueryWrapper<>();

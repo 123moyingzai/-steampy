@@ -1,3 +1,11 @@
+/**
+ * BuyerCenter — 买家中心页面，管理自己的所有订单（PY代购 / 礼物代购 等）和退款申请
+ * 路由路径：/buyer
+ * 核心功能：
+ *   - Tab 切换：PY代购订单、礼物代购订单、退款记录
+ *   - 查看订单状态、物流信息、确认收货
+ *   - 申请退款操作
+ */
 <template>
   <Layout>
     <div class="cjx-buyer-page">

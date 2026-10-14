@@ -1,3 +1,10 @@
+/**
+ * AdminReviews — 管理员评测审核页面，审核游戏评测内容处理举报
+ * 路由路径：/admin/reviews
+ * 核心功能：
+ *   - 评测列表、按状态筛选（待审核 / 已通过 / 已拒绝）
+ *   - 审核通过 / 删除违规评测、查看举报详情
+ */
 <template>
   <div class="admin-reviews">
     <div class="toolbar">

@@ -17,9 +17,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 订单超时自动关闭：
- * 停留在 pending（待支付/待处理）超过 timeout-minutes 的订单自动置为 closed，
- * 并释放其占用的 listing（恢复 available，与手动取消一致）。
+ * 订单超时自动关闭定时任务
+ * 核心职责：定期扫描停留在 pending 状态超过超时阈值的订单，将其自动置为 closed，
+ *          并释放这些订单占用的 listing（恢复 available 状态，与手动取消逻辑一致）
+ *
+ * @author steampy
+ * @date 2026-10-14
  */
 @Slf4j
 @Component
@@ -33,6 +36,10 @@ public class OrderTimeoutScheduler {
     @Value("${steampy.order.timeout-minutes:15}")
     private int timeoutMinutes;
 
+    /**
+     * 定时扫描 pending 状态超时订单并自动关闭，同时释放其占用的 listing
+     * 每分钟执行一次，超时时间可通过配置项 steampy.order.timeout-minutes 调整，默认 15 分钟
+     */
     @Scheduled(fixedDelay = 60_000)
     @Transactional
     public void closeTimeoutPendingOrders() {

@@ -1,3 +1,11 @@
+/**
+ * MessageCenter — 消息中心页面，展示交互通知（评论/点赞/回复）和官方公告
+ * 路由路径：/messages
+ * 核心功能：
+ *   - Tab 切换：交互消息 / 官方公告
+ *   - 消息筛选：全部 / 未读 / 已读，支持分页
+ *   - 全部已读按钮、点击消息跳转对应游戏评论区
+ */
 <template>
   <div class="cjx-msg-center">
     <!-- 返回按钮 -->
@@ -87,20 +95,37 @@ import { useRouter } from 'vue-router'
 import { authAPI, notificationAPI, announcementAPI } from '../config/supabase-local.ts'
 
 const router = useRouter()
+
+/** 当前选中 Tab：'msg' = 交互消息，'ann' = 官方公告 */
 const tab = ref<'msg' | 'ann'>('msg')
+/** 交互通知列表 */
 const msgList = ref<any[]>([])
+/** 官方公告列表 */
 const annList = ref<any[]>([])
+/** 交互消息未读数 */
 const msgUnread = ref(0)
+/** 公告未读数 */
 const annUnread = ref(0)
+/** 当前登录用户 */
 const currentUser = ref<any>(null)
 
 // 分页 + 筛选
+/** 当前消息页码 */
 const msgPage = ref(1)
+/** 每页消息数量 */
 const msgSize = ref(10)
+/** 消息总条数 */
 const msgTotal = ref(0)
+/** 消息筛选：全部 / 未读 / 已读 */
 const msgFilter = ref<'all' | 'unread' | 'read'>('all')
+/** 消息总页数 */
 const msgTotalPages = computed(() => Math.max(1, Math.ceil(msgTotal.value / msgSize.value)))
 
+/**
+ * 将通知类型码转为中文描述
+ * @param t 通知类型：reply / like_review / like_reply
+ * @returns 中文描述字符串
+ */
 const typeText = (t: string) => {
   if (t === 'reply') return '回复了你'
   if (t === 'like_review') return '赞了你的评论'
@@ -108,6 +133,11 @@ const typeText = (t: string) => {
   return ''
 }
 
+/**
+ * 时间戳相对时间格式化（刚刚 / N 分钟前 / N 小时前 / N 天前 / 日期）
+ * @param t ISO 时间字符串
+ * @returns 人类可读的相对时间
+ */
 const formatTime = (t: string) => {
   if (!t) return ''
   try {
@@ -121,6 +151,10 @@ const formatTime = (t: string) => {
   } catch { return t }
 }
 
+/**
+ * 加载当前页的交互通知列表
+ * 根据 msgFilter 决定是否只拉未读/已读
+ */
 const loadNotifications = async () => {
   if (!currentUser.value?.id) return
   const isRead = msgFilter.value === 'all' ? undefined : (msgFilter.value === 'read')

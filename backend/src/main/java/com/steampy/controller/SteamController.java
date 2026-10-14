@@ -34,6 +34,20 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+/**
+ * SteamController
+ * 负责 Steam 账号绑定、价格查询、游戏库等业务的 HTTP 接口层
+ * 提供的核心接口：
+ *   - GET  /api/steam/prices?gameIds=16,17,18  — 批量查询 Steam 实时价格（带内存缓存 + 后台异步刷新）
+ *   - POST /api/steam/bind/{userId}            — 模拟绑定 Steam 账号（首次绑定时基于种子生成一致的模拟数据）
+ *   - DELETE /api/steam/unbind/{userId}        — 解绑 Steam 账号（清除绑定关系，保留原始 Steam 数据便于重新绑定恢复）
+ *   - GET  /api/steam/info/{userId}            — 获取用户 Steam 账号资料及统计信息（账号价值、游戏数、游戏时长等）
+ *   - GET  /api/steam/library/{userId}         — 获取用户的 Steam 游戏库列表
+ *   - GET  /api/steam/check-ownership          — 查重：判断用户 Steam 库存中是否已拥有某游戏
+ *
+ * @author steampy
+ * @date 2026-10-14
+ */
 @RestController
 @RequestMapping("/api/steam")
 public class SteamController {
@@ -60,7 +74,7 @@ public class SteamController {
     private final Map<String, Object[]> priceCache = new ConcurrentHashMap<>();
     private static final long CACHE_TTL_MS = 10 * 60 * 1000L; // 10 分钟
 
-    // 信任所有 SSL 证书（开发环境用，解决 PKIX 证书链缺失）
+    // 信任所有 SSL 证书（开发环境用，解决 PKIX 证书链缺失导致 HTTPS 调用 Steam API 失败的问题）
     private static void trustAllSsl() {
         try {
             SSLContext ctx = SSLContext.getInstance("TLS");
@@ -76,9 +90,17 @@ public class SteamController {
     static { trustAllSsl(); }
 
     /**
-     * GET /api/steam/prices?gameIds=16,17,18
-     * 返回 [{ game_id, appid, steam_initial, steam_final, discount_percent, currency, from_steam }]
-     * 不支持 Steam API 的游戏（image 不含 appid）自动跳过或 fallback 传 DB 价
+     * 批量查询 Steam 实时价格（支持内存缓存 + 后台线程异步刷新）
+     * <p>
+     * 流程：
+     *   1. 先从 games 表查出指定 gameIds 的游戏 image 字段，用正则提取 Steam appid
+     *   2. 命中 10 分钟内的内存缓存则直接返回，标记 from_steam=true
+     *   3. 缓存未命中时先用 DB 价兜底返回（from_steam=false），同时启动后台线程异步调用 Steam API 更新缓存
+     *   4. 不支持 Steam API 的游戏（无 appid）自动 fallback 到 games 表的 DB 价
+     * </p>
+     *
+     * @param gameIds 可选：逗号分隔的游戏 ID 列表；不传则查全表
+     * @return {@link Result} 每项包含 game_id、appid、steam_initial（原价）、steam_final（现价）、discount_percent、currency、from_steam（是否来自 Steam API）
      */
     @GetMapping("/prices")
     public Result<List<Map<String, Object>>> getPrices(@RequestParam(required = false) String gameIds) {
@@ -181,13 +203,32 @@ public class SteamController {
         return Result.success(result);
     }
 
+    /**
+     * 从游戏封面 URL 中用正则提取 Steam appid。
+     * URL 格式形如 https://store.steampowered.com/apps/123456/header.jpg 会提取出 "123456"。
+     *
+     * @param imageUrl 游戏封面图片 URL
+     * @return Steam appid 字符串；无法提取时返回 null
+     */
     private static String extractAppid(String imageUrl) {
         if (imageUrl == null) return null;
         Matcher m = STEAM_APPID_PATTERN.matcher(imageUrl);
         return m.find() ? m.group(1) : null;
     }
 
-    // ========== 模拟绑定 ==========
+    /**
+     * 模拟绑定 Steam 账号
+     * <p>
+     * 策略：
+     *   - 优先使用 users 表已有的 steamAccountId 恢复账号，其次用 hash 查 steam_accounts 表
+     *   - 已有账号则直接恢复绑定关系（不重新生成数据）
+     *   - 新账号则用 accountHash 作为种子，生成稳定一致的模拟账号数据（SteamID64、昵称、头像、地区、等级、游戏库）
+     * 最后更新 users.steamAccountId 外键，并实时刷新 steam_accounts 表的统计数据。
+     * </p>
+     *
+     * @param userId 要绑定 Steam 的用户 ID
+     * @return {@link Result} 成功返回 Steam 账号完整资料 + 当前游戏库列表
+     */
     @PostMapping("/bind/{userId}")
     public Result<Map<String, Object>> bind(@PathVariable String userId) {
         User u = userMapper.selectById(userId);
@@ -316,7 +357,16 @@ public class SteamController {
         return Result.success(resp);
     }
 
-    // ========== 解绑 ==========
+    /**
+     * 解绑 Steam 账号
+     * <p>
+     * 仅解除绑定关系：删除 user_steam_bindings 记录、清空 users.steamAccountId 外键。
+     * steam_accounts 和 steam_libraries 的原始数据保留（重新绑定同一 userId 时会恢复关联）。
+     * </p>
+     *
+     * @param userId 要解绑 Steam 的用户 ID
+     * @return {@link Result} 成功返回 null
+     */
     @DeleteMapping("/unbind/{userId}")
     public Result<Void> unbind(@PathVariable String userId) {
         User u = userMapper.selectById(userId);
@@ -338,7 +388,17 @@ public class SteamController {
         return Result.success(null);
     }
 
-    // ========== 获取 Steam 信息 ==========
+    /**
+     * 获取用户的 Steam 账号资料及统计信息
+     * <p>
+     * 每次请求都会先调用 steamService.refreshUserSteamStats() 实时刷新账号统计（游戏数、账号价值、总游戏时长等）。
+     * 若用户未绑定 Steam，则返回的 steam_bound=false，其余字段为 null 或默认值。
+     * </p>
+     *
+     * @param userId 用户 ID
+     * @return {@link Result} 包含 steam_id、steam_name、steam_avatar_url、steam_region、steam_level、
+     *         steam_game_count、steam_account_value、steam_playtime、steam_bound、steam_bound_at
+     */
     @GetMapping("/info/{userId}")
     public Result<Map<String, Object>> getInfo(@PathVariable String userId) {
         User u = userMapper.selectById(userId);
@@ -378,7 +438,15 @@ public class SteamController {
         return Result.success(resp);
     }
 
-    // ========== 获取 Steam 游戏库 ==========
+    /**
+     * 获取用户的 Steam 游戏库列表
+     * <p>
+     * 若用户未绑定 Steam（steamAccountId 为 null），则直接返回空数组而非报错。
+     * </p>
+     *
+     * @param userId 用户 ID
+     * @return {@link Result} 包含游戏库数组，每项含 game_id、game_name、game_image、playtime（游戏时长，小时）
+     */
     @GetMapping("/library/{userId}")
     public Result<List<Map<String, Object>>> getLibrary(@PathVariable String userId) {
         User u = userMapper.selectById(userId);
@@ -398,7 +466,19 @@ public class SteamController {
         return Result.success(resp);
     }
 
-    // ========== 查重 ==========
+    /**
+     * 查重：判断用户的 Steam 库存中是否已拥有某游戏
+     * <p>
+     * 内部会对 gameName 做"去除版本后缀"的模糊匹配（如"豪华版"、"Definitive Edition"），
+     * 兼容用户换不同版本名但实为同一款游戏的情况。
+     * </p>
+     *
+     * @param userId  用户 ID
+     * @param gameId  可选：本地 games 表的游戏 ID（Long 类型）
+     * @param gameName 可选：游戏名称（优先匹配）；与 gameId 二者至少传一个
+     * @return {@link Result} 包含 owned（是否已拥有）、steam_bound（是否已绑定 Steam）、
+     *         owned_game_name（可选，已拥有时返回 Steam 库存中实际匹配到的游戏名）
+     */
     @GetMapping("/check-ownership")
     public Result<Map<String, Object>> checkOwnership(
             @RequestParam String userId,

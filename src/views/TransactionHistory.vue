@@ -1,3 +1,10 @@
+/**
+ * TransactionHistory — 余额明细页面，展示账户余额的所有收支流水
+ * 路由路径：/transactions
+ * 核心功能：
+ *   - 余额收支表格：充值、消费、退款、提现等类型
+ *   - 支持按类型筛选、按时间排序
+ */
 <template>
   <Layout>
     <div class="cjx-transaction-page">

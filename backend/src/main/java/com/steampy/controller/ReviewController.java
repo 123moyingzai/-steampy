@@ -20,6 +20,25 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * ReviewController
+ * 负责游戏评测（评论）及子评论业务的 HTTP 接口层
+ * 提供的核心接口：
+ *   - GET    /api/reviews/game/{gameId}               — 查询某游戏的评论列表（含实时用户资料、点赞聚合）
+ *   - GET    /api/reviews/my?gameId=&userId=          — 查询当前用户对某游戏的评论（用于"编辑我自己的评论"场景）
+ *   - POST   /api/reviews                              — 创建或编辑评测（每个用户每个游戏仅可一条；传 id 则为编辑）
+ *   - DELETE /api/reviews/{id}                        — 删除自己的评论（同时级联清除点赞记录）
+ *   - POST   /api/reviews/{id}/like                   — 对评论点赞（幂等，已点赞则不加数但返回成功）
+ *   - DELETE /api/reviews/{id}/like                   — 取消对评论的点赞
+ *   - GET    /api/reviews/{reviewId}/replies           — 查询某评论下的所有子评论（扁平列表，含实时点赞聚合）
+ *   - POST   /api/reviews/{reviewId}/replies           — 发布子评论（支持回复子评论）
+ *   - POST   /api/reviews/replies/{replyId}/like       — 对子评论点赞
+ *   - DELETE /api/reviews/replies/{replyId}/like       — 取消对子评论的点赞
+ *   - DELETE /api/reviews/replies/{replyId}            — 删除子评论（仅发布人可删）
+ *
+ * @author steampy
+ * @date 2026-10-14
+ */
 @RestController
 @RequestMapping("/api/reviews")
 public class ReviewController {
@@ -36,8 +55,15 @@ public class ReviewController {
     private JdbcTemplate jdbcTemplate;
 
     /**
-     * 查询游戏评论列表
-     * @param userId 可选，传了就返回每条评论当前用户是否已点赞
+     * 查询指定游戏的评论列表（按时间倒序）
+     * <p>
+     * 返回数据会批量回填每个评论发布者的实时昵称、头像（不再存冗余字段），
+     * 并实时聚合点赞数（likesCount）。如果传入 userId，还会计算当前用户是否已点赞该评论。
+     * </p>
+     *
+     * @param gameId  游戏 ID
+     * @param userId  可选：当前登录用户 ID，用于判断每条评论当前用户是否已点赞；不传则所有 liked 字段为 false
+     * @return {@link Result} 包含评论列表
      */
     @GetMapping("/game/{gameId}")
     public Result<List<Review>> listByGame(@PathVariable String gameId,
@@ -63,6 +89,13 @@ public class ReviewController {
         return Result.success(list);
     }
 
+    /**
+     * 查询当前用户对某款游戏的评论（用于"编辑我自己的评论"场景）
+     *
+     * @param gameId 游戏 ID（Long 类型，因为 games.id 数值较大）
+     * @param userId 当前用户 ID
+     * @return {@link Result} 包含评论对象（若不存在则 data 为 null）
+     */
     @GetMapping("/my")
     public Result<Review> myReview(@RequestParam Long gameId, @RequestParam String userId) {
         QueryWrapper<Review> qw = new QueryWrapper<>();
@@ -72,6 +105,20 @@ public class ReviewController {
         return Result.success(r);
     }
 
+    /**
+     * 创建评测或编辑已有评测
+     * <p>
+     * 校验逻辑：
+     *   1. 内容不少于 5 个字符
+     *   2. recommend 必须是 0（不推荐）或 1（推荐）
+     * 编辑场景（body 带 id）：只允许评论作者本人编辑；
+     * 创建场景（body 不带 id）：每个用户每个游戏只允许一条评论，已有则拒绝并提示"请编辑已有评论"。
+     * </p>
+     *
+     * @param body JSON 请求体，字段包含：
+     *             id（可选，存在则为编辑）、gameId、userId、recommend（0/1）、content、images（可选，逗号分隔的图片 URL）
+     * @return {@link Result} 成功返回创建/更新后的评论对象
+     */
     @PostMapping
     public Result<Review> createOrUpdate(@RequestBody Map<String, Object> body) {
         String id = (String) body.get("id");
@@ -126,6 +173,16 @@ public class ReviewController {
         return Result.success(review);
     }
 
+    /**
+     * 删除自己的评论
+     * <p>
+     * 仅评论发布人本人可删。删除时级联清理 review_likes 表中该评论的所有点赞记录。
+     * </p>
+     *
+     * @param id     评论 ID
+     * @param userId 发起删除请求的用户 ID（需与评论的 userId 一致）
+     * @return {@link Result} 成功返回；失败返回错误信息（评论不存在或无权限）
+     */
     @DeleteMapping("/{id}")
     public Result<?> delete(@PathVariable String id, @RequestParam String userId) {
         Review r = reviewMapper.selectById(id);
@@ -138,7 +195,16 @@ public class ReviewController {
         return Result.success();
     }
 
-    /** 点赞（幂等：已点赞则返回成功但不加数） */
+    /**
+     * 对评论点赞（幂等：已点赞则返回成功但不加数）
+     * <p>
+     * 禁止给自己点赞。成功点赞时会通过 NotificationController 给评论作者发一条 like_review 类型通知。
+     * </p>
+     *
+     * @param id     评论 ID
+     * @param userId 点赞发起者用户 ID
+     * @return {@link Result} 包含 liked（布尔，表示当前是否已点赞）和 likesCount（最新点赞总数）
+     */
     @PostMapping("/{id}/like")
     public Result<Map<String, Object>> like(@PathVariable String id, @RequestParam String userId) {
         Review r = reviewMapper.selectById(id);
@@ -165,7 +231,13 @@ public class ReviewController {
         return Result.success(Map.of("liked", liked, "likesCount", count));
     }
 
-    /** 取消点赞 */
+    /**
+     * 取消对评论的点赞
+     *
+     * @param id     评论 ID
+     * @param userId 发起取消点赞的用户 ID
+     * @return {@link Result} 包含 liked（布尔，表示当前是否已点赞，取消后为 false）和 likesCount（最新点赞总数）
+     */
     @DeleteMapping("/{id}/like")
     public Result<Map<String, Object>> unlike(@PathVariable String id, @RequestParam String userId) {
         Review r = reviewMapper.selectById(id);
@@ -186,7 +258,17 @@ public class ReviewController {
 
     // ========== 子评论（Reply） ==========
 
-    /** 查某评论下的所有子评论（扁平列表，按时间排） */
+    /**
+     * 查询某评论下的所有子评论（扁平列表，按创建时间升序）
+     * <p>
+     * 会批量回填所有回复者和被回复者的实时昵称、头像，
+     * 并实时聚合每条子评论的点赞数及当前用户是否已点赞。
+     * </p>
+     *
+     * @param reviewId 父评论 ID
+     * @param userId   可选：当前登录用户 ID，用于判断每条子评论当前用户是否已点赞
+     * @return {@link Result} 包含子评论列表
+     */
     @GetMapping("/{reviewId}/replies")
     public Result<List<Reply>> listReplies(@PathVariable String reviewId,
                                             @RequestParam(required = false) String userId) {
@@ -213,7 +295,20 @@ public class ReviewController {
         return Result.success(list);
     }
 
-    /** 发布子评论（支持回复某条子评论：传 parentReplyId + replyToUserId/Name） */
+    /**
+     * 发布子评论（支持回复某条子评论：传 parentReplyId + replyToUserId）
+     * <p>
+     * 校验逻辑：内容不少于 2 个字符。
+     * 成功后会：
+     *   1. 父评论的 replies_count +1
+     *   2. 通知父评论作者（reply 类型通知）
+     *   3. 如果是回复某条子评论，额外通知那条子评论的作者
+     * </p>
+     *
+     * @param reviewId 父评论 ID
+     * @param body     JSON 请求体，字段包含：userId（回复者）、content、parentReplyId（可选，被回复的子评论 ID）、replyToUserId（可选，被回复的用户 ID）
+     * @return {@link Result} 包含新创建的子评论对象（已回填实时用户资料）
+     */
     @PostMapping("/{reviewId}/replies")
     @Transactional
     public Result<Reply> createReply(@PathVariable String reviewId,
@@ -280,7 +375,16 @@ public class ReviewController {
         return Result.success(r);
     }
 
-    /** 子评论点赞 */
+    /**
+     * 对子评论点赞（幂等，重复点赞不加数）
+     * <p>
+     * 禁止给自己点赞。成功点赞时会给子评论作者发一条 like_reply 类型通知。
+     * </p>
+     *
+     * @param replyId 子评论 ID
+     * @param userId  点赞发起者用户 ID
+     * @return {@link Result} 包含 liked（布尔）和 likesCount（最新点赞总数）
+     */
     @PostMapping("/replies/{replyId}/like")
     public Result<Map<String, Object>> likeReply(@PathVariable String replyId,
                                                   @RequestParam String userId) {
@@ -307,7 +411,13 @@ public class ReviewController {
         return Result.success(Map.of("liked", true, "likesCount", count));
     }
 
-    /** 子评论取消点赞 */
+    /**
+     * 取消对子评论的点赞
+     *
+     * @param replyId 子评论 ID
+     * @param userId  发起取消点赞的用户 ID
+     * @return {@link Result} 包含 liked（布尔，取消后为 false）和 likesCount（最新点赞总数）
+     */
     @DeleteMapping("/replies/{replyId}/like")
     public Result<Map<String, Object>> unlikeReply(@PathVariable String replyId,
                                                      @RequestParam String userId) {
@@ -327,7 +437,18 @@ public class ReviewController {
         return Result.success(Map.of("liked", liked, "likesCount", count));
     }
 
-    /** 删除子评论（发布人或父评论作者可删） */
+    /**
+     * 删除子评论（仅发布人本人可删）
+     * <p>
+     * 删除时：
+     *   1. 级联清理 review_reply_likes 表中该子评论的所有点赞记录
+     *   2. 父评论的 replies_count -1（使用 GREATEST 避免减到负数）
+     * </p>
+     *
+     * @param replyId 子评论 ID
+     * @param userId  发起删除请求的用户 ID（需与子评论的 userId 一致）
+     * @return {@link Result} 成功返回；失败返回错误信息（回复不存在或无权限）
+     */
     @DeleteMapping("/replies/{replyId}")
     @Transactional
     public Result<?> deleteReply(@PathVariable String replyId, @RequestParam String userId) {
@@ -346,7 +467,13 @@ public class ReviewController {
 
     // ========== 私有工具：批量回填用户实时资料 ==========
 
-    /** 批量查 users 表，返回 Map<userId, User>（去重 + 过滤 null） */
+    /**
+     * 批量查询 users 表，返回 Map<userId, User>（去重 + 过滤 null）。
+     * 用于评论列表场景避免 N+1 查询。
+     *
+     * @param userIds 用户 ID 列表（可含 null 或重复值，内部会过滤去重）
+     * @return Map 结构的用户字典；入参为空或全为 null 时返回空 Map
+     */
     private Map<String, User> batchGetUsers(List<String> userIds) {
         if (userIds == null || userIds.isEmpty()) return Collections.emptyMap();
         List<String> unique = userIds.stream().filter(Objects::nonNull).distinct().collect(Collectors.toList());
@@ -357,7 +484,16 @@ public class ReviewController {
         return map;
     }
 
-    /** 给 Review 回填实时 displayName + avatarUrl（查不到用户则显示"已注销用户"） */
+    /**
+     * 给 Review 回填实时 displayName + avatarUrl。
+     * <p>
+     * 昵称优先取 nickname，取不到再取 username；两者都没有则显示"匿名用户"。
+     * 查不到用户（已注销）时显示"已注销用户"并将头像置空。
+     * </p>
+     *
+     * @param r      待回填的评论对象
+     * @param userMap 预先批量查询好的用户字典 Map<userId, User>
+     */
     private void fillReviewUserFields(Review r, Map<String, User> userMap) {
         User u = userMap.get(r.getUserId());
         if (u != null) {
@@ -370,7 +506,16 @@ public class ReviewController {
         }
     }
 
-    /** 给 Reply 回填双方的实时 displayName + avatarUrl */
+    /**
+     * 给 Reply 回填双方的实时 displayName + avatarUrl。
+     * <p>
+     * 同时处理回复者（userId）和被回复者（replyToUserId）两个用户的实时资料回填，
+     * 昵称优先 nickname 再 username，注销用户显示"已注销用户"。
+     * </p>
+     *
+     * @param r      待回填的子评论对象
+     * @param userMap 预先批量查询好的用户字典 Map<userId, User>
+     */
     private void fillReplyUserFields(Reply r, Map<String, User> userMap) {
         // 回复者
         User me = userMap.get(r.getUserId());

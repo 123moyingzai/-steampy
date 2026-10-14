@@ -1,4 +1,12 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿/**
+ * GiftPurchase — PY 代购（礼物购买）页面，列表态展示热门游戏，详情态展示卖家表格支持购买
+ * 路由路径：/buyer?tab=py
+ * 核心功能：
+ *   - 列表态：同 CDKeyMarket 风格的游戏卡片网格，支持搜索和分页
+ *   - 详情态：展示该游戏的所有代购卖家，支持按价格/折扣/成交数排序
+ *   - 代购弹窗：支持余额+支付宝混合支付、Steam 绑定预检、库存查重
+ */
+<template>
   <Layout>
     <div class="cjx-gift-page">
 
@@ -170,16 +178,29 @@ import { fetchAllGames, listingAPI, orderAPI, authAPI, walletAPI, steamAPI } fro
 const router = useRouter()
 
 // ====== 状态 ======
+/** 当前视图模式：'list' = 列表态，'detail' = 详情态（展示卖家表格） */
 const viewMode = ref<'list' | 'detail'>('list')
+/** 详情态当前选中的游戏对象 */
 const selectedGame = ref<any>(null)
+/** 官方游戏列表 */
 const games = ref<any[]>([])
+/** 玩家上架的 listing 列表 */
 const listings = ref<any[]>([])
+/** 当前页码 */
 const page = ref(1)
+/** 每页数量 */
 const pageSize = 70
+/** 卖家表格排序字段：price / minBuy / discount / deals */
 const sortKey = ref<string>('price')
+/** 搜索关键词 */
 const searchQuery = ref('')
 
 // ====== 工具 ======
+/**
+ * 解析图片路径
+ * @param path 原始路径
+ * @returns 可访问的 URL
+ */
 const getImageUrl = (path: string) => {
   if (!path) return '/picture/安魂曲.jpg'
   if (path.startsWith('http')) return path
@@ -191,6 +212,12 @@ const getImageUrl = (path: string) => {
 }
 
 // ====== Catalog（复用 CDKeyMarket 的逻辑）======
+/**
+ * 合并后的游戏目录：官方游戏 + 玩家 listings，每个游戏取最低价
+ * - 先放入官方游戏作为基准
+ * - 再把玩家 listings 聚合进来，若更便宜则覆盖
+ * - 返回 Map values 数组
+ */
 const allGames = computed(() => {
   const map = new Map<string, any>()
   for (const g of games.value) {
@@ -341,18 +368,34 @@ const goDetail = async (item: any) => {
   detailSellers.value.sort((a, b) => a.salePrice - b.salePrice)
 }
 
-// 余额状态
+// ====== 余额状态（购买弹窗内）======
+/** 买家钱包余额（从后端拉取） */
 const buyerBalance = ref(0)
+/** 是否勾选「使用余额抵扣」 */
 const balanceCheck = ref(false)
+/**
+ * 实际使用的余额金额（不超过订单总价，也不超过钱包余额）
+ */
 const balanceAmount = computed(() => {
   if (!balanceCheck.value) return 0
   return Math.min(buyerBalance.value, selectedBuyer.value?.salePrice || 0)
 })
+/** 支付宝实际需要支付的金额 = 总价 - 余额抵扣 */
 const alipayAmount = computed(() => {
   return (selectedBuyer.value?.salePrice || 0) - balanceAmount.value
 })
-const selectedBuyer = ref<any>(null) // 当前弹窗选中的卖家
+/** 当前购买弹窗选中的卖家对象 */
+const selectedBuyer = ref<any>(null)
 
+/**
+ * 打开代购购买弹窗，包含多重前置校验：
+ *   1. 登录校验 → 未登录跳转 /login
+ *   2. 不能买自己上架的商品
+ *   3. Steam 账号绑定校验 → 未绑定跳转 /settings
+ *   4. 库存查重 → 已拥有提示
+ *   5. 拉取买家钱包余额填入弹窗
+ * @param s 点击的卖家行
+ */
 const showBuyDialog = async (s: any) => {
   const user = authAPI.getCurrentUser()
   if (!user) { showToast('请先登录'); router.push('/login'); return }

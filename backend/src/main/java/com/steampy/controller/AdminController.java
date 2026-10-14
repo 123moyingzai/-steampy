@@ -14,6 +14,41 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 
+/**
+ * AdminController
+ * 负责管理员后台的 HTTP 接口层，覆盖仪表盘、用户、游戏、订单、上架、提现、退款、评测、公告、支付渠道等全量管理能力。
+ *
+ * 提供的核心接口：
+ *   - GET    /api/admin/stats             — 仪表盘统计（用户数/订单数/总收入/热销榜等）
+ *   - GET    /api/admin/users             — 用户列表（分页 + 搜索 + 角色筛选，LEFT JOIN 钱包）
+ *   - PUT    /api/admin/users/{id}/ban    — 用户封禁/解封/设为管理员
+ *   - DELETE /api/admin/users/{id}        — 删除用户
+ *   - GET    /api/admin/games             — 游戏列表
+ *   - POST   /api/admin/games             — 创建游戏
+ *   - PUT    /api/admin/games/{id}        — 更新游戏
+ *   - DELETE /api/admin/games/{id}        — 删除游戏
+ *   - GET    /api/admin/orders            — 订单列表
+ *   - PUT    /api/admin/orders/{id}/status — 修改订单状态（校验 OrderStatus 枚举）
+ *   - GET    /api/admin/listings          — 上架列表（可按 status/gameId/type 过滤）
+ *   - PUT    /api/admin/listings/{id}/status — 修改上架状态
+ *   - DELETE /api/admin/listings/{id}     — 删除上架
+ *   - GET    /api/admin/withdrawals       — 提现审核列表
+ *   - PUT    /api/admin/withdrawals/{id}/review — 提现审核（通过改 Transaction；拒绝退回余额 + reversal 流水）
+ *   - GET    /api/admin/refunds           — 退款列表（LEFT JOIN 买家信息）
+ *   - PUT    /api/admin/refunds/{id}/review — 退款审核（事务：订单置已退款 + 退款买家 + 扣回卖家）
+ *   - GET    /api/admin/reviews           — 评测审核（只显示 report_count > 0 的）
+ *   - PUT    /api/admin/reviews/{id}/review — 评测审核（保留/拒绝 + 清零举报）
+ *   - DELETE /api/admin/reviews/{id}      — 删除评测
+ *   - GET    /api/admin/announcements     — 公告列表
+ *   - POST   /api/admin/announcements     — 创建公告
+ *   - PUT    /api/admin/announcements/{id} — 更新公告
+ *   - DELETE /api/admin/announcements/{id} — 删除公告
+ *   - GET    /api/admin/payment-methods   — 支付渠道配置列表
+ *   - PUT    /api/admin/payment-methods/{id} — 更新支付渠道（费率/最小值/最大值/启停/排序）
+ *
+ * @author steampy
+ * @date 2026-10-14
+ */
 @RestController
 @RequestMapping("/api/admin")
 public class AdminController {
@@ -32,6 +67,15 @@ public class AdminController {
     @Autowired private JdbcTemplate jdbcTemplate;
 
     // ======== 仪表盘统计 ========
+
+    /**
+     * 管理员仪表盘统计数据聚合接口。
+     *
+     * 一次性返回平台关键指标：用户总数、订单总数、游戏总数、在售上架数、待审核评测数、待处理提现数、已完成订单总收入、今日订单数及收入、订单状态分布、热销 Top5、最近 8 条订单。
+     * 收入统计基于 status=completed 的订单 totalPrice 累加。
+     *
+     * @return {@link Result} 包含各指标 Map；键名：userCount / orderCount / gameCount / availableListings / pendingReviews / pendingWithdrawals / totalRevenue / todayOrderCount / todayRevenue / orderStatusBreakdown / recentOrders / topGames
+     */
     @GetMapping("/stats")
     public Result<Map<String, Object>> stats() {
         Map<String, Object> m = new HashMap<>();
@@ -111,6 +155,21 @@ public class AdminController {
     }
 
     // ======== 用户管理（分页 + 搜索 + LEFT JOIN wallet 一次查完） ========
+
+    /**
+     * 分页查询用户列表（支持关键词搜索 + 角色筛选）。
+     *
+     * 使用原生 SQL LEFT JOIN user_wallets 一次性带出钱包余额，避免 N+1 查询。
+     * 搜索匹配 username / nickname / phone 三字段的 LIKE。
+     * 列表中的 password_hash 字段统一置为 null 脱敏，不回传给前端。
+     * 做了 size 上限 100 的防刷保护。
+     *
+     * @param page    页码，默认 1
+     * @param size    每页条数，默认 10，最大 100
+     * @param keyword 可选，用户名/昵称/手机号模糊搜索
+     * @param role    可选，按 user_type 精确过滤（如 "普通用户" / "管理员" / "已封禁"）
+     * @return {@link Result} 包含 { total, page, size, list }，list 每项含 users 字段 + wallet_balance
+     */
     @GetMapping("/users")
     public Result<Map<String, Object>> getAllUsers(
             @RequestParam(defaultValue = "1") int page,
@@ -161,6 +220,16 @@ public class AdminController {
         return Result.success(resp);
     }
 
+    /**
+     * 修改用户状态（封禁/解封/升管理员/降普通）。
+     *
+     * 通过 body 中的 action 字段决定：ban→已封禁、unban→普通用户、admin→管理员、normal→普通用户。
+     * 未找到用户返回错误。更新后清空 password_hash 再返回。
+     *
+     * @param id   用户主键
+     * @param body 至少包含 action 字段（ban / unban / admin / normal）
+     * @return {@link Result} 更新后的 User 实体（已脱敏）；用户不存在返回 error
+     */
     @PutMapping("/users/{id}/ban")
     public Result<User> banUser(@PathVariable String id, @RequestBody Map<String, String> body) {
         User u = userMapper.selectById(id);
@@ -176,6 +245,12 @@ public class AdminController {
         return Result.success(u);
     }
 
+    /**
+     * 物理删除用户（风险操作，直接从 users 表移除）。
+     *
+     * @param id 用户主键
+     * @return {@link Result} 通用成功响应
+     */
     @DeleteMapping("/users/{id}")
     public Result<?> deleteUser(@PathVariable String id) {
         userMapper.deleteById(id);
@@ -183,6 +258,12 @@ public class AdminController {
     }
 
     // ======== 游戏管理 ========
+
+    /**
+     * 查询全部游戏，按创建时间倒序。
+     *
+     * @return {@link Result} Game 列表
+     */
     @GetMapping("/games")
     public Result<List<Game>> getAllGames() {
         QueryWrapper<Game> qw = new QueryWrapper<>();
@@ -190,6 +271,14 @@ public class AdminController {
         return Result.success(gameMapper.selectList(qw));
     }
 
+    /**
+     * 新增游戏。
+     *
+     * 校验 name 非空；自动设置 createdAt / updatedAt 为当前时间。
+     *
+     * @param g Game 请求体（至少要有 name）
+     * @return {@link Result} 插入后的 Game 实体（含服务端补全的时间戳）
+     */
     @PostMapping("/games")
     public Result<Game> createGame(@RequestBody Game g) {
         if (g.getName() == null || g.getName().isBlank()) return Result.error("游戏名不能为空");
@@ -199,6 +288,15 @@ public class AdminController {
         return Result.success(g);
     }
 
+    /**
+     * 更新游戏信息（按路径 id 覆盖 body.id）。
+     *
+     * 自动更新 updatedAt。游戏不存在时返回错误。
+     *
+     * @param id   游戏主键
+     * @param body Game 更新内容
+     * @return {@link Result} 更新后的 Game 实体
+     */
     @PutMapping("/games/{id}")
     public Result<Game> updateGame(@PathVariable String id, @RequestBody Game body) {
         Game g = gameMapper.selectById(id);
@@ -209,6 +307,12 @@ public class AdminController {
         return Result.success(body);
     }
 
+    /**
+     * 删除指定游戏（物理删除）。
+     *
+     * @param id 游戏主键
+     * @return {@link Result} 通用成功响应
+     */
     @DeleteMapping("/games/{id}")
     public Result<?> deleteGame(@PathVariable String id) {
         gameMapper.deleteById(id);
@@ -216,6 +320,12 @@ public class AdminController {
     }
 
     // ======== 订单管理 ========
+
+    /**
+     * 查询全部订单，按创建时间倒序。
+     *
+     * @return {@link Result} Order 列表
+     */
     @GetMapping("/orders")
     public Result<List<Order>> getAllOrders() {
         QueryWrapper<Order> qw = new QueryWrapper<>();
@@ -223,6 +333,15 @@ public class AdminController {
         return Result.success(orderMapper.selectList(qw));
     }
 
+    /**
+     * 修改订单状态（需通过 {@link com.steampy.constant.OrderStatus} 合法性校验）。
+     *
+     * 非法状态会返回错误。更新成功时同步 updatedAt。
+     *
+     * @param id   订单主键
+     * @param body 包含 status 字段的 Map
+     * @return {@link Result} 更新后的 Order 实体；状态非法返回 error
+     */
     @PutMapping("/orders/{id}/status")
     public Result<Order> updateOrderStatus(@PathVariable String id, @RequestBody Map<String, String> body) {
         Order o = orderMapper.selectById(id);
@@ -239,6 +358,15 @@ public class AdminController {
     }
 
     // ======== 上架 Listings 管理 ========
+
+    /**
+     * 查询上架列表（可按 status / gameId / type 三条件自由过滤）。
+     *
+     * @param status  可选，上架状态（如 available / sold / pending_activation）
+     * @param gameId  可选，按游戏 ID 过滤
+     * @param type    可选，上架类型（如 cdk / py / balance）
+     * @return {@link Result} Listing 列表
+     */
     @GetMapping("/listings")
     public Result<List<Listing>> getAllListings(
             @RequestParam(required = false) String status,
@@ -252,6 +380,15 @@ public class AdminController {
         return Result.success(listingMapper.selectList(qw));
     }
 
+    /**
+     * 修改上架记录状态。
+     *
+     * 当状态变更为非 available（如 sold / pending_activation）时，自动清空 soldAt 时间戳。
+     *
+     * @param id   上架主键
+     * @param body 包含 status 字段
+     * @return {@link Result} 更新后的 Listing；不存在返回 error
+     */
     @PutMapping("/listings/{id}/status")
     public Result<Listing> updateListingStatus(@PathVariable String id, @RequestBody Map<String, String> body) {
         Listing l = listingMapper.selectById(id);
@@ -268,6 +405,12 @@ public class AdminController {
         return Result.success(l);
     }
 
+    /**
+     * 物理删除上架记录。
+     *
+     * @param id 上架主键
+     * @return {@link Result} 通用成功响应
+     */
     @DeleteMapping("/listings/{id}")
     public Result<?> deleteListing(@PathVariable String id) {
         listingMapper.deleteById(id);
@@ -275,6 +418,13 @@ public class AdminController {
     }
 
     // ======== 提现审核 Withdrawals ========
+
+    /**
+     * 查询提现申请列表（可按 status 过滤）。
+     *
+     * @param status 可选，提现状态（pending / success / failed）
+     * @return {@link Result} WithdrawRecord 列表，按申请时间倒序
+     */
     @GetMapping("/withdrawals")
     public Result<List<WithdrawRecord>> getAllWithdrawals(
             @RequestParam(required = false) String status) {
@@ -284,6 +434,17 @@ public class AdminController {
         return Result.success(withdrawMapper.selectList(qw));
     }
 
+    /**
+     * 审核提现申请（approve / reject）。
+     *
+     * 审核通过：w.status → success，关联的 Transaction 状态改为 completed。
+     * 审核拒绝：w.status → failed，① 关联的 pending Transaction 改 failed；② 退回用户钱包余额；③ 追加一条 reversal 类型的 Transaction 记录退回流水。
+     * 仅 pending 状态的申请可以被审核一次，已审核过的返回错误。
+     *
+     * @param id   提现申请主键
+     * @param body 包含 action（approve/reject）及可选 remark 审核备注
+     * @return {@link Result} 审核后的 WithdrawRecord；非 pending 状态返回 error
+     */
     @PutMapping("/withdrawals/{id}/review")
     public Result<WithdrawRecord> reviewWithdrawal(@PathVariable String id, @RequestBody Map<String, String> body) {
         WithdrawRecord w = withdrawMapper.selectById(id);
@@ -339,6 +500,16 @@ public class AdminController {
     }
 
     // ======== 退款审核 Refunds ========
+
+    /**
+     * 查询退款申请列表（原生 SQL，LEFT JOIN 带出买家 username/nickname）。
+     *
+     * 支持按 status 过滤和 keyword（refund_no / order_no / game_name 模糊搜索）。
+     *
+     * @param status  可选，退款状态（pending / approved / rejected）
+     * @param keyword 可选，关键词模糊搜索（退款单号/订单号/游戏名）
+     * @return {@link Result} Map 列表，含 refunds 全字段 + buyer_username / buyer_nickname
+     */
     @GetMapping("/refunds")
     public Result<List<Map<String, Object>>> getAllRefunds(
             @RequestParam(required = false) String status,
@@ -361,6 +532,17 @@ public class AdminController {
         return Result.success(rows);
     }
 
+    /**
+     * 审核退款申请（approve / reject），带 @Transactional 保障资金一致性。
+     *
+     * 审核通过将依次执行：① 关联订单置为 refunded；② 买家钱包退回金额 + 写一条 refund 类型 Transaction（含资金快照 before/after）；③ 卖家余额扣回 + 写一条 refund_deduct 类型 Transaction；④ 卖家余额不足时平台兜底，仍保证退款成功。
+     * 审核拒绝仅修改 refund.status 为 rejected。
+     * 仅 pending 状态可被审核一次。
+     *
+     * @param id   退款申请主键
+     * @param body 包含 action（approve/reject）及可选 remark 审核备注
+     * @return {@link Result} 审核后的 Refund 实体；非 pending 或未知 action 返回 error
+     */
     @PutMapping("/refunds/{id}/review")
     @Transactional
     public Result<Refund> reviewRefund(@PathVariable String id, @RequestBody Map<String, String> body) {
@@ -450,6 +632,16 @@ public class AdminController {
     }
 
     // ======== 评测审核 Reviews（仅显示被举报过的） ========
+
+    /**
+     * 查询待处理的评测列表（只取 report_count > 0 的，即被举报过的）。
+     *
+     * 额外批量回填评测作者的 nickname/avatar 到 Review 的 displayName / avatarUrl 字段，避免 N+1。
+     *
+     * @param status  可选，评测状态（0 待审核 / 1 保留 / 2 拒绝）
+     * @param gameId  可选，按游戏 ID 过滤
+     * @return {@link Result} 带实时用户资料回填的 Review 列表，按举报数和创建时间倒序
+     */
     @GetMapping("/reviews")
     public Result<List<Review>> getAllReviews(
             @RequestParam(required = false) Integer status,
@@ -482,7 +674,16 @@ public class AdminController {
         return Result.success(list);
     }
 
-    /** 管理员审核后决定：status=1 保留，status=2 拒绝。任何处理都清零 report_count + 清空 reports 记录 */
+    /**
+     * 审核评测：保留（status=1）或拒绝（status=2）。
+     *
+     * 任何处理都会清零 report_count 并物理删除 reports 表中针对该评测的全部举报记录，使其彻底出队。
+     * 评测不存在返回错误。
+     *
+     * @param id   评测主键
+     * @param body 必须包含 status 字段（Integer，1 保留 / 2 拒绝）
+     * @return {@link Result} 更新后的 Review；评测不存在返回 error
+     */
     @PutMapping("/reviews/{id}/review")
     public Result<Review> reviewReview(@PathVariable String id, @RequestBody Map<String, Object> body) {
         Review r = reviewMapper.selectById(id);
@@ -497,6 +698,12 @@ public class AdminController {
         return Result.success(r);
     }
 
+    /**
+     * 物理删除评测。
+     *
+     * @param id 评测主键
+     * @return {@link Result} 通用成功响应
+     */
     @DeleteMapping("/reviews/{id}")
     public Result<?> deleteReview(@PathVariable String id) {
         reviewMapper.deleteById(id);
@@ -504,6 +711,12 @@ public class AdminController {
     }
 
     // ======== 公告管理 ========
+
+    /**
+     * 查询全部公告（管理员视角，包含所有激活/未激活状态）。
+     *
+     * @return {@link Result} Announcement 列表，按创建时间倒序
+     */
     @GetMapping("/announcements")
     public Result<List<Announcement>> getAllAnnouncements() {
         QueryWrapper<Announcement> qw = new QueryWrapper<>();
@@ -511,6 +724,14 @@ public class AdminController {
         return Result.success(announcementMapper.selectList(qw));
     }
 
+    /**
+     * 新增公告。
+     *
+     * 自动补 createdAt；其他字段（is_active / is_top / publish_date）由前端传入，不做默认值补全。
+     *
+     * @param a Announcement 请求体
+     * @return {@link Result} 插入后的 Announcement
+     */
     @PostMapping("/announcements")
     public Result<Announcement> createAnnouncement(@RequestBody Announcement a) {
         a.setCreatedAt(LocalDateTime.now());
@@ -518,6 +739,13 @@ public class AdminController {
         return Result.success(a);
     }
 
+    /**
+     * 更新公告（按路径 id 覆盖 body.id）。
+     *
+     * @param id 公告主键
+     * @param a  更新内容
+     * @return {@link Result} 更新后的 Announcement
+     */
     @PutMapping("/announcements/{id}")
     public Result<Announcement> updateAnnouncement(@PathVariable String id, @RequestBody Announcement body) {
         body.setId(id);
@@ -525,6 +753,12 @@ public class AdminController {
         return Result.success(body);
     }
 
+    /**
+     * 删除公告（物理删除）。
+     *
+     * @param id 公告主键
+     * @return {@link Result} 通用成功响应
+     */
     @DeleteMapping("/announcements/{id}")
     public Result<?> deleteAnnouncement(@PathVariable String id) {
         announcementMapper.deleteById(id);
@@ -532,6 +766,12 @@ public class AdminController {
     }
 
     // ======== 支付渠道配置 ========
+
+    /**
+     * 查询全部支付渠道配置，按 type 和 sort_order 升序。
+     *
+     * @return {@link Result} PaymentMethod 列表
+     */
     @GetMapping("/payment-methods")
     public Result<List<PaymentMethod>> listPaymentMethods() {
         QueryWrapper<PaymentMethod> qw = new QueryWrapper<>();
@@ -539,6 +779,16 @@ public class AdminController {
         return Result.success(paymentMethodMapper.selectList(qw));
     }
 
+    /**
+     * 更新支付渠道配置（局部字段更新，空值字段不覆盖原值）。
+     *
+     * feeRate / minFee / maxFee 必须 >= 0 才允许设置；其他字段仅做非空非空串检查。
+     * 渠道不存在返回错误。
+     *
+     * @param id   支付渠道主键
+     * @param body 可包含 methodName / feeRate / minFee / maxFee / isActive / sortOrder / remark
+     * @return {@link Result} 更新后的 PaymentMethod；不存在返回 error
+     */
     @PutMapping("/payment-methods/{id}")
     public Result<PaymentMethod> updatePaymentMethod(@PathVariable String id, @RequestBody PaymentMethod body) {
         PaymentMethod pm = paymentMethodMapper.selectById(id);

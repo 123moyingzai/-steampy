@@ -22,8 +22,18 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * AI 智能助手 — 优先调 LLM（DeepSeek 兼容格式），无 API key 时走增强规则引擎。
- * 上下文：按 userId + 前端传来的 messages 做多轮。
+ * AIController
+ * 负责 AI 智能助手的 HTTP 接口层，为平台用户提供多轮自然语言问答服务。
+ *
+ * 回复策略：优先调用 LLM（兼容 DeepSeek / OpenAI Chat Completions 格式），未配置 API key 或调用失败时自动降级到本地增强规则引擎。
+ * 知识增强（RAG）：每次请求会把用户问题做游戏模糊搜索并把匹配到的在售游戏拼到 system prompt 里，让 LLM 具备实时商品知识。
+ * 游戏召回：无论 LLM 还是规则引擎，都会从回复文本里反向提取实体 Game，以卡片形式附加到返回值中。
+ *
+ * 提供的核心接口：
+ *   - POST /api/ai/chat — 多轮对话入口，body 需含 { userId, messages: [{role, content}] }，返回 { reply, games }
+ *
+ * @author steampy
+ * @date 2026-10-14
  */
 @RestController
 @RequestMapping("/api/ai")
@@ -50,8 +60,15 @@ public class AIController {
     private final ObjectMapper om = new ObjectMapper();
 
     /**
-     * 统一入口。body: { userId, messages: [{role, content}] }
-     * 返回: { reply: string, games: [...optional] }
+     * AI 对话统一入口。
+     *
+     * 请求体格式：{ userId: string, messages: [{ role: "user"|"assistant", content: string }] }。
+     * 处理流程：① 提取最后一条用户消息作为 userQuery；② 若配置了 api-key → 走 LLM（RAG + 最近 6 轮历史）；③ LLM 调用失败或无 key → 降级到规则引擎；④ 兜底返回礼貌错误文案。
+     * 返回体格式：{ reply: string, games: Game[] } — 当 LLM/规则引擎在回复中识别到具体游戏时附带卡片列表，便于前端渲染。
+     * 任何异常都会被捕获并返回固定的兜底话术，保证接口永不抛错。
+     *
+     * @param body 请求体 Map，必须含 userId 和 messages 字段
+     * @return {@link Result} 含 reply 和 games 的 Map；异常时 reply 为兜底文案、games 为空数组
      */
     @PostMapping("/chat")
     public Result<Map<String, Object>> chat(@RequestBody Map<String, Object> body) {
@@ -82,6 +99,16 @@ public class AIController {
         }
     }
 
+    /**
+     * 调用 LLM（兼容 DeepSeek / OpenAI Chat Completions 协议）。
+     *
+     * 处理步骤：① 调 {@link #buildKnowledgeContext} 构造 RAG 知识片段；② 拼接 system prompt + 最近 6 轮历史（避免 token 溢出）；③ HTTP POST 到 {@code ai.endpoint}（默认 deepseek-chat）；④ 200 时解析 choices[0].message.content；⑤ 从回复文本反向提取 Game 卡片。
+     * 任何异常或非 200 响应都会返回 null，让上层降级到规则引擎。
+     *
+     * @param userQuery 用户最后一条消息（已从 messages 中取出）
+     * @param history   完整多轮历史 [{ role, content }]
+     * @return 含 reply / games 的 Map；LLM 不可用或抛异常时返回 null
+     */
     private Map<String, Object> callLLM(String userQuery, List<Map<String, String>> history) {
         try {
             // 先查知识库（FAQ + 游戏）作为 RAG 上下文
@@ -153,7 +180,14 @@ public class AIController {
         }
     }
 
-    /** 构建 RAG 上下文：FAQ 片段 + 匹配的游戏信息 */
+    /**
+     * 为 LLM 构造 RAG 知识上下文。
+     *
+     * 内部会调用 {@link #fuzzySearchGames} 根据 query 模糊匹配最多 5 款在售游戏，把中文名、英文名、价格、原价、折扣、开发商、库存拼成可读片段。
+     *
+     * @param query 用户原始问题文本
+     * @return 游戏知识片段字符串；无匹配时返回空串
+     */
     private String buildKnowledgeContext(String query) {
         StringBuilder sb = new StringBuilder();
 
@@ -173,7 +207,14 @@ public class AIController {
         return sb.toString();
     }
 
-    /** 规则引擎兜底 —— 纯关键词 + 模糊匹配，但比原来丰富得多 */
+    /**
+     * 本地规则引擎兜底回复（LLM 不可用时使用）。
+     *
+     * 按优先级匹配三种意图：① 游戏搜索 → 调 {@link #fuzzySearchGames} 拿到匹配，单款返回详细卡片、多款返回列表；② FAQ 关键词 → 调 {@link #matchFAQ} 命中硬编码知识库；③ 平台数据类（多少游戏/热门/你是谁）→ 调 {@link #matchDataIntent}；以上均未命中则返回引导话术。
+     *
+     * @param query 用户最后一条消息（已 trim + toLowerCase）
+     * @return 含 reply 和 games 的 Map（games 可能为空数组）
+     */
     private Map<String, Object> ruleEngineReply(String query) {
         Map<String, Object> result = new LinkedHashMap<>();
         String q = query.toLowerCase().trim();
@@ -247,7 +288,16 @@ public class AIController {
 
     // ==================== 工具方法 ====================
 
-    /** 模糊搜游戏：名称包含 / 中文名包含（忽略标点）/ 开发商包含 */
+    /**
+     * 模糊搜索在售游戏。
+     *
+     * 归一化处理：去掉空格和标点后转小写，然后同时匹配 name / nameCn / developer 三个字段的互相包含（双向 contains）。
+     * 匹配到 limit 条后立即截断。
+     *
+     * @param query 用户搜索词
+     * @param limit 最多返回条数
+     * @return 匹配的 Game 列表（可能为空）
+     */
     private List<Game> fuzzySearchGames(String query, int limit) {
         if (query == null || query.isBlank()) return List.of();
         // 归一化：去标点空格，统一小写
@@ -271,7 +321,16 @@ public class AIController {
                 .collect(Collectors.toList());
     }
 
-    /** 从 LLM 回复文本里反向查游戏实体（同时匹配英文名和中文名） */
+    /**
+     * 从 LLM 回复文本中反向提取 Game 实体。
+     *
+     * 遍历所有游戏，同时匹配英文名 / 中文名是否出现在 reply 中；同时再跑一遍用户原始 query 的直接匹配结果做并集，确保 LLM 没提到但用户直接说的游戏也能召回。
+     * 去重后最多返回 5 款。
+     *
+     * @param reply     LLM 生成的回复文本
+     * @param queryHint 用户原始问题（用于直接匹配）
+     * @return 命中的 Game 列表（去重 + 限制上限）
+     */
     private List<Game> extractGamesFromReply(String reply, String queryHint) {
         Set<String> matchedIds = new LinkedHashSet<>();
         List<Game> all = gameMapper.selectList(null);
@@ -292,6 +351,15 @@ public class AIController {
         return all.stream().filter(g -> matchedIds.contains(g.getId())).limit(5).collect(Collectors.toList());
     }
 
+    /**
+     * 硬编码 FAQ 关键词匹配。
+     *
+     * 规则按 LinkedHashMap 顺序依次命中（先注册登录，再 cdk，再礼物代购…），返回首个命中的 value。
+     * key 是用 | 分隔的多关键词正则片段，最终拼成 {@code .*（key1|key2|...）.*} 做 matches。
+     *
+     * @param q 已 toLowerCase + trim 的用户 query
+     * @return 命中的 FAQ 回答文本；未命中返回 null
+     */
     private String matchFAQ(String q) {
         // 用 DB 里 announcements 也行，但硬编码够用
         Map<String, String> rules = new LinkedHashMap<>();
@@ -317,6 +385,14 @@ public class AIController {
         return null;
     }
 
+    /**
+     * 平台数据意图匹配（统计类问题）。
+     *
+     * 支持三类：① 游戏总数（多少游戏 / 有多少 / 数量）；② 热门游戏（畅销 / 销量最高 / 最火 / 推荐）—— 查已完成订单聚合销量再给硬编码榜单；③ 自我介绍（你是谁 / 你好 / hi / hello）。
+     *
+     * @param q 已 toLowerCase + trim 的用户 query
+     * @return 命中的回答文本；未命中返回 null
+     */
     private String matchDataIntent(String q) {
         if (q.matches(".*(多少|数量|几个|总数).*(游戏|商品).*") || q.matches(".*(多少|数量).*(有|在售|上架).*")) {
             long total = gameMapper.selectCount(null);

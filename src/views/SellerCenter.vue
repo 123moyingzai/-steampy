@@ -1,3 +1,11 @@
+/**
+ * SellerCenter — 卖家中心页面，管理自己上架的 CDKey listing、订单记录和余额提现
+ * 路由路径：/seller
+ * 核心功能：
+ *   - Tab 切换：CDKey管理、订单管理、余额提现
+ *   - 上架新 CDKey、编辑/下架已有 listing
+ *   - 查看订单状态、申请提现
+ */
 <template>
   <Layout>
     <div class="cjx-seller-page">

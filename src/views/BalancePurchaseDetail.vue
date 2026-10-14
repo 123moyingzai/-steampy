@@ -1,3 +1,11 @@
+/**
+ * BalancePurchaseDetail — 余额购游戏详情页，展示游戏基本信息、APP 下载链接和购买说明
+ * 路由路径：/balance/detail/:game
+ * 核心功能：
+ *   - 根据路由参数 game 从 games 表中查找对应游戏并展示封面、价格、简介
+ *   - 显示 PY 手机 APP 下载二维码占位图（安卓 / 苹果）
+ *   - 列出余额购的完整购买说明（Steam 账号条件、到账时间等）
+ */
 <template>
   <Layout>
     <div class="cjx-page-container">
@@ -40,7 +48,7 @@
         </div>
 
         <template v-if="game">
-          <!-- 游戏介绍 -->
+          <!-- 游戏介绍区块 -->
           <div class="cjx-game-description" v-if="game.description">
             <h2 class="cjx-section-title">游戏介绍</h2>
             <p>{{ game.description }}</p>
@@ -135,10 +143,18 @@ import { authAPI, fetchAllGames } from '../config/supabase-local.ts'
 const router = useRouter()
 const route = useRoute()
 
+/** 当前展示的游戏对象（从路由参数匹配） */
 const game = ref<any>(null)
+/** 游戏数据是否正在加载 */
 const loading = ref(true)
+/** 登录用户的钱包余额 */
 const walletBalance = ref(0.06)
 
+/**
+ * 解析图片路径，兼容多种格式
+ * @param path 原始图片路径
+ * @returns 可访问的 URL
+ */
 const getImageUrl = (path: string) => {
   if (!path) return '/picture/安魂曲.jpg'
   if (path.startsWith('http')) return path
@@ -149,11 +165,17 @@ const getImageUrl = (path: string) => {
   return path.startsWith('/') ? path : `/${path}`
 }
 
+/**
+ * 解析后的游戏封面图 URL，game 为 null 时返回占位图
+ */
 const gameImageUrl = computed(() => {
   return getImageUrl(game.value?.image || '')
 })
 
-// 用 route.params.game 查 games 表
+/**
+ * 根据路由参数加载游戏详情
+ * 从 fetchAllGames 返回的列表中匹配 id / game_id / gameId，找不到则置空
+ */
 const loadGame = async () => {
   loading.value = true
   try {
@@ -184,8 +206,16 @@ const loadGame = async () => {
   }
 }
 
+/** 返回上一页（余额购列表） */
 const goBack = () => router.push('/balance')
 
+/**
+ * 计算并返回原价（用于划线展示）
+ * 优先使用 original_price 字段，其次从 game 对象取
+ * @param price 当前价
+ * @param discount 折扣字段（未直接使用）
+ * @returns 原价字符串（带 ¥），无折扣则返回空
+ */
 const getOriginalPrice = (price: any, discount: any) => {
   if (!game.value) return ''
   // 优先用 original_price 字段

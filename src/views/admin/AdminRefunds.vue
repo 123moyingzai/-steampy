@@ -1,3 +1,10 @@
+/**
+ * AdminRefunds — 管理员退款管理页面，审核和处理用户退款申请
+ * 路由路径：/admin/refunds
+ * 核心功能：
+ *   - 退款申请列表、按状态筛选（待处理 / 已同意 / 已拒绝）
+ *   - 审核通过 / 驳回退款
+ */
 <template>
   <div class="admin-refunds">
     <div class="toolbar">

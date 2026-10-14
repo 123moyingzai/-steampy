@@ -30,6 +30,20 @@ import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 
+/**
+ * OrderController
+ * 负责订单业务的 HTTP 接口层
+ * 提供的核心接口：
+ *   - POST /api/orders                    — 创建订单（混合支付 + 自动发货 + 自动入库）
+ *   - GET  /api/orders/user/{userId}      — 查询用户的购买订单列表
+ *   - GET  /api/orders/seller/{sellerId}  — 查询卖家的售出订单列表
+ *   - GET  /api/orders                    — 管理员查询全部订单
+ *   - GET  /api/orders/{id}              — 查询订单详情
+ *   - PUT  /api/orders/{id}/cancel        — 取消订单（并恢复商品上架状态）
+ *
+ * @author steampy
+ * @date 2026-10-14
+ */
 @RestController
 @RequestMapping("/api/orders")
 public class OrderController {
@@ -51,6 +65,24 @@ public class OrderController {
     @Autowired
     private SteamService steamService;
 
+    /**
+     * 创建游戏订单
+     * <p>
+     * 核心流程（事务内）：
+     *   1. 校验买家身份（必须绑定 Steam 账号，且 Steam 库存中未拥有该游戏）
+     *   2. 生成订单号、填充默认值
+     *   3. 混合支付：若前端传入 balance_amount 则从买家钱包余额扣减
+     *   4. 若订单关联 listing：根据上架类型（py 代购 / cdkey 卡密）自动发货并下架商品
+     *   5. 写入订单 + 买家支出交易记录
+     *   6. CDKey 类型自动写入用户游戏库（PY 代购待商家发货）
+     *   7. 卖家上架商品：自动给卖家钱包加收入 + 写卖家收入交易记录
+     *   8. 自动激活到 Steam 账号（steam_libraries 表）并刷新 Steam 统计
+     * </p>
+     *
+     * @param order          订单对象（JSON 传入，包含 gameId、gameName、price、buyerId、listingId 等）
+     * @param balance_amount 可选：使用钱包余额支付的金额（单位元），不传或传 0 则不扣余额
+     * @return {@link Result} 成功时返回创建好的订单对象（含生成的 id、orderNo、status 等），失败时返回错误信息
+     */
     @PostMapping
     @Transactional
     public Result<Order> createOrder(@RequestBody Order order,
@@ -231,6 +263,12 @@ public class OrderController {
         return Result.success(order);
     }
 
+    /**
+     * 私有工具：根据 userId 获取钱包，不存在则创建一个初始余额为 0 的钱包（不立即入库，由调用方决定）。
+     *
+     * @param userId 用户 ID
+     * @return 钱包对象（保证非 null）
+     */
     private Wallet getOrCreateWallet(String userId) {
         QueryWrapper<Wallet> qw = new QueryWrapper<>();
         qw.eq("user_id", userId);
@@ -246,6 +284,12 @@ public class OrderController {
         return w;
     }
 
+    /**
+     * 查询指定用户作为买家的所有订单（按创建时间倒序）
+     *
+     * @param userId 买家用户 ID
+     * @return {@link Result} 包含订单列表
+     */
     @GetMapping("/user/{userId}")
     public Result<List<Order>> getUserOrders(@PathVariable String userId) {
         QueryWrapper<Order> qw = new QueryWrapper<>();
@@ -253,6 +297,12 @@ public class OrderController {
         return Result.success(orderMapper.selectList(qw));
     }
 
+    /**
+     * 查询指定用户作为卖家的所有售出订单（按创建时间倒序）
+     *
+     * @param sellerId 卖家用户 ID
+     * @return {@link Result} 包含订单列表
+     */
     @GetMapping("/seller/{sellerId}")
     public Result<List<Order>> getSellerOrders(@PathVariable String sellerId) {
         QueryWrapper<Order> qw = new QueryWrapper<>();
@@ -260,6 +310,11 @@ public class OrderController {
         return Result.success(orderMapper.selectList(qw));
     }
 
+    /**
+     * 管理员查询系统中全部订单（按创建时间倒序）
+     *
+     * @return {@link Result} 包含全部订单列表
+     */
     @GetMapping
     public Result<List<Order>> getAllOrders() {
         QueryWrapper<Order> qw = new QueryWrapper<>();
@@ -267,11 +322,27 @@ public class OrderController {
         return Result.success(orderMapper.selectList(qw));
     }
 
+    /**
+     * 根据订单 ID 查询订单详情
+     *
+     * @param id 订单 ID
+     * @return {@link Result} 包含订单对象（若不存在则 data 为 null）
+     */
     @GetMapping("/{id}")
     public Result<Order> getOrder(@PathVariable String id) {
         return Result.success(orderMapper.selectById(id));
     }
 
+    /**
+     * 取消订单
+     * <p>
+     * 校验订单状态是否允许流转到 cancelled（通过 {@link OrderStatus#canTransition} 判断），
+     * 同时将关联的 listing 恢复为 available 状态（释放商品供他人购买）。
+     * </p>
+     *
+     * @param id 订单 ID
+     * @return {@link Result} 成功返回 null；失败返回错误信息（订单不存在 / 状态不可取消）
+     */
     @PutMapping("/{id}/cancel")
     public Result<Void> cancelOrder(@PathVariable String id) {
         Order o = orderMapper.selectById(id);

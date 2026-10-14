@@ -1,3 +1,10 @@
+/**
+ * AdminWithdrawals — 管理员提现审核页面，处理卖家余额提现申请
+ * 路由路径：/admin/withdrawals
+ * 核心功能：
+ *   - 提现申请列表、按状态筛选（待审核 / 已打款 / 已拒绝）
+ *   - 审核通过打款 / 驳回提现
+ */
 <template>
   <div class="admin-withdrawals">
     <div class="toolbar">

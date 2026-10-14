@@ -1,4 +1,13 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿/**
+ * Login — 登录与注册页面，支持账号密码、手机号密码、手机号验证码三种登录方式
+ * 路由路径：/login
+ * 核心功能：
+ *   - 登录 Tab：账号密码登录 / 手机号登录（子 Tab 密码/验证码）
+ *   - 注册表单：用户名、密码、手机号、短信验证码
+ *   - 图片验证码 + 倒计时获取短信验证码
+ *   - 登录后根据角色跳转首页或管理员后台
+ */
+<template>
   <div class="cjx-login-page">
     <div class="cjx-logo">
       <svg viewBox="0 0 24 24">
@@ -313,20 +322,33 @@ import { authAPI, snakeToCamel } from '../config/supabase-local.ts'
 const router = useRouter()
 const route = useRoute()
 
-// 响应式数据
+// 响应式状态
+/** true = 显示登录面板，false = 显示注册面板 */
 const isLogin = ref(true)
+/** 登录 Tab：'password' = 账户密码，'phone' = 手机号 */
 const loginTab = ref('password')
-const phoneSubMode = ref<'password' | 'code'>('code')  // 默认验证码登录（主流程）
+/** 手机号面板子模式：'password' = 密码登录，'code' = 验证码登录（主流程） */
+const phoneSubMode = ref<'password' | 'code'>('code')
+/** 登录 / 注册按钮 loading 状态 */
 const loading = ref(false)
+/** 手机号密码登录按钮 loading 状态 */
 const phoneLoading = ref(false)
+/** 密码可见性切换 */
 const showPassword = ref(false)
+/** 手机号密码可见性切换 */
 const showPhonePassword = ref(false)
+/** 注册密码可见性切换 */
 const showRegPassword = ref(false)
+/** 图片验证码（登录用） */
 const captchaCode = ref('')
-const generatedPhoneCode = ref('')  // 手机号验证码登录的随机码
+/** 手机号验证码登录的随机码（前端生成） */
+const generatedPhoneCode = ref('')
+/** 手机号验证码倒计时（秒） */
 const phoneCodeCountdown = ref(0)
+/** 注册短信验证码倒计时（秒） */
 const regCodeCountdown = ref(0)
 
+/** 账户密码登录表单 */
 const loginForm = reactive({
   username: '',
   password: '',
@@ -369,6 +391,7 @@ const errors = reactive({
 })
 
 // 生成验证码
+/** 生成图片验证码（字母+数字，格式如 ABC-5） */
 const generateCaptcha = () => {
   const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ'
   let captcha = ''
@@ -435,6 +458,9 @@ const sendRegCode = () => {
 }
 
 // 登录处理
+/**
+ * 账户密码登录流程：表单校验 → 调 authAPI.login → 根据角色跳转首页或 admin/dashboard
+ */
 const handleLogin = async () => {
   clearErrors()
   let isValid = true
@@ -500,6 +526,9 @@ const handleLogin = async () => {
 }
 
 // 手机号 + 密码登录（后端 LoginReq 已支持 phone 字段）
+/**
+ * 手机号 + 密码登录，调 /api/auth/login 接口
+ */
 const handlePhoneLogin = async () => {
   clearErrors()
   let isValid = true
@@ -577,6 +606,9 @@ const generatePhoneCode = () => {
 }
 
 // 手机号 + 验证码登录
+/**
+ * 手机号 + 验证码登录（主流程）：校验前端生成的随机码 → 调 /api/auth/phone-login → 登录成功自动注册
+ */
 const handlePhoneCodeLogin = async () => {
   clearErrors()
   let isValid = true
@@ -630,6 +662,10 @@ const handlePhoneCodeLogin = async () => {
 }
 
 // 注册处理
+/**
+ * 用户注册：表单校验（用户名 / 密码 6-20 位 / 密码一致 / 手机号正则 / 6 位验证码 / 协议勾选）
+ * 通过 authAPI.register 提交，成功后自动切回登录面板
+ */
 const handleRegister = async () => {
   clearErrors()
   let isValid = true

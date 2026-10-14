@@ -19,6 +19,38 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * ListingController
+ * 负责游戏上架记录的 HTTP 接口层，覆盖 CDKey 上架/查询/改价/下架/激活/批量操作等全生命周期。
+ *
+ * 状态机：available（在售）↔ pending_activation（待激活/下架）→ sold（已售出，不可删、不可改）。
+ * 用户名脱敏：所有 seller_name 通过 {@link #maskUsername} / {@link #maskStr} 处理为 "首***尾" 格式，避免泄露真实昵称。
+ * 分组聚合：列表查询提供按 seller+price 分组、按 game+seller+price 分组两种模式，前端可直接拿到库存数，避免前端二次聚合。
+ *
+ * 提供的核心接口：
+ *   - POST   /api/listings                   — 单条上架一个 CDKey
+ *   - POST   /api/listings/batch             — 批量上架
+ *   - GET    /api/listings/available         — 查询可售上架（可按 gameId/region 过滤）
+ *   - GET    /api/listings/available-grouped — 按 seller+price 聚合某游戏的可售上架
+ *   - GET    /api/listings/available-grouped-all — 全平台所有可售上架按 game+seller+price 聚合，跨游戏混合排序
+ *   - GET    /api/listings/py-sellers        — 查询礼物代购（py）卖家列表
+ *   - GET    /api/listings/check-cdkey       — CDKey 查重
+ *   - GET    /api/listings/seller/{sellerId} — 查询某卖家的全部上架
+ *   - GET    /api/listings/{id}              — 查询单条上架详情
+ *   - DELETE /api/listings/{id}              — 删除上架（sold 不可删）
+ *   - PUT    /api/listings/{id}/sold         — 内部标记为已售出
+ *   - PUT    /api/listings/{id}/price        — 改单个上架价格（available/pending_activation）
+ *   - PUT    /api/listings/batch-price       — 批量改价
+ *   - PUT    /api/listings/{id}/soft-delete  — 下架 → pending_activation（available / sold 都可）
+ *   - PUT    /api/listings/{id}/relist       — pending_activation → 重新上架
+ *   - PUT    /api/listings/batch-soft-delete — 批量下架
+ *   - PUT    /api/listings/batch-relist      — 批量上架
+ *   - DELETE /api/listings/batch             — 批量删除（sold 跳过）
+ *   - PUT    /api/listings/{id}/self-activate — 卖家自己激活 pending_activation 的 CDK（加入 user_games + 删除 listing）
+ *
+ * @author steampy
+ * @date 2026-10-14
+ */
 @RestController
 @RequestMapping("/api/listings")
 public class ListingController {
@@ -38,7 +70,13 @@ public class ListingController {
     @Autowired
     private OrderMapper orderMapper;
 
-    // 给 listing 填充 seller_name（脱敏）
+    /**
+     * 为一批 Listing 填充脱敏后的 seller_name（批量查询用户表，避免 N+1）。
+     *
+     * 查出所有 seller_id 对应的 User，取 nickname（为空则取 username），再调用 {@link #maskUsername} 脱敏后写入 Listing.sellerName 字段。
+     *
+     * @param listings Listing 列表（原地修改 sellerName）
+     */
     private void fillSellerNames(List<Listing> listings) {
         if (listings.isEmpty()) return;
         Set<String> sellerIds = listings.stream()
@@ -58,11 +96,14 @@ public class ListingController {
         }
     }
 
-    // 脱敏：首***尾，至少保留首尾各1字
-    // "123456"  → "1***6"
-    // "admin"    → "a***n"
-    // "a"        → "a"
-    // "ab"       → "a*b"
+    /**
+     * 用户名脱敏：首***尾，至少保留首尾各 1 字。
+     *
+     * 示例："123456"→"1***6"、"admin"→"a***n"、"a"→"a"、"ab"→"a*b"。
+     *
+     * @param name 原始昵称/用户名
+     * @return 脱敏后的字符串
+     */
     private String maskUsername(String name) {
         if (name == null || name.isEmpty()) return "";
         int len = name.length();
@@ -73,7 +114,14 @@ public class ListingController {
         return name.charAt(0) + "***" + name.charAt(len - 1);
     }
 
-    // 上架一个 CDKey
+    /**
+     * 上架一个 CDKey（单条）。
+     *
+     * 自动补 id（UUID）、status（默认 available）、version（默认 "标准版"）、region（默认 "国区"）、createdAt / updatedAt（当前时间）。
+     *
+     * @param listing Listing 请求体（需含 sellerId / gameId / cdkey / price 等业务字段）
+     * @return {@link Result} 插入后的 Listing 实体
+     */
     @PostMapping
     public Result<Listing> createListing(@RequestBody Listing listing) {
         listing.setId(UUID.randomUUID().toString());
@@ -86,7 +134,14 @@ public class ListingController {
         return Result.success(listing);
     }
 
-    // 批量上架
+    /**
+     * 批量上架多条 CDKey（循环逐条入库）。
+     *
+     * 自动补全同 {@link #createListing}：UUID id、status/version/region 默认值、时间戳。
+     *
+     * @param listings Listing 数组
+     * @return {@link Result} 插入后的 Listing 列表
+     */
     @PostMapping("/batch")
     public Result<List<Listing>> createBatch(@RequestBody List<Listing> listings) {
         for (Listing l : listings) {
@@ -101,7 +156,15 @@ public class ListingController {
         return Result.success(listings);
     }
 
-    // 查全部可售（带脱敏的 seller_name）
+    /**
+     * 查询全部可售上架（status=available），按价格升序。
+     *
+     * 可选 gameId / region 过滤。返回前会调 {@link #fillSellerNames} 批量填充脱敏后的 seller_name。
+     *
+     * @param gameId 可选，游戏 ID 过滤
+     * @param region 可选，区域过滤（如 "国区" / "港区"）
+     * @return {@link Result} 带 seller_name 的 Listing 列表
+     */
     @GetMapping("/available")
     public Result<List<Listing>> getAvailable(
             @RequestParam(required = false) Long gameId,
@@ -116,7 +179,17 @@ public class ListingController {
         return Result.success(list);
     }
 
-    // 查某个游戏的可售（含按 卖家+价格 聚合的库存统计）
+    /**
+     * 按 seller + price 分组聚合某游戏的可售上架，返回库存统计。
+     *
+     * game_id 或 game_name 必填其一，都不传返回错误。
+     * 分组键：seller_id + price；聚合结果含 stock（数量）、version、region、listing_ids（完整 CDK 列表）。
+     * 返回前会脱敏 seller_name。
+     *
+     * @param game_id  可选（与 game_name 二选一），游戏 ID
+     * @param game_name 可选，游戏英文名
+     * @return {@link Result} 聚合后的 Map 列表，按价格升序
+     */
     @GetMapping("/available-grouped")
     public Result<List<Map<String, Object>>> getAvailableGrouped(
             @RequestParam(required = false) String game_id,
@@ -158,7 +231,14 @@ public class ListingController {
         return Result.success(result);
     }
 
-    // 查所有游戏的可售 listings（按 game_id + seller_id + price 聚合，跨游戏混合排序）
+    /**
+     * 全平台所有可售上架按 game + seller + price 分组聚合，跨游戏混合排序。
+     *
+     * 分组键：game_id + seller_id + price；结果行含 game_image / original_price / discount 等额外游戏信息。
+     * 最终按 price 升序，同价按 game_name 升序。
+     *
+     * @return {@link Result} 聚合后的 Map 列表
+     */
     @GetMapping("/available-grouped-all")
     public Result<List<Map<String, Object>>> getAvailableGroupedAll() {
         QueryWrapper<Listing> qw = new QueryWrapper<>();
@@ -212,6 +292,18 @@ public class ListingController {
     }
 
     // ======== 查代购卖家列表（py 类型，支持按 game_id 过滤）=======
+
+    /**
+     * 查询礼物代购（type=py）卖家列表，含实时成交数/流畅度/折扣计算等派生字段。
+     *
+     * 返回字段：listing_id / seller_id / seller_name（脱敏）/ seller_avatar / game_id / game_name / price / quota / auto_deliver / region / sale_price / original_price / discount_pct / deals / fluency / fluency_class / deliver_type。
+     * deals 通过 {@link #countPyDeals} 实时按订单表聚合。
+     * discount_pct = price / original_price * 100（保留整数）。
+     *
+     * @param gameId 可选，游戏 ID 过滤
+     * @param region 可选，区域模糊匹配
+     * @return {@link Result} 卖家行 Map 列表
+     */
     @GetMapping("/py-sellers")
     public Result<List<Map<String, Object>>> listPySellers(
             @RequestParam(required = false) Long gameId,
@@ -267,6 +359,12 @@ public class ListingController {
         return Result.success(result);
     }
 
+    /**
+     * 统计某卖家的礼物代购（py 类型）已完成订单数。
+     *
+     * @param sellerId 卖家用户 ID
+     * @return 已完成 py 订单数；sellerId 为 null 时返回 0
+     */
     private int countPyDeals(String sellerId) {
         if (sellerId == null) return 0;
         QueryWrapper<com.steampy.entity.Order> qw = new QueryWrapper<>();
@@ -274,14 +372,27 @@ public class ListingController {
         return orderMapper.selectCount(qw).intValue();
     }
 
-    // 脱敏名字：取首尾 + ***（3位以上的中间用***）
+    /**
+     * 简短版用户名脱敏：取首字 + *** + 尾字（长度 <= 2 时只取首字 + ***）。
+     *
+     * @param s 原始字符串
+     * @return 脱敏后的字符串
+     */
     private String maskStr(String s) {
         if (s == null || s.isEmpty()) return "";
         if (s.length() <= 2) return s.charAt(0) + "***";
         return s.charAt(0) + "***" + s.charAt(s.length() - 1);
     }
 
-    /** 查重接口 —— 给定 cdkey，返回是否已存在于 listings 表（不区分状态，sold 的也算重复）*/
+    /**
+     * CDKey 查重接口（上架前校验）。
+     *
+     * 将传入的 cdkey trim 后转大写，与数据库中所有 Listing.cdkey（全量，不限状态）做不区分大小写比对。
+     * 已 sold 的也视为重复，防止重新上架。
+     *
+     * @param cdkey 待校验的 CDKey
+     * @return {@link Result} 含 { exists: boolean } 的 Map
+     */
     @GetMapping("/check-cdkey")
     public Result<Map<String, Object>> checkCdkey(@RequestParam String cdkey) {
         String normalized = cdkey == null ? "" : cdkey.trim().toUpperCase();
@@ -293,7 +404,12 @@ public class ListingController {
         return Result.success(r);
     }
 
-    // 查某个卖家的所有上架
+    /**
+     * 查询某卖家的全部上架记录（按创建时间倒序）。
+     *
+     * @param sellerId 卖家用户 ID
+     * @return {@link Result} Listing 列表
+     */
     @GetMapping("/seller/{sellerId}")
     public Result<List<Listing>> getBySeller(@PathVariable String sellerId) {
         QueryWrapper<Listing> qw = new QueryWrapper<>();
@@ -302,7 +418,14 @@ public class ListingController {
         return Result.success(listingMapper.selectList(qw));
     }
 
-    // 查单个
+    /**
+     * 查询单条上架详情。
+     *
+     * 返回前会调 {@link #fillSellerNames} 填充脱敏后的 seller_name。
+     *
+     * @param id Listing 主键
+     * @return {@link Result} Listing 实体（可能为 null）
+     */
     @GetMapping("/{id}")
     public Result<Listing> getById(@PathVariable String id) {
         Listing l = listingMapper.selectById(id);
@@ -310,7 +433,14 @@ public class ListingController {
         return Result.success(l);
     }
 
-    // 删除（available / pending_activation 可直接删除；sold 不可删）
+    /**
+     * 删除上架记录。
+     *
+     * available / pending_activation 状态可直接物理删除；sold 状态禁止删除，防止丢失交易记录。
+     *
+     * @param id Listing 主键
+     * @return {@link Result} 成功返回 null；已售出返回 error
+     */
     @DeleteMapping("/{id}")
     public Result<Void> deleteListing(@PathVariable String id) {
         Listing l = listingMapper.selectById(id);
@@ -320,7 +450,14 @@ public class ListingController {
         return Result.success(null);
     }
 
-    // 标记已售出（内部调用）
+    /**
+     * 内部接口：标记 Listing 为已售出。
+     *
+     * 供订单交易完成后内部调用，设置 status=sold、soldAt=当前时间、updatedAt=当前时间。
+     *
+     * @param id Listing 主键
+     * @return {@link Result} 通用成功响应；不存在返回 error
+     */
     @PutMapping("/{id}/sold")
     public Result<Void> markSold(@PathVariable String id) {
         Listing l = listingMapper.selectById(id);
@@ -333,6 +470,17 @@ public class ListingController {
     }
 
     // ======== 改单个价格 ========
+
+    /**
+     * 改单个上架的价格。
+     *
+     * 仅 available / pending_activation 状态可以改价；sold 状态禁止。
+     * body 必须含 price 字段。
+     *
+     * @param id   Listing 主键
+     * @param body 含 price（数字）
+     * @return {@link Result} 通用成功响应；状态不允许或缺少 price 返回 error
+     */
     @PutMapping("/{id}/price")
     public Result<Void> updatePrice(@PathVariable String id, @RequestBody Map<String, Object> body) {
         Listing l = listingMapper.selectById(id);
@@ -350,6 +498,15 @@ public class ListingController {
     }
 
     // ======== 批量改价 ========
+
+    /**
+     * 批量改上架价格。
+     *
+     * body.updates 为 { listingId: newPrice } 的 Map；逐条校验仅 available 状态允许改价，其他状态跳过不计入 ok。
+     *
+     * @param body 含 updates（Map<String, Number>）
+     * @return {@link Result} 含 { updated: int } 的 Map，updated 为实际改价成功条数
+     */
     @PutMapping("/batch-price")
     public Result<Map<String, Object>> batchUpdatePrice(@RequestBody Map<String, Object> body) {
         Map<String, Object> updates = (Map<String, Object>) body.get("updates");
@@ -370,6 +527,16 @@ public class ListingController {
     }
 
     // ======== 下架 → 待激活（available 和 sold 都可以变成 pending_activation）=======
+
+    /**
+     * 下架（软删除）上架记录：available / sold → pending_activation。
+     *
+     * 两者区别：available 下架时清掉 soldAt；sold 下架时保留原 soldAt 记录（用于审计）。
+     * 其他状态（如 pending_activation 本身）禁止下架。
+     *
+     * @param id Listing 主键
+     * @return {@link Result} 通用成功响应；当前状态不允许返回 error
+     */
     @PutMapping("/{id}/soft-delete")
     public Result<Void> softDelete(@PathVariable String id) {
         Listing l = listingMapper.selectById(id);
@@ -390,6 +557,15 @@ public class ListingController {
     }
 
     // ======== 待激活 → 重新上架 ========
+
+    /**
+     * 重新上架（relist）：pending_activation → available。
+     *
+     * 同时清空 soldAt 时间戳，重置为全新在售状态。
+     *
+     * @param id Listing 主键
+     * @return {@link Result} 通用成功响应；非 pending_activation 返回 error
+     */
     @PutMapping("/{id}/relist")
     public Result<Void> relistPending(@PathVariable String id) {
         Listing l = listingMapper.selectById(id);
@@ -404,6 +580,13 @@ public class ListingController {
     }
 
     // ======== 批量下架: available → pending_activation ========
+
+    /**
+     * 批量下架（仅 available 状态允许）。
+     *
+     * @param body 含 ids（List<String>）
+     * @return {@link Result} 含 { updated: int, skipped: int } 的 Map
+     */
     @PutMapping("/batch-soft-delete")
     public Result<Map<String, Object>> batchSoftDelete(@RequestBody Map<String, Object> body) {
         @SuppressWarnings("unchecked")
@@ -425,6 +608,13 @@ public class ListingController {
     }
 
     // ======== 批量上架: pending_activation → available ========
+
+    /**
+     * 批量上架（仅 pending_activation 状态允许）。
+     *
+     * @param body 含 ids（List<String>）
+     * @return {@link Result} 含 { updated: int, skipped: int } 的 Map
+     */
     @PutMapping("/batch-relist")
     public Result<Map<String, Object>> batchRelist(@RequestBody Map<String, Object> body) {
         @SuppressWarnings("unchecked")
@@ -446,6 +636,15 @@ public class ListingController {
     }
 
     // ======== 批量删除: available + pending_activation 可删，sold 跳过 ========
+
+    /**
+     * 批量删除上架记录。
+     *
+     * available + pending_activation 可直接物理删除；sold 状态跳过保留交易记录。
+     *
+     * @param body 含 ids（List<String>）
+     * @return {@link Result} 含 { deleted: int, skipped: int } 的 Map
+     */
     @DeleteMapping("/batch")
     public Result<Map<String, Object>> batchDelete(@RequestBody Map<String, Object> body) {
         @SuppressWarnings("unchecked")
@@ -465,6 +664,16 @@ public class ListingController {
     }
 
     // ======== 待激活 → 自己激活（加入 user_games 并删除 listing）=======
+
+    /**
+     * 卖家自己激活待激活状态的 CDK：加入 user_games 库 + 删除原 listing。
+     *
+     * 仅 pending_activation 状态允许执行。激活时创建一条 UserGame 记录，包含 gameId / cdkey / version 等字段，status=activated，source=cdkey；然后物理删除这条 Listing（CDK 已被消耗，不可再售）。
+     * 会尝试反查关联 Order 回填 orderId。
+     *
+     * @param id Listing 主键
+     * @return {@link Result} 通用成功响应；非 pending_activation 返回 error
+     */
     @PutMapping("/{id}/self-activate")
     public Result<Void> selfActivate(@PathVariable String id) {
         Listing l = listingMapper.selectById(id);

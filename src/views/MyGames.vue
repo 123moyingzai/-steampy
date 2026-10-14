@@ -1,4 +1,12 @@
-﻿<template>
+/**
+ * MyGames — 我的游戏库页面，展示已购买游戏的 CDKey 和激活状态
+ * 路由路径：/my-games
+ * 核心功能：
+ *   - 统计卡片：已购 / 待激活 / 已入库数量
+ *   - 游戏列表：封面图 + CDKey（支持显示/隐藏、一键复制）
+ *   - 激活确认弹窗、Steam 激活教程弹窗
+ */
+<template>
   <Layout>
     <div class="cjx-games-page">
       <h2 class="cjx-page-title">我的游戏库</h2>

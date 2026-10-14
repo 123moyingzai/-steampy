@@ -1,3 +1,11 @@
+/**
+ * AccountSettings — 账号设置页面，管理个人资料、Steam 账号绑定、密码修改
+ * 路由路径：/settings
+ * 核心功能：
+ *   - 修改昵称、头像等个人资料
+ *   - 绑定 / 解绑 Steam 账号（Steam 绑定是购买前置条件）
+ *   - 修改登录密码
+ */
 <template>
   <Layout>
     <div class="cjx-settings-page">

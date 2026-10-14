@@ -12,6 +12,22 @@ import org.springframework.web.bind.annotation.*;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * FavoriteController
+ * 负责用户游戏收藏的 HTTP 接口层，提供收藏/取消/状态查询/我的收藏列表四个能力。
+ *
+ * 幂等设计：重复收藏同一游戏不会报错，直接返回已存在的那条记录。
+ * 收藏列表会批量带出游戏详情（当前价格、折扣、原价、图片、开发商、发行日期），游戏被下架时会标注 "游戏已下架"。
+ *
+ * 提供的核心接口：
+ *   - POST   /api/favorites          — 添加收藏（幂等）
+ *   - DELETE /api/favorites/{gameId} — 取消收藏
+ *   - GET    /api/favorites/check    — 判断用户是否已收藏某游戏
+ *   - GET    /api/favorites/user/{userId} — 查询用户全部收藏（带游戏详情）
+ *
+ * @author steampy
+ * @date 2026-10-14
+ */
 @RestController
 @RequestMapping("/api/favorites")
 public class FavoriteController {
@@ -21,7 +37,14 @@ public class FavoriteController {
     @Autowired
     private GameMapper gameMapper;
 
-    // 添加收藏
+    /**
+     * 添加游戏收藏（幂等）。
+     *
+     * userId 或 gameId 缺失时返回错误。若已存在同样的 (userId, gameId) 组合则直接返回那条已有记录，不重复插入。
+     *
+     * @param fav Favorite 请求体，至少要有 userId 和 gameId
+     * @return {@link Result} 插入或已有的 Favorite 实体
+     */
     @PostMapping
     public Result<Favorite> addFavorite(@RequestBody Favorite fav) {
         if (fav.getUserId() == null || fav.getGameId() == null) {
@@ -39,7 +62,15 @@ public class FavoriteController {
         return Result.success(fav);
     }
 
-    // 取消收藏
+    /**
+     * 取消游戏收藏。
+     *
+     * 按 (userId, gameId) 联合条件删除；不存在也不报错（幂等）。
+     *
+     * @param userId  用户主键
+     * @param gameId  游戏主键
+     * @return {@link Result} 通用成功响应
+     */
     @DeleteMapping("/{gameId}")
     public Result<Void> removeFavorite(@RequestParam String userId, @PathVariable String gameId) {
         QueryWrapper<Favorite> qw = new QueryWrapper<>();
@@ -48,7 +79,13 @@ public class FavoriteController {
         return Result.success(null);
     }
 
-    // 查用户是否收藏某游戏
+    /**
+     * 查询某用户是否已收藏某游戏。
+     *
+     * @param userId  用户主键
+     * @param gameId  游戏主键
+     * @return {@link Result} true 已收藏 / false 未收藏
+     */
     @GetMapping("/check")
     public Result<Boolean> isFavorited(@RequestParam String userId, @RequestParam String gameId) {
         QueryWrapper<Favorite> qw = new QueryWrapper<>();
@@ -57,7 +94,16 @@ public class FavoriteController {
         return Result.success(cnt > 0);
     }
 
-    // 查用户所有收藏（带游戏详情：当前价格/折扣/原价）
+    /**
+     * 查询用户全部收藏列表（带游戏详情）。
+     *
+     * 实现：先取 favorites 列表，再批量查出关联的 games（避免 N+1），组装成 Map 返回。
+     * 若关联游戏已下架（games 表里不存在），对应 item 的 name 字段会标记为 "游戏已下架"。
+     * 返回字段：favorite_id / game_id / favorited_at + 游戏详情（name / name_cn / price / original_price / discount / image / developer / release_date）。
+     *
+     * @param userId 用户主键
+     * @return {@link Result} 收藏列表 Map；空列表时返回 []
+     */
     @GetMapping("/user/{userId}")
     public Result<List<Map<String, Object>>> getUserFavorites(@PathVariable String userId) {
         QueryWrapper<Favorite> qw = new QueryWrapper<>();

@@ -1,5 +1,15 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿/**
+ * BalancePurchase — 余额购商品列表页，展示支持余额支付的热门游戏并提供搜索和分页功能
+ * 路由路径：/balance
+ * 核心功能：
+ *   - 拉取所有游戏和可售 listing，按价格从低到高排序展示
+ *   - 调用 /api/steam/prices 获取 Steam 实时价格覆盖本地价格
+ *   - 支持游戏名搜索、分页浏览（每页 70 条）
+ *   - 点击卡片跳转详情页 /balance/detail/:id
+ */
+<template>
   <Layout>
+    <!-- 页面头部：标题 + 搜索框 + 教程按钮 -->
     <div class="cjx-list-header">
       <h2 class="cjx-list-title">余额购 · 平台热门游戏</h2>
       <div class="cjx-list-actions">
@@ -54,18 +64,32 @@ import { fetchAllGames, listingAPI } from '../config/supabase-local.ts'
 
 const router = useRouter()
 
-// ======= 余额购 =======
+// ======= 状态 =======
+/** 合并后的游戏列表，包含官方游戏和玩家上架 listing 的最低价格 */
 const games = ref<any[]>([])
+/** 搜索关键词 */
 const searchQuery = ref('')
+/** 当前页码（从 1 开始） */
 const page = ref(1)
+/** 每页显示数量 */
 const pageSize = 70
 
+/**
+ * 从任意格式提取数字价格
+ * @param p 价格值，可能是 number 或带 ¥ 符号的字符串
+ * @returns 纯数字价格
+ */
 const getRawPrice = (p: any) => {
   if (typeof p === 'number') return p
   return parseFloat(String(p).replace(/[^0-9.]/g, '')) || 0
 }
 
-// 搜索 + 排序
+/**
+ * 过滤 + 排序后的游戏列表
+ * - 根据 searchQuery 模糊过滤游戏名
+ * - 按价格从低到高排序
+ * @returns 过滤排序后的游戏数组
+ */
 const filteredSortedGames = computed(() => {
   let result = [...games.value]
   if (searchQuery.value) {
@@ -76,11 +100,14 @@ const filteredSortedGames = computed(() => {
   return result
 })
 
+/** 总页数（至少 1 页） */
 const totalPages = computed(() => Math.max(1, Math.ceil(filteredSortedGames.value.length / pageSize)))
+/** 当前页要展示的游戏切片 */
 const displayGames = computed(() => {
   const start = (page.value - 1) * pageSize
   return filteredSortedGames.value.slice(start, start + pageSize)
 })
+/** 可见页码数组，带省略号逻辑，用于模板渲染页码按钮 */
 const visiblePages = computed(() => {
   const tp = totalPages.value
   const cur = page.value
@@ -99,6 +126,11 @@ const visiblePages = computed(() => {
   return pages
 })
 
+/**
+ * 解析图片路径，兼容 http 绝对路径、/picture/xxx.jpg 相对路径等多种格式
+ * @param path 原始图片路径
+ * @returns 可访问的 URL
+ */
 const getImageUrl = (path: string) => {
   if (!path) return '/picture/安魂曲.jpg'
   if (path.startsWith('http')) return path
@@ -109,6 +141,10 @@ const getImageUrl = (path: string) => {
   return path.startsWith('/') ? path : `/${path}`
 }
 
+/**
+ * 点击游戏卡片跳转到余额购详情页
+ * @param game 当前卡片对应的游戏对象
+ */
 const buyGame = (game: any) => {
   router.push(`/balance/detail/${game.game_id}`)
 }

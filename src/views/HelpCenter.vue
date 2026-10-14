@@ -1,3 +1,11 @@
+/**
+ * HelpCenter — 帮助中心 / 智能助手页面，提供 FAQ 折叠卡片和 AI 对话功能
+ * 路由路径：/help
+ * 核心功能：
+ *   - AI 智能助手聊天界面（调用 /api/ai/chat），支持游戏搜索意图识别
+ *   - FAQ 折叠卡片，支持关键词搜索过滤
+ *   - 游戏数据加载，用于聊天中返回匹配的游戏卡片
+ */
 <template>
   <Layout>
     <div class="cjx-help-page">
