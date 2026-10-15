@@ -179,7 +179,7 @@ public class AuthController {
         }
 
         if (!verifyPassword(u, req.getPassword())) return Result.error("用户名或密码错误");
-        if ("已封禁".equals(u.getUserType())) return Result.error("您的账号已被封禁，无法登录");
+        // 封禁用户允许登录（前端提示封禁状态），但业务操作会被 BanCheckFilter 拦截
 
         Map<String, Object> data = new HashMap<>();
         u.setPasswordHash(null);  // 返回前清空敏感字段
@@ -205,7 +205,7 @@ public class AuthController {
 
         User u = userMapper.selectOne(new QueryWrapper<User>().eq("phone", phone));
         if (u == null) return Result.error("该手机号未注册");
-        if ("已封禁".equals(u.getUserType())) return Result.error("您的账号已被封禁，无法登录");
+        // 封禁用户允许登录（前端提示封禁状态），但业务操作会被 BanCheckFilter 拦截
 
         Map<String, Object> data = new HashMap<>();
         u.setPasswordHash(null);
