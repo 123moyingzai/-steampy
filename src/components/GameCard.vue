@@ -1,7 +1,7 @@
 <template>
   <div class="game-card" @click="handleClick">
     <div class="card-image">
-      <img :src="imageUrl" :alt="title" />
+      <img :src="imageUrl" :alt="title" loading="lazy" />
       <span v-if="discount" class="discount-tag">{{ discount }}</span>
       <span v-if="presale" class="presale-tag">预售</span>
     </div>
