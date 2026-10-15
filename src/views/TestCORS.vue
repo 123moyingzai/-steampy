@@ -1,10 +1,3 @@
-/**
- * TestCORS — 开发调试用 CORS 跨域测试页面，用于验证后端接口跨域配置
- * 路由路径：/test-cors
- * 核心功能：
- *   - 测试不同 API 端点的跨域请求
- *   - 展示请求结果（状态码、响应体、错误信息）
- */
 <template>
   <div class="test-cors-page">
     <h1>CORS 测试页面</h1>

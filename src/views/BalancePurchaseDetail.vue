@@ -1,11 +1,3 @@
-/**
- * BalancePurchaseDetail — 余额购游戏详情页，展示游戏基本信息、APP 下载链接和购买说明
- * 路由路径：/balance/detail/:game
- * 核心功能：
- *   - 根据路由参数 game 从 games 表中查找对应游戏并展示封面、价格、简介
- *   - 显示 PY 手机 APP 下载二维码占位图（安卓 / 苹果）
- *   - 列出余额购的完整购买说明（Steam 账号条件、到账时间等）
- */
 <template>
   <Layout>
     <div class="cjx-page-container">

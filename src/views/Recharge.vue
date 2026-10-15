@@ -1,10 +1,3 @@
-/**
- * Recharge — 余额充值页面，展示当前余额并提供充值入口
- * 路由路径：/recharge
- * 核心功能：
- *   - 展示用户当前钱包余额
- *   - 提供充值金额选择和支付入口
- */
 <template>
   <Layout>
     <div class="cjx-recharge-page">

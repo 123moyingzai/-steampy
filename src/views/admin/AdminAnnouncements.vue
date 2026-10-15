@@ -1,11 +1,3 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿/**
- * AdminAnnouncements — 管理员公告管理页面，用于创建、编辑、发布和置顶官方公告
- * 路由路径：/admin/announcements
- * 核心功能：
- *   - 公告列表展示、搜索、分页
- *   - 新建公告弹窗（标题、正文、置顶、发布日期）
- *   - 编辑 / 删除公告
- */
 <template>
   <div class="admin-announcements">
     <!-- 工具栏 -->
