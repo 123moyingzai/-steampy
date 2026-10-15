@@ -122,6 +122,7 @@ const typeText = (t: string) => {
   if (t === 'reply') return '回复了你'
   if (t === 'like_review') return '赞了你的评论'
   if (t === 'like_reply') return '赞了你的回复'
+  if (t === 'system') return '系统通知'
   return ''
 }
 

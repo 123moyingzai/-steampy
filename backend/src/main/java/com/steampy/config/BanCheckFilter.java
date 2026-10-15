@@ -27,10 +27,11 @@ import java.util.regex.Pattern;
 /**
  * 封禁用户拦截过滤器
  *
- * 规则（正常的封禁语义）：
- *  - 已封禁用户（user_type = 已封禁）可以登录、修改资料、修改密码（/api/auth/** 放行）
- *  - 可以浏览公开内容（不带身份的请求，如游戏列表、公告）
- *  - 但任何携带其身份的业务操作（下单、上架、钱包、评价、收藏、Steam 等）一律 403 拒绝
+ * 规则（只读模式语义）：
+ *  - 已封禁用户（user_type = 已封禁）可以登录、修改资料（/api/auth/** 放行）
+ *  - 可以浏览/查询一切只读内容（GET 放行）：钱包余额仍可见、消息通知可读、订单可查
+ *  - 但任何写操作（POST/PUT/DELETE：下单、上架、充值、提现、评价、收藏等）一律 403 拒绝
+ *  - 封禁/解封时由 AdminController 写入站内通知，用户在消息中心可见
  *
  * 身份识别：query 参数（userId/sellerId/reporterId）→ 路径段（/user/{id}、/seller/{id}）
  *          → JSON body（user_id/userId/buyer_id/reporterId）
@@ -70,10 +71,17 @@ public class BanCheckFilter extends OncePerRequestFilter {
 
         String userId = resolveUserId(req, hasJsonBody);
         if (userId != null && !userId.isBlank() && isBanned(userId)) {
-            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            response.setContentType("application/json;charset=UTF-8");
-            response.getWriter().write("{\"code\":403,\"message\":\"您的账号已被封禁，暂时无法使用该功能，如有疑问请联系管理员\",\"data\":null}");
-            return;
+            // 只读模式：GET/HEAD/OPTIONS 放行（查余额、看通知、浏览订单等只读操作）
+            // 写操作（下单/上架/充值/提现/评价/收藏等）一律 403
+            String httpMethod = req.getMethod();
+            boolean readOnly = "GET".equalsIgnoreCase(httpMethod) || "HEAD".equalsIgnoreCase(httpMethod)
+                    || "OPTIONS".equalsIgnoreCase(httpMethod);
+            if (!readOnly) {
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                response.setContentType("application/json;charset=UTF-8");
+                response.getWriter().write("{\"code\":403,\"message\":\"您的账号已被封禁，暂时无法使用该功能；账户余额仍正常保留，解封后即可恢复。如有疑问请联系管理员\",\"data\":null}");
+                return;
+            }
         }
 
         chain.doFilter(req, response);

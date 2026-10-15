@@ -64,6 +64,7 @@ public class AdminController {
     @Autowired private WalletMapper walletMapper;
     @Autowired private PaymentMethodMapper paymentMethodMapper;
     @Autowired private RefundMapper refundMapper;
+    @Autowired private NotificationMapper notificationMapper;
     @Autowired private JdbcTemplate jdbcTemplate;
 
     // ======== 仪表盘统计 ========
@@ -235,12 +236,40 @@ public class AdminController {
         User u = userMapper.selectById(id);
         if (u == null) return Result.error("用户不存在");
         String action = body.getOrDefault("action", "ban");
-        if ("ban".equals(action)) u.setUserType("已封禁");
-        else if ("unban".equals(action)) u.setUserType("普通用户");
-        else if ("admin".equals(action)) u.setUserType("管理员");
-        else if ("normal".equals(action)) u.setUserType("普通用户");
+        String newType;
+        if ("ban".equals(action)) newType = "已封禁";
+        else if ("unban".equals(action)) newType = "普通用户";
+        else if ("admin".equals(action)) newType = "管理员";
+        else newType = "普通用户";
+        u.setUserType(newType);
         u.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(u);
+
+        // 状态变更写入站内通知（消息中心可见；actorId 为空 = 系统通知）
+        String notice;
+        if ("已封禁".equals(newType)) {
+            notice = "您的账号已被封禁，购买、出售、充值、提现、评价等功能暂时无法使用；账户余额仍正常保留，解封后即可恢复全部功能。如有疑问请联系管理员。";
+        } else if ("unban".equals(action)) {
+            notice = "您的账号已解封，全部功能已恢复使用，感谢您的理解与配合。";
+        } else if ("admin".equals(action)) {
+            notice = "您已被提升为管理员，可访问管理后台执行平台管理操作。";
+        } else {
+            notice = null; // 降为普通用户/普通状态变更不通知
+        }
+        if (notice != null) {
+            Notification n = new Notification();
+            n.setId(UUID.randomUUID().toString());
+            n.setUserId(id);
+            n.setType("system");
+            n.setActorId(null);
+            n.setTargetType("system");
+            n.setTargetId(id);
+            n.setContentSnippet(notice);
+            n.setIsRead(false);
+            n.setCreatedAt(LocalDateTime.now());
+            notificationMapper.insert(n);
+        }
+
         u.setPasswordHash(null);
         return Result.success(u);
     }
