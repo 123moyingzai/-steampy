@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="cjx-login-page">
     <div class="cjx-logo">
       <svg viewBox="0 0 24 24">
@@ -492,7 +492,8 @@ const handleLogin = async () => {
       if (isAdmin) {
         sessionStorage.setItem('steampy_admin', 'true')
       }
-      alert('登录成功！')
+      const isBanned = (user as any)?.userType === '已封禁'
+      alert(isBanned ? '登录成功，但您的账号已被封禁，购买、出售等功能暂时无法使用！' : '登录成功！')
       window.dispatchEvent(new Event('user-logged-in'))
 
       // 优先使用 redirect 参数（从路由守卫跳转过来的）
@@ -553,7 +554,8 @@ const handlePhoneLogin = async () => {
       sessionStorage.removeItem('steampy_admin')
       const isAdmin = (user as any)?.userType === '管理员'
       if (isAdmin) sessionStorage.setItem('steampy_admin', 'true')
-      alert('登录成功！')
+      const isBanned = (user as any)?.userType === '已封禁'
+      alert(isBanned ? '登录成功，但您的账号已被封禁，购买、出售等功能暂时无法使用！' : '登录成功！')
       window.dispatchEvent(new Event('user-logged-in'))
       router.replace(isAdmin ? '/admin/dashboard' : '/')
     } else {
@@ -639,7 +641,8 @@ const handlePhoneCodeLogin = async () => {
       sessionStorage.removeItem('steampy_admin')
       const isAdmin = (user as any)?.userType === '管理员'
       if (isAdmin) sessionStorage.setItem('steampy_admin', 'true')
-      alert('登录成功！')
+      const isBanned = (user as any)?.userType === '已封禁'
+      alert(isBanned ? '登录成功，但您的账号已被封禁，购买、出售等功能暂时无法使用！' : '登录成功！')
       window.dispatchEvent(new Event('user-logged-in'))
       router.replace(isAdmin ? '/admin/dashboard' : '/')
     } else {
