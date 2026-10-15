@@ -225,7 +225,7 @@ const handleSave = async () => {
       const action = formData.user_type === '管理员' ? 'admin'
                    : formData.user_type === '已封禁' ? 'ban'
                    : 'normal'
-      await axios.put(`/api/admin/users/${editingUser.value.id}/ban`, { action })
+      await axios.put(`/api/admin/users/${editingUser.value.id}/ban`, { action, operatorId: getOperatorId() })
       alert('更新成功')
       closeModal(); await loadUsers()
     } else {
@@ -242,6 +242,10 @@ const handleSave = async () => {
 }
 
 const isUserBanned = (user: any) => user.user_type === '已封禁'
+/** 当前登录管理员的 userId（用于站内通知标记发送人） */
+const getOperatorId = (): string => {
+  try { return JSON.parse(sessionStorage.getItem('steampy_user') || '{}')?.id || '' } catch { return '' }
+}
 const getUserBadgeText = (user: any) => {
   if (user.user_type === '已封禁') return '已封禁'
   return user.user_type || '普通用户'
@@ -255,14 +259,14 @@ const getUserBadgeClass = (user: any) => {
 const handleBan = async (user: any) => {
   if (!confirm(`确定封禁用户 "${user.username}" 吗？`)) return
   try {
-    await axios.put(`/api/admin/users/${user.id}/ban`, { action: 'ban' })
+    await axios.put(`/api/admin/users/${user.id}/ban`, { action: 'ban', operatorId: getOperatorId() })
     alert('封禁成功'); await loadUsers()
   } catch (e: any) { alert('封禁失败: ' + (e?.response?.data?.message || e.message)) }
 }
 const handleUnban = async (user: any) => {
   if (!confirm(`确定解禁用户 "${user.username}" 吗？`)) return
   try {
-    await axios.put(`/api/admin/users/${user.id}/ban`, { action: 'normal' })
+    await axios.put(`/api/admin/users/${user.id}/ban`, { action: 'normal', operatorId: getOperatorId() })
     alert('解禁成功'); await loadUsers()
   } catch (e: any) { alert('解禁失败: ' + (e?.response?.data?.message || e.message)) }
 }

@@ -245,7 +245,10 @@ public class AdminController {
         u.setUpdatedAt(LocalDateTime.now());
         userMapper.updateById(u);
 
-        // 状态变更写入站内通知（消息中心可见；actorId 为空 = 系统通知）
+        // 状态变更写入站内通知（消息中心可见；actorId = 操作的管理员，显示其昵称与头像）
+        String operatorId = body.get("operatorId");
+        User operator = (operatorId != null && !operatorId.isBlank()) ? userMapper.selectById(operatorId) : null;
+        boolean fromAdmin = operator != null && "管理员".equals(operator.getUserType());
         String notice;
         if ("已封禁".equals(newType)) {
             notice = "您的账号已被封禁，购买、出售、充值、提现、评价等功能暂时无法使用；账户余额仍正常保留，解封后即可恢复全部功能。如有疑问请联系管理员。";
@@ -261,7 +264,8 @@ public class AdminController {
             n.setId(UUID.randomUUID().toString());
             n.setUserId(id);
             n.setType("system");
-            n.setActorId(null);
+            // 有合法操作管理员则标记发送人，前端显示其昵称/头像；否则为系统通知
+            n.setActorId(fromAdmin ? operator.getId() : null);
             n.setTargetType("system");
             n.setTargetId(id);
             n.setContentSnippet(notice);

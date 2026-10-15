@@ -33,11 +33,11 @@
       <div v-if="msgList.length === 0" class="cjx-empty">暂无消息，去评论区互动吧～</div>
       <div v-for="n in msgList" :key="n.id" class="cjx-msg-item" :class="{ unread: !n.isRead }" @click="openNotification(n)">
         <div class="cjx-msg-avatar" :style="n.actorAvatarUrl ? `background-image:url(${n.actorAvatarUrl});background-size:cover;background-position:center;` : ''">
-          <span v-if="!n.actorAvatarUrl">{{ (n.actorName || '用').substring(0, 1) }}</span>
+          <span v-if="!n.actorAvatarUrl">{{ (n.actorName || (n.type === 'system' ? '系' : '用')).substring(0, 1) }}</span>
         </div>
         <div class="cjx-msg-body">
           <div class="cjx-msg-title">
-            <span class="cjx-msg-actor">{{ n.actorName || '某人' }}</span>
+            <span class="cjx-msg-actor">{{ n.actorName || (n.type === 'system' ? '系统' : '某人') }}</span>
             <span class="cjx-msg-action">{{ typeText(n.type) }}</span>
           </div>
           <!-- 引用块：like 通知始终显示被点赞的原内容；reply 只在有 targetContent 时显示被回复的原评论 -->
