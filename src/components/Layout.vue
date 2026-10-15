@@ -91,9 +91,9 @@
                 <div v-for="n in msgList.slice(0, 8)" :key="n.id" class="cjx-popover-item" :class="{ unread: !n.isRead }" @click="openNotification(n)">
                   <div class="cjx-popover-title">
                     <div class="cjx-popover-actor-avatar" :style="n.actorAvatarUrl ? `background-image:url(${n.actorAvatarUrl});background-size:cover;background-position:center;` : ''">
-                      <span v-if="!n.actorAvatarUrl">{{ (n.actorName || '用').substring(0, 1) }}</span>
+                      <span v-if="!n.actorAvatarUrl">{{ (n.actorName || (n.type === 'system' ? '系' : '用')).substring(0, 1) }}</span>
                     </div>
-                    <span class="cjx-popover-type">{{ n.type === 'reply' ? '💬 回复了你' : n.type === 'like_review' ? '👍 赞了你的评论' : '👍 赞了你的回复' }}</span>
+                    <span class="cjx-popover-type">{{ n.type === 'system' ? '📢 系统通知' : n.type === 'reply' ? '💬 回复了你' : n.type === 'like_review' ? '👍 赞了你的评论' : '👍 赞了你的回复' }}</span>
                     <span v-if="n.actorName" class="cjx-popover-actor">{{ n.actorName }}</span>
                   </div>
                   <!-- 引用块：like 通知始终显示被点赞的原内容；reply 只在有 targetContent 时显示被回复的原评论 -->
@@ -259,7 +259,13 @@ const toggleMsg = async () => {
   showAnnPanel.value = false
   showMsgPanel.value = !showMsgPanel.value
   if (showMsgPanel.value && currentUser.value?.id) {
-    msgList.value = await notificationAPI.list(currentUser.value.id)
+    try {
+      // list() 返回 {list,total,page,size} 对象，需取 .list 数组
+      const res = await notificationAPI.list(currentUser.value.id)
+      msgList.value = res?.list || []
+    } catch {
+      msgList.value = []
+    }
   }
 }
 
