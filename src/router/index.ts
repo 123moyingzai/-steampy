@@ -1,12 +1,12 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
-import Home from '../views/Home.vue'
 import { adminAuthAPI } from '../config/admin-api'
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
     name: 'Home',
-    component: Home
+    component: () => import('../views/Home.vue'),
+    meta: { keepAlive: true }
   },
   {
     path: '/login',
