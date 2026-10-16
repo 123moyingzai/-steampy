@@ -64,6 +64,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import axios from 'axios'
 import { adminAuthAPI } from '../../config/admin-api'
 
 const router = useRouter()
@@ -144,6 +145,8 @@ onMounted(() => {
   const admin = adminAuthAPI.getCurrentAdmin()
   if (admin) {
     adminName.value = admin.nickname || admin.username || '管理员'
+    // 全局注入管理后台鉴权请求头（后端 AdminAuthFilter 校验 /api/admin/**）
+    axios.defaults.headers.common['X-Admin-Id'] = admin.id
   }
 })
 

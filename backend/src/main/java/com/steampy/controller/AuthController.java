@@ -217,21 +217,37 @@ public class AuthController {
     // ========== 获取用户 ==========
 
     /**
-     * 根据 ID 查询用户资料。
-     *
-     * 返回前清空 passwordHash 并回填 steamBound 等派生字段。
-     *
-     * @param id 用户主键
-     * @return {@link Result} User 实体（可能为 null，用户不存在时）
+     * 查询用户信息（敏感信息脱敏）
+     * - 本人查看（viewerId = id）：返回完整资料（密码哈希除外）
+     * - 他人查看：手机号/邮箱打码（138****0435 / a***@xxx.com），防止爬取撞库
      */
     @GetMapping("/user/{id}")
-    public Result<User> getUser(@PathVariable String id) {
+    public Result<User> getUser(@PathVariable String id,
+                                @RequestParam(required = false) String viewerId) {
         User u = userMapper.selectById(id);
         if (u != null) {
             u.setPasswordHash(null);
+            boolean self = id.equals(viewerId);
+            if (!self) {
+                u.setPhone(maskPhone(u.getPhone()));
+                u.setEmail(maskEmail(u.getEmail()));
+            }
             fillSteamDerived(u);
         }
         return Result.success(u);
+    }
+
+    /** 手机号脱敏：保留前 3 后 4，如 138****0435 */
+    private String maskPhone(String phone) {
+        if (phone == null || phone.length() < 8) return phone;
+        return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
+    }
+
+    /** 邮箱脱敏：保留首字符与域名，如 a***@qq.com */
+    private String maskEmail(String email) {
+        if (email == null || email.isBlank() || !email.contains("@")) return email;
+        int at = email.indexOf('@');
+        return email.charAt(0) + "***" + email.substring(at);
     }
 
     /**
