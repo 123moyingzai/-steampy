@@ -534,6 +534,46 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- 举报弹窗（替换浏览器原生 prompt） -->
+    <Teleport to="body">
+      <div
+        v-if="reportDialog.show"
+        class="cjx-report-mask"
+        @click="closeReportDialog"
+      >
+        <div class="cjx-report-popover" @click.stop>
+          <div class="cjx-report-title">请选择举报理由</div>
+          <div
+            v-for="opt in reportOptions"
+            :key="opt.value"
+            class="cjx-report-option"
+            :class="{ active: reportDialog.selected === opt.value }"
+            @click="selectReportOption(opt.value)"
+          >
+            <span>{{ opt.label }}</span>
+            <span v-if="reportDialog.selected === opt.value" class="cjx-report-check">✓</span>
+          </div>
+          <!-- 选了"其他" → 出现自定义输入 -->
+          <textarea
+            v-if="reportDialog.selected === 'other'"
+            v-model="reportDialog.customReason"
+            class="cjx-report-textarea"
+            placeholder="请简要描述举报原因（不超过 200 字）"
+            maxlength="200"
+            rows="3"
+          ></textarea>
+          <div class="cjx-report-actions">
+            <button class="cjx-report-btn cancel" @click="closeReportDialog">取消</button>
+            <button
+              class="cjx-report-btn submit"
+              :disabled="!canSubmitReport"
+              @click="confirmReport"
+            >提交举报</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </Layout>
 </template>
 
@@ -1194,24 +1234,77 @@ async function onCopyContent() {
   closeMoreMenu()
 }
 
-/** 举报 */
-async function onReport() {
+/** 举报选项（固定列表 + 最后一项"其他"） */
+const reportOptions = [
+  { value: 'spam',       label: '垃圾广告 / 营销内容' },
+  { value: 'abuse',      label: '辱骂 / 人身攻击' },
+  { value: 'porn',       label: '色情 / 低俗' },
+  { value: 'illegal',    label: '违法违规' },
+  { value: 'misleading', label: '虚假信息 / 误导' },
+  { value: 'other',      label: '其他（请说明）' },
+]
+
+/** 举报弹窗状态 */
+const reportDialog = ref({
+  show: false,
+  selected: '' as string,
+  customReason: '',
+})
+
+/** 是否可以提交：选了非 other 就直接可提交；选了 other 需要填 customReason */
+const canSubmitReport = computed(() => {
+  const s = reportDialog.value.selected
+  if (!s) return false
+  if (s === 'other') return reportDialog.value.customReason.trim().length > 0
+  return true
+})
+
+function selectReportOption(v: string) {
+  reportDialog.value.selected = v
+  if (v !== 'other') reportDialog.value.customReason = ''
+}
+
+function openReportDialog() {
   if (!authAPI.getCurrentUser()) { alert('请先登录后举报'); closeMoreMenu(); return }
-  const reason = prompt('请输入举报理由（色情/广告/辱骂/违法...）：')
-  if (!reason || !reason.trim()) { closeMoreMenu(); return }
+  reportDialog.value = { show: true, selected: '', customReason: '' }
+}
+function closeReportDialog() {
+  reportDialog.value.show = false
+  reportDialog.value.selected = ''
+  reportDialog.value.customReason = ''
+}
+
+/** 确认提交举报 */
+async function confirmReport() {
+  const d = reportDialog.value
+  let reasonText = ''
+  if (d.selected === 'other') {
+    reasonText = d.customReason.trim()
+  } else {
+    const opt = reportOptions.find(o => o.value === d.selected)
+    reasonText = opt ? opt.label : d.selected
+  }
+  if (!reasonText) return
   try {
     const u = authAPI.getCurrentUser()!
     await reviewAPI.report(
       moreMenu.value!.type,
       moreMenu.value!.target.id,
       u.id,
-      reason.trim()
+      reasonText
     )
     showToast('举报已提交，感谢反馈')
   } catch (e: any) {
     alert(e?.message || '举报失败')
   }
+  closeReportDialog()
   closeMoreMenu()
+}
+
+/** 原 onReport —— 改成打开弹窗而不是 prompt() */
+function onReport() {
+  closeMoreMenu()
+  openReportDialog()
 }
 
 /** 从 ⋯ 弹层删除自己的评论/回复 */
@@ -2777,6 +2870,109 @@ function scrollAndFlash(selector: string) {
   position: fixed;
   inset: 0;
   z-index: 9998;
+}
+
+/* ===== 举报弹窗 ===== */
+.cjx-report-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn .15s ease;
+}
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+
+.cjx-report-popover {
+  width: 88%;
+  max-width: 400px;
+  background: #fff;
+  border-radius: 14px;
+  padding: 20px 18px 14px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+  animation: popIn .18s ease;
+}
+@keyframes popIn { from { transform: scale(.92); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+
+.cjx-report-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #222;
+  margin-bottom: 14px;
+  text-align: center;
+}
+
+.cjx-report-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  margin-bottom: 8px;
+  border: 1.5px solid #eaeaea;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #444;
+  background: #fafafa;
+  cursor: pointer;
+  transition: all .15s;
+}
+.cjx-report-option:hover { border-color: #4a6cf7; background: #f3f6ff; }
+.cjx-report-option.active {
+  border-color: #4a6cf7;
+  background: #eef2ff;
+  color: #2b4cdb;
+  font-weight: 500;
+}
+.cjx-report-check {
+  color: #4a6cf7;
+  font-weight: 700;
+}
+
+.cjx-report-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1.5px solid #eaeaea;
+  border-radius: 10px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color .15s;
+}
+.cjx-report-textarea:focus { border-color: #4a6cf7; }
+
+.cjx-report-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+.cjx-report-btn {
+  flex: 1;
+  padding: 10px 0;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s;
+}
+.cjx-report-btn.cancel {
+  background: #f3f4f6;
+  color: #666;
+}
+.cjx-report-btn.cancel:hover { background: #e7e8eb; }
+.cjx-report-btn.submit {
+  background: #4a6cf7;
+  color: #fff;
+}
+.cjx-report-btn.submit:hover:not(:disabled) { background: #3a57d4; }
+.cjx-report-btn.submit:disabled {
+  background: #c6d0ee;
+  cursor: not-allowed;
 }
 .cjx-more-popover {
   position: fixed;
