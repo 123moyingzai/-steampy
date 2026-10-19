@@ -4,9 +4,11 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * 游戏评论实体
@@ -17,6 +19,7 @@ import java.time.LocalDateTime;
  */
 @Data
 @TableName("reviews")
+@JsonInclude(JsonInclude.Include.ALWAYS)   // 所有字段（含 null 和空 List）都序列化给前端
 public class Review {
     /** 评论ID（UUID，由业务层生成） */
     @TableId(type = IdType.INPUT)
@@ -57,5 +60,23 @@ public class Review {
     /** 当前登录用户是否已点赞（仅查询时填充，不映射 DB） */
     @TableField(exist = false)
     private Boolean liked;
+    /** 举报理由列表（仅管理员查询时从 reports 表回填，不映射 DB）
+     *  每项是一个 ReportReason DTO，含 reporterName / reason / createdAt
+     */
+    @TableField(exist = false)
+    private List<ReportReason> reportReasons;
+
+    /**
+     * 举报理由 DTO（内部类，避免 List<Map> 的 Jackson 序列化问题）
+     */
+    @Data
+    public static class ReportReason {
+        /** 举报人昵称 */
+        private String reporterName;
+        /** 举报理由 */
+        private String reason;
+        /** 举报时间 */
+        private String createdAt;
+    }
 }
 

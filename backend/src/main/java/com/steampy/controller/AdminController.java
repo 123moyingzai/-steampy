@@ -671,6 +671,55 @@ public class AdminController {
                 }
             }
         }
+        // 回填举报理由（从 reports 表批量查，避免 N+1）
+        if (!list.isEmpty()) {
+            // 1. 批量查 reports
+            List<String> reviewIds = new ArrayList<>();
+            for (Review r : list) reviewIds.add(r.getId());
+            StringBuilder inClause = new StringBuilder();
+            for (int i = 0; i < reviewIds.size(); i++) {
+                if (i > 0) inClause.append(',');
+                inClause.append('?');
+            }
+            List<Map<String, Object>> allReports = jdbcTemplate.queryForList(
+                    "SELECT r.target_id, r.reason, r.reporter_id, r.created_at " +
+                    "FROM reports r WHERE r.target_type = 'review' AND r.target_id IN (" + inClause + ") " +
+                    "ORDER BY r.created_at DESC",
+                    reviewIds.toArray());
+
+            // 2. 收集举报人 ID，批量查昵称
+            Set<String> reporterIds = new HashSet<>();
+            for (Map<String, Object> rp : allReports) {
+                Object rid = rp.get("reporter_id");
+                if (rid != null) reporterIds.add(rid.toString());
+            }
+            Map<String, String> reporterNameMap = new HashMap<>();
+            if (!reporterIds.isEmpty()) {
+                List<User> reporters = userMapper.selectBatchIds(reporterIds);
+                for (User u : reporters) {
+                    String n = (u.getNickname() != null && !u.getNickname().isBlank()) ? u.getNickname() : u.getUsername();
+                    reporterNameMap.put(u.getId(), n != null ? n : "匿名用户");
+                }
+            }
+
+            // 3. 按 target_id 分组塞进各 Review.reportReasons
+            Map<String, List<Review.ReportReason>> reasonMap = new HashMap<>();
+            for (Map<String, Object> rp : allReports) {
+                String tid = rp.get("target_id").toString();
+                List<Review.ReportReason> bucket = reasonMap.computeIfAbsent(tid, k -> new ArrayList<>());
+                Review.ReportReason item = new Review.ReportReason();
+                item.setReporterName(reporterNameMap.getOrDefault(rp.get("reporter_id").toString(), "已注销用户"));
+                Object r = rp.get("reason");
+                item.setReason(r != null ? r.toString() : "");
+                Object ca = rp.get("created_at");
+                item.setCreatedAt(ca != null ? ca.toString() : "");
+                bucket.add(item);
+            }
+            for (Review r : list) {
+                List<Review.ReportReason> reasons = reasonMap.get(r.getId());
+                r.setReportReasons(reasons != null ? reasons : new ArrayList<>());
+            }
+        }
         return Result.success(list);
     }
 
