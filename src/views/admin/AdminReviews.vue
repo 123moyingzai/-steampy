@@ -17,6 +17,7 @@
             <th>评价</th>
             <th>内容</th>
             <th>🔥 举报</th>
+            <th>📋 举报详情</th>
             <th>状态</th>
             <th>时间</th>
             <th>操作</th>
@@ -44,6 +45,18 @@
             </td>
             <td>
               <span class="report-count">🔥 {{ r.report_count || 0 }}</span>
+            </td>
+            <td class="td-reasons">
+              <template v-if="r.report_reasons && r.report_reasons.length > 0">
+                <div v-for="(rp, i) in r.report_reasons" :key="i" class="reason-item">
+                  <div class="reason-head">
+                    <span class="reporter-name">{{ rp.reporterName || '匿名用户' }}</span>
+                    <span class="reason-time">{{ formatTime(rp.createdAt) }}</span>
+                  </div>
+                  <div class="reason-text">{{ rp.reason || '(未填写理由)' }}</div>
+                </div>
+              </template>
+              <span v-else class="reason-empty">—</span>
             </td>
             <td>
               <span :class="['badge', statusBadge(r.status)]">{{ statusLabel(r.status) }}</span>
@@ -167,4 +180,38 @@ onMounted(loadReviews)
   color: #c0392b;
 }
 .stat-report { background: #fef3e7; color: #e67e22; margin-left: 8px; }
+
+/* 举报详情列 */
+.td-reasons { max-width: 260px; min-width: 220px; }
+.reason-item {
+  padding: 8px 10px;
+  background: #fafbfc;
+  border-left: 3px solid #e67e22;
+  border-radius: 4px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.reason-item:last-child { margin-bottom: 0; }
+.reason-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.reporter-name {
+  font-weight: 600;
+  color: #4a6cf7;
+  font-size: 12px;
+}
+.reason-time {
+  color: #aaa;
+  font-size: 11px;
+}
+.reason-text {
+  color: #555;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.reason-empty { color: #ccc; }
 </style>

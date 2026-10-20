@@ -1,10 +1,21 @@
-﻿mysqldump.exe : mysqldump: [Warning] Using a password on the command line interface can be insecure.
-At line:15 char:2862
-+ ... pgrep\bin'; & "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqldump. ...
-+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    + CategoryInfo          : NotSpecified: (mysqldump: [War...an be insecure.:String) [], RemoteException
-    + FullyQualifiedErrorId : NativeCommandError
- 
+-- =====================================================================
+-- SteamPY 数据库全量备份
+-- 原始 dump 时间: 2026-10-12 10:17:34
+-- 最后更新: 2026-10-19 (清理 PowerShell 污染 + 补全缺失的实体表)
+--
+-- 表数量说明:
+--   实体层共 20 个 @TableName 映射表, 本文件现已全部包含
+--   额外保留 4 张无实体的遗留表 (announcement_reads / reports /
+--     review_likes / review_reply_likes), 供历史代码兼容
+--
+-- 20 张实体表 (全部):
+--   announcements | bank_cards | favorites | games | listings
+--   orders | payment_methods | refunds | review_replies | reviews
+--   seller_quota | steam_accounts | steam_libraries | transactions
+--   user_games | user_notifications | user_steam_bindings | user_wallets
+--   users | withdraw_records
+-- =====================================================================
+
 -- MySQL dump 10.13  Distrib 8.0.34, for Win64 (x86_64)
 --
 -- Host: localhost    Database: steampy
@@ -766,6 +777,65 @@ LOCK TABLES `withdraw_records` WRITE;
 INSERT INTO `withdraw_records` VALUES ('18de417b-5344-440b-810f-3c0445a924db','WD17884863496904487','20ce5e5c-751b-405d-98f0-060baf9dffdd','bank','111','111',2.00,0.02,1.98,'success','2026-09-04 09:45:50',NULL,NULL),('5cd733e1-67ce-473c-829d-77ac831eeeac','WD17884863387513B18','20ce5e5c-751b-405d-98f0-060baf9dffdd','alipay','111111111','111',70.00,0.70,69.30,'success','2026-09-04 09:45:39',NULL,NULL),('885587162cfb401f05c49c0867de7ddb','WD1788745276419AF60','20ce5e5c-751b-405d-98f0-060baf9dffdd','bank','123456789123456789','一二三',2.00,0.02,1.98,'failed','2026-09-07 09:41:16','2026-09-07 09:42:03','信息不符'),('e0cd8840-0ec6-4e5e-8f14-8afb020f0306','WD17887434107774984','20ce5e5c-751b-405d-98f0-060baf9dffdd','alipay','13888888888','一二三',20.00,0.20,19.80,'success','2026-09-07 09:10:11',NULL,NULL);
 /*!40000 ALTER TABLE `withdraw_records` ENABLE KEYS */;
 UNLOCK TABLES;
+
+-- =====================================================================
+-- 以下 2 张表是 2026-10-19 基于 Entity 补全的
+-- 原始 dump 生成时这两张表还不存在
+-- =====================================================================
+
+--
+-- Table structure for table `bank_cards`
+--
+
+DROP TABLE IF EXISTS `bank_cards`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `bank_cards` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'UUID 主键',
+  `user_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'FK → users.id',
+  `bank_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '银行名称',
+  `card_number` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '银行卡号(明文,仅后端使用)',
+  `card_number_masked` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '脱敏卡号(前端展示,如 **** **** **** 1234)',
+  `card_holder` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '持卡人姓名',
+  `status` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT 'active' COMMENT '状态: active=启用, disabled=已禁用',
+  `created_at` datetime DEFAULT NULL COMMENT '创建时间',
+  `updated_at` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='银行卡表';
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `refunds`
+--
+
+DROP TABLE IF EXISTS `refunds`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `refunds` (
+  `id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '退款记录ID(UUID)',
+  `refund_no` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '退款单号(对外展示,UNIQUE)',
+  `order_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'FK → orders.id',
+  `order_no` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '订单编号(冗余存储)',
+  `buyer_id` varchar(36) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '买家用户ID',
+  `seller_id` varchar(36) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '卖家用户ID',
+  `game_name` varchar(200) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '游戏名称(冗余存储)',
+  `game_image` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '游戏封面图(冗余存储)',
+  `amount` decimal(12,2) NOT NULL COMMENT '退款金额(元)',
+  `reason` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '退款原因说明',
+  `status` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT 'pending' COMMENT '状态: pending=待审核, approved=已通过, rejected=已拒绝',
+  `applied_at` datetime DEFAULT NULL COMMENT '申请时间',
+  `reviewed_at` datetime DEFAULT NULL COMMENT '审核完成时间',
+  `review_remark` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '审核备注/拒绝原因',
+  `created_at` datetime DEFAULT NULL COMMENT '创建时间',
+  `updated_at` datetime DEFAULT NULL COMMENT '更新时间',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_refund_no` (`refund_no`),
+  KEY `idx_order_id` (`order_id`),
+  KEY `idx_buyer_id` (`buyer_id`),
+  KEY `idx_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='退款记录表';
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping events for database 'steampy'
