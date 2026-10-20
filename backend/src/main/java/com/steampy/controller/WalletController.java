@@ -153,9 +153,11 @@ public class WalletController {
 
         if (amount.compareTo(BigDecimal.ZERO) <= 0) return Result.error("提现金额必须大于 0");
 
-        // 渠道开关校验（payment_methods 配置：停用渠道直接拒绝）
+        // 渠道开关校验（payment_methods 配置：停用渠道直接拒绝；both 类型也可用于提现）
         PaymentMethod pm = paymentMethodMapper.selectOne(
-                new QueryWrapper<PaymentMethod>().eq("method_code", payMethod).eq("type", "withdraw"));
+                new QueryWrapper<PaymentMethod>()
+                        .eq("method_code", payMethod)
+                        .in("type", List.of("withdraw", "both")));
         if (pm == null || !Boolean.TRUE.equals(pm.getIsActive()))
             return Result.error("该提现渠道已停用，请选择其他方式");
 
