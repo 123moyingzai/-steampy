@@ -16,9 +16,21 @@
         <option value="管理员">管理员</option>
         <option value="已封禁">已封禁</option>
       </select>
+      <button class="btn btn-outline" :disabled="exporting" @click="handleExport">
+        {{ exporting ? '导出中...' : '导出 CSV' }}
+      </button>
       <button class="btn btn-primary" @click="openCreateModal">
         <span>+</span> 新增用户
       </button>
+    </div>
+
+    <!-- 批量操作条 -->
+    <div v-if="selectedIds.length > 0" class="batch-bar">
+      <span class="batch-info">已选 <strong>{{ selectedIds.length }}</strong> 项</span>
+      <button class="btn btn-warning" :disabled="batching" @click="handleBatchAction('ban')">批量封禁</button>
+      <button class="btn btn-success" :disabled="batching" @click="handleBatchAction('unban')">批量解禁</button>
+      <button class="btn btn-danger" :disabled="batching" @click="handleBatchDelete">批量删除</button>
+      <button class="btn btn-default" @click="selectedIds = []">取消选择</button>
     </div>
 
     <!-- 用户列表 -->
@@ -26,6 +38,9 @@
       <table class="data-table">
         <thead>
           <tr>
+            <th class="col-check">
+              <input type="checkbox" :checked="allSelected" @change="toggleSelectAll">
+            </th>
             <th>ID</th>
             <th>用户名</th>
             <th>昵称</th>
@@ -38,6 +53,9 @@
         </thead>
         <tbody>
           <tr v-for="user in filteredUsers" :key="user.id">
+            <td class="col-check">
+              <input type="checkbox" :checked="selectedIds.includes(user.id)" @change="toggleSelect(user.id)">
+            </td>
             <td class="mono">{{ String(user.id).slice(0, 8) }}</td>
             <td class="username">{{ user.username }}</td>
             <td>{{ user.nickname || '-' }}</td>
@@ -134,6 +152,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, computed } from 'vue'
 import axios from 'axios'
+import { adminExportAPI } from '../../config/admin-api'
 
 const filteredUsers = ref<any[]>([])
 const searchKeyword = ref('')
@@ -144,6 +163,11 @@ const total = ref(0)
 const showModal = ref(false)
 const editingUser = ref<any>(null)
 const saving = ref(false)
+
+// 批量操作：勾选的用户 id 列表 + 批量请求进行中标记
+const selectedIds = ref<string[]>([])
+const batching = ref(false)
+const exporting = ref(false)
 
 // 搜索 debounce timer
 let searchTimer: ReturnType<typeof setTimeout> | null = null
@@ -187,6 +211,7 @@ const loadUsers = async () => {
     const payload = r.data?.data || {}
     total.value = Number(payload.total) || 0
     filteredUsers.value = payload.list || []
+    selectedIds.value = [] // 换页/筛选后清空勾选，避免跨页误操作
   } catch (e) { console.error('加载用户失败', e) }
 }
 
@@ -279,6 +304,72 @@ const formatTime = (timeStr: string) => {
   } catch { return timeStr }
 }
 
+// ======== 批量选择 + 批量操作 + 导出 ========
+
+/** 当前页是否已全选 */
+const allSelected = computed(() =>
+  filteredUsers.value.length > 0 && filteredUsers.value.every(u => selectedIds.value.includes(u.id))
+)
+
+const toggleSelect = (id: string) => {
+  selectedIds.value = selectedIds.value.includes(id)
+    ? selectedIds.value.filter(x => x !== id)
+    : [...selectedIds.value, id]
+}
+
+const toggleSelectAll = () => {
+  selectedIds.value = allSelected.value ? [] : filteredUsers.value.map(u => u.id)
+}
+
+/** 批量封禁 / 解禁（走 /api/admin/users/batch，后端逐条写站内通知） */
+const handleBatchAction = async (action: 'ban' | 'unban') => {
+  const label = action === 'ban' ? '封禁' : '解禁'
+  if (!confirm(`确定批量${label}选中的 ${selectedIds.value.length} 个用户吗？`)) return
+  batching.value = true
+  try {
+    const r = await axios.put('/api/admin/users/batch', {
+      ids: selectedIds.value,
+      action,
+      operatorId: getOperatorId()
+    })
+    const d = r.data?.data || {}
+    alert(`批量${label}完成：成功 ${d.affected || 0} / 共 ${d.total || 0}`)
+    await loadUsers()
+  } catch (e: any) {
+    alert(`批量${label}失败: ` + (e?.response?.data?.message || e.message))
+  } finally { batching.value = false }
+}
+
+/** 批量删除（后端会跳过管理员账号与操作者本人） */
+const handleBatchDelete = async () => {
+  if (!confirm(`确定批量删除选中的 ${selectedIds.value.length} 个用户吗？此操作不可恢复！`)) return
+  batching.value = true
+  try {
+    const r = await axios.delete('/api/admin/users/batch', {
+      data: { ids: selectedIds.value, operatorId: getOperatorId() }
+    })
+    const d = r.data?.data || {}
+    const skipped = d.skipped ? `，跳过 ${d.skipped} 个（管理员/本人）` : ''
+    alert(`批量删除完成：成功 ${d.affected || 0} / 共 ${d.total || 0}${skipped}`)
+    await loadUsers()
+  } catch (e: any) {
+    alert('批量删除失败: ' + (e?.response?.data?.message || e.message))
+  } finally { batching.value = false }
+}
+
+/** 导出当前筛选条件下的用户 CSV */
+const handleExport = async () => {
+  exporting.value = true
+  try {
+    await adminExportAPI.downloadCsv('users', {
+      keyword: searchKeyword.value.trim(),
+      role: roleFilter.value
+    })
+  } catch (e: any) {
+    alert('导出失败: ' + (e?.response?.data?.message || e.message))
+  } finally { exporting.value = false }
+}
+
 onMounted(loadUsers)
 </script>
 
@@ -348,6 +439,73 @@ onMounted(loadUsers)
 
 .btn-default:hover {
   background: #ddd;
+}
+
+.btn-outline {
+  background: #fff;
+  color: #3498db;
+  border: 1px solid #3498db;
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: #eaf4fc;
+}
+
+.btn-warning {
+  background: #f39c12;
+  color: #fff;
+}
+
+.btn-warning:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btn-success {
+  background: #27ae60;
+  color: #fff;
+}
+
+.btn-success:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btn-danger {
+  background: #e74c3c;
+  color: #fff;
+}
+
+.btn-danger:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+/* 批量操作条 */
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #fdf6e3;
+  border: 1px solid #f0d9a0;
+  border-radius: 10px;
+}
+
+.batch-info {
+  font-size: 13px;
+  color: #8a6d3b;
+  margin-right: auto;
+}
+
+.batch-info strong {
+  color: #d68910;
+}
+
+.col-check {
+  width: 40px;
+  text-align: center;
+}
+
+.col-check input {
+  cursor: pointer;
 }
 
 .card {

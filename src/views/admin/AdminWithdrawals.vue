@@ -11,6 +11,9 @@
         <span class="stat-pill">待审核 <strong>{{ pendingCount }}</strong> 笔</span>
         <span class="stat-pill">总金额 <strong class="amount">¥{{ totalAmount.toFixed(2) }}</strong></span>
       </div>
+      <button class="btn btn-outline" :disabled="exporting" @click="handleExport">
+        {{ exporting ? '导出中...' : '导出 CSV' }}
+      </button>
       <button class="btn btn-outline" @click="loadWithdrawals">刷新</button>
     </div>
 
@@ -66,9 +69,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
+import { adminExportAPI } from '../../config/admin-api'
 
 const all = ref<any[]>([])
 const filterStatus = ref('')
+const exporting = ref(false)
 
 const filteredList = computed(() => {
   return all.value.filter(w => !filterStatus.value || w.status === filterStatus.value)
@@ -82,6 +87,16 @@ async function loadWithdrawals() {
     const r = await axios.get('/api/admin/withdrawals' + params)
     all.value = r.data?.data || []
   } catch (e) { console.error('加载提现列表失败', e) }
+}
+
+/** 导出提现申请 CSV（按当前状态筛选） */
+async function handleExport() {
+  exporting.value = true
+  try {
+    await adminExportAPI.downloadCsv('withdrawals', { status: filterStatus.value })
+  } catch (e: any) {
+    alert('导出失败: ' + (e?.response?.data?.message || e.message))
+  } finally { exporting.value = false }
 }
 
 async function review(w: any, action: 'approve' | 'reject') {

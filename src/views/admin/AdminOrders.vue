@@ -27,6 +27,26 @@
           <option value="py">PY 代购</option>
         </select>
       </div>
+      <button class="btn btn-outline" :disabled="exporting" @click="handleExport">
+        {{ exporting ? '导出中...' : '导出 CSV' }}
+      </button>
+    </div>
+
+    <!-- 批量操作条 -->
+    <div v-if="selectedIds.length > 0" class="batch-bar">
+      <span class="batch-info">已选 <strong>{{ selectedIds.length }}</strong> 项</span>
+      <select v-model="batchStatus" class="batch-select">
+        <option value="">批量改状态...</option>
+        <option value="completed">已完成</option>
+        <option value="pending">处理中</option>
+        <option value="cancelled">已取消</option>
+        <option value="closed">超时关闭</option>
+        <option value="refunded">已退款</option>
+      </select>
+      <button class="btn btn-primary" :disabled="batching || !batchStatus" @click="handleBatchStatus">
+        {{ batching ? '处理中...' : '应用' }}
+      </button>
+      <button class="btn btn-default" @click="selectedIds = []">取消选择</button>
     </div>
 
     <!-- 汇总 -->
@@ -54,6 +74,9 @@
       <table class="data-table">
         <thead>
           <tr>
+            <th class="col-check">
+              <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll">
+            </th>
             <th>订单号</th>
             <th>买家ID</th>
             <th>游戏</th>
@@ -67,6 +90,9 @@
         </thead>
         <tbody>
           <tr v-for="order in paginatedOrders" :key="order.id">
+            <td class="col-check">
+              <input type="checkbox" :checked="selectedIds.includes(order.id)" @change="toggleSelect(order.id)">
+            </td>
             <td class="mono">{{ order.order_no || ('ORD' + order.id) }}</td>
             <td class="mono">{{ String(order.buyer_id).slice(0, 8) }}</td>
             <td>
@@ -136,12 +162,19 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import axios from 'axios'
+import { adminExportAPI } from '../../config/admin-api'
 
 const orders = ref<any[]>([])
 const filteredOrders = ref<any[]>([])
 const searchKeyword = ref('')
 const statusFilter = ref('')
 const typeFilter = ref('')
+
+// 批量操作：勾选的订单 id（仅当前页）+ 目标状态
+const selectedIds = ref<string[]>([])
+const batchStatus = ref('')
+const batching = ref(false)
+const exporting = ref(false)
 
 // 分页
 const currentPage = ref(1)
@@ -202,6 +235,54 @@ const filterOrders = () => {
     result = result.filter(o => (o.order_type || o.orderType || 'cdkey') === typeFilter.value)
   }
   filteredOrders.value = result
+  selectedIds.value = [] // 筛选/刷新后清空勾选，避免选中不可见行
+}
+
+// ======== 批量选择 + 批量改状态 + 导出 ========
+
+/** 当前页是否已全选 */
+const allPageSelected = computed(() =>
+  paginatedOrders.value.length > 0 && paginatedOrders.value.every(o => selectedIds.value.includes(o.id))
+)
+
+const toggleSelect = (id: string) => {
+  selectedIds.value = selectedIds.value.includes(id)
+    ? selectedIds.value.filter(x => x !== id)
+    : [...selectedIds.value, id]
+}
+
+const toggleSelectAll = () => {
+  selectedIds.value = allPageSelected.value ? [] : paginatedOrders.value.map(o => o.id)
+}
+
+/** 批量修改订单状态（走 /api/admin/orders/batch-status，后端逐条校验状态合法性） */
+const handleBatchStatus = async () => {
+  if (!batchStatus.value) { alert('请先选择目标状态'); return }
+  const label = getStatusText(batchStatus.value)
+  if (!confirm(`确定将选中的 ${selectedIds.value.length} 笔订单状态改为「${label}」吗？`)) return
+  batching.value = true
+  try {
+    const r = await axios.put('/api/admin/orders/batch-status', {
+      ids: selectedIds.value,
+      status: batchStatus.value
+    })
+    const d = r.data?.data || {}
+    alert(`批量修改完成：成功 ${d.affected || 0} / 共 ${d.total || 0}`)
+    batchStatus.value = ''
+    await loadOrders()
+  } catch (e: any) {
+    alert('批量修改失败: ' + (e?.response?.data?.message || e.message))
+  } finally { batching.value = false }
+}
+
+/** 导出当前状态筛选条件下的订单 CSV */
+const handleExport = async () => {
+  exporting.value = true
+  try {
+    await adminExportAPI.downloadCsv('orders', { status: statusFilter.value })
+  } catch (e: any) {
+    alert('导出失败: ' + (e?.response?.data?.message || e.message))
+  } finally { exporting.value = false }
 }
 
 const handleStatusChange = async (order: any) => {
@@ -584,4 +665,87 @@ onMounted(() => {
 .page-btn.active { background: #f39c12; color: #fff; border-color: #f39c12; }
 .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .page-ellipsis { font-size: 12px; color: #999; padding: 0 4px; }
+
+/* 批量操作 + 导出 */
+.btn {
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: none;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-outline {
+  background: #fff;
+  color: #f39c12;
+  border: 1px solid #f39c12;
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: #fef5e7;
+}
+
+.btn-primary {
+  background: #f39c12;
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btn-default {
+  background: #fff;
+  color: #333;
+  border: 1px solid #ddd;
+}
+
+.btn-default:hover:not(:disabled) {
+  background: #f5f5f5;
+}
+
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #fdf6e3;
+  border: 1px solid #f0d9a0;
+  border-radius: 10px;
+}
+
+.batch-info {
+  font-size: 13px;
+  color: #8a6d3b;
+  margin-right: auto;
+}
+
+.batch-info strong {
+  color: #d68910;
+}
+
+.batch-select {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.col-check {
+  width: 40px;
+  text-align: center;
+}
+
+.col-check input {
+  cursor: pointer;
+}
 </style>

@@ -10,6 +10,9 @@
           @input="filterGames"
         >
       </div>
+      <button class="btn btn-outline" :disabled="exporting" @click="handleExport">
+        {{ exporting ? '导出中...' : '导出 CSV' }}
+      </button>
       <button class="btn btn-primary" @click="openCreateModal">
         <span>+</span> 新增游戏
       </button>
@@ -157,6 +160,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import axios from 'axios'
+import { adminExportAPI } from '../../config/admin-api'
 
 const games = ref<any[]>([])
 const filteredGames = ref<any[]>([])
@@ -164,6 +168,7 @@ const searchKeyword = ref('')
 const showModal = ref(false)
 const editingGame = ref<any>(null)
 const saving = ref(false)
+const exporting = ref(false)
 
 // 分页
 const currentPage = ref(1)
@@ -263,6 +268,16 @@ const stripYuan = (val: any): string => {
   return String(val).replace(/[¥$￥]/g, '').trim()
 }
 
+/** 导出游戏列表 CSV（后端 /api/admin/export/games） */
+const handleExport = async () => {
+  exporting.value = true
+  try {
+    await adminExportAPI.downloadCsv('games')
+  } catch (e: any) {
+    alert('导出失败: ' + (e?.response?.data?.message || e.message))
+  } finally { exporting.value = false }
+}
+
 onMounted(loadGames)
 </script>
 
@@ -321,6 +336,16 @@ onMounted(loadGames)
 
 .btn-primary:hover:not(:disabled) {
   opacity: 0.9;
+}
+
+.btn-outline {
+  background: #fff;
+  color: #3498db;
+  border: 1px solid #3498db;
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: #eaf4fc;
 }
 
 .btn-default {
