@@ -1249,6 +1249,9 @@ const reportDialog = ref({
   show: false,
   selected: '' as string,
   customReason: '',
+  // 在 closeMoreMenu 之前就把 type/target 存好（否则提交时 moreMenu.value 已经是 null）
+  targetType: '' as string,
+  targetId: '' as string,
 })
 
 /** 是否可以提交：选了非 other 就直接可提交；选了 other 需要填 customReason */
@@ -1265,8 +1268,17 @@ function selectReportOption(v: string) {
 }
 
 function openReportDialog() {
-  if (!authAPI.getCurrentUser()) { alert('请先登录后举报'); closeMoreMenu(); return }
-  reportDialog.value = { show: true, selected: '', customReason: '' }
+  // 仅作为兜底：如果没从 onReport 进来（比如直接调这个函数）才走到这里
+  if (!authAPI.getCurrentUser()) { alert('请先登录后举报'); return }
+  if (!moreMenu.value) return
+  const mm = moreMenu.value
+  reportDialog.value = {
+    show: true,
+    selected: '',
+    customReason: '',
+    targetType: mm.type,
+    targetId: mm.target.id,
+  }
 }
 function closeReportDialog() {
   reportDialog.value.show = false
@@ -1287,12 +1299,8 @@ async function confirmReport() {
   if (!reasonText) return
   try {
     const u = authAPI.getCurrentUser()!
-    await reviewAPI.report(
-      moreMenu.value!.type,
-      moreMenu.value!.target.id,
-      u.id,
-      reasonText
-    )
+    // 用 openReportDialog 时存好的 targetType/targetId（此时 moreMenu 已经被 close 成 null）
+    await reviewAPI.report(d.targetType, d.targetId, u.id, reasonText)
     showToast('举报已提交，感谢反馈')
   } catch (e: any) {
     alert(e?.message || '举报失败')
@@ -1303,8 +1311,17 @@ async function confirmReport() {
 
 /** 原 onReport —— 改成打开弹窗而不是 prompt() */
 function onReport() {
+  if (!authAPI.getCurrentUser()) { alert('请先登录后举报'); closeMoreMenu(); return }
+  // 先存值（在 closeMoreMenu 之前）
+  const mm = moreMenu.value!
+  reportDialog.value = {
+    show: true,
+    selected: '',
+    customReason: '',
+    targetType: mm.type,
+    targetId: mm.target.id,
+  }
   closeMoreMenu()
-  openReportDialog()
 }
 
 /** 从 ⋯ 弹层删除自己的评论/回复 */
