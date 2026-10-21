@@ -44,7 +44,9 @@ public class PaymentMethodController {
     @GetMapping("/active")
     public Result<List<Map<String, Object>>> listActive(@RequestParam(defaultValue = "withdraw") String type) {
         QueryWrapper<PaymentMethod> qw = new QueryWrapper<>();
-        qw.eq("type", type).eq("is_active", 1).orderByAsc("sort_order");
+        qw.in("type", List.of(type, "both"))
+          .eq("is_active", 1)
+          .orderByAsc("sort_order");
         List<PaymentMethod> list = paymentMethodMapper.selectList(qw);
         List<Map<String, Object>> result = new ArrayList<>();
         if (list != null) {

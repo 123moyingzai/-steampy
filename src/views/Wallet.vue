@@ -285,7 +285,7 @@ const bankName = ref('')
 
 // 支付渠道（payment_methods 配置开关驱动；API 失败时回退默认两渠道）
 const paymentMethods = ref<any[]>([
-  { method_code: 'alipay', method_name: '支付宝', fee_rate: 0.01, min_fee: 1, max_fee: 50 },
+  { method_code: 'alipay', method_name: '支付宝', fee_rate: 0.006, min_fee: 1, max_fee: 50 },
   { method_code: 'bank', method_name: '银行卡', fee_rate: 0.01, min_fee: 1, max_fee: 50 }
 ])
 
