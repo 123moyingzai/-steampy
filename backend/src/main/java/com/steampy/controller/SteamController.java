@@ -476,11 +476,29 @@ public class SteamController {
         }
         List<SteamLibrary> list = steamService.getLibraryByAccountId(u.getSteamAccountId());
 
+        // 预查 games 建索引
+        List<Game> allGames = gameMapper.selectList(null);
+        java.util.Map<String, Game> gameIndex = new java.util.HashMap<>();
+        for (Game g : allGames) {
+            if (g.getName() != null) gameIndex.put(g.getName().toLowerCase(), g);
+        }
+
         List<Map<String, Object>> resp = list.stream().map(sl -> {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("game_id", sl.getGameId());
             m.put("game_name", sl.getGameName());
-            m.put("game_image", sl.getGameImage());
+
+            Game localGame = sl.getGameName() != null ? gameIndex.get(sl.getGameName().toLowerCase()) : null;
+            if (localGame != null) {
+                m.put("game_name_cn", localGame.getNameCn() != null ? localGame.getNameCn() : sl.getGameName());
+                String img = (localGame.getImage() != null && !localGame.getImage().isBlank())
+                        ? localGame.getImage() : sl.getGameImage();
+                m.put("game_image", img);
+            } else {
+                m.put("game_name_cn", sl.getGameName());
+                m.put("game_image", sl.getGameImage());
+            }
+
             m.put("playtime", sl.getPlaytime());
             return m;
         }).collect(Collectors.toList());
