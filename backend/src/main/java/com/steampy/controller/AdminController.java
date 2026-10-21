@@ -6,12 +6,17 @@ import com.steampy.dto.Result;
 import com.steampy.entity.*;
 import com.steampy.mapper.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 /**
@@ -22,6 +27,8 @@ import java.util.*;
  *   - GET    /api/admin/stats             — 仪表盘统计（用户数/订单数/总收入/热销榜等）
  *   - GET    /api/admin/users             — 用户列表（分页 + 搜索 + 角色筛选，LEFT JOIN 钱包）
  *   - PUT    /api/admin/users/{id}/ban    — 用户封禁/解封/设为管理员
+ *   - PUT    /api/admin/users/batch       — 批量封禁/解禁/设角色（复用单条通知逻辑）
+ *   - DELETE /api/admin/users/batch       — 批量删除用户（跳过管理员与操作者本人）
  *   - DELETE /api/admin/users/{id}        — 删除用户
  *   - GET    /api/admin/games             — 游戏列表
  *   - POST   /api/admin/games             — 创建游戏
@@ -29,6 +36,8 @@ import java.util.*;
  *   - DELETE /api/admin/games/{id}        — 删除游戏
  *   - GET    /api/admin/orders            — 订单列表
  *   - PUT    /api/admin/orders/{id}/status — 修改订单状态（校验 OrderStatus 枚举）
+ *   - PUT    /api/admin/orders/batch-status — 批量修改订单状态
+ *   - GET    /api/admin/export/{users|orders|games|withdrawals} — 数据导出为 CSV（UTF-8+BOM）
  *   - GET    /api/admin/listings          — 上架列表（可按 status/gameId/type 过滤）
  *   - PUT    /api/admin/listings/{id}/status — 修改上架状态
  *   - DELETE /api/admin/listings/{id}     — 删除上架
@@ -235,7 +244,81 @@ public class AdminController {
     public Result<User> banUser(@PathVariable String id, @RequestBody Map<String, String> body) {
         User u = userMapper.selectById(id);
         if (u == null) return Result.error("用户不存在");
-        String action = body.getOrDefault("action", "ban");
+        applyUserAction(u, body.getOrDefault("action", "ban"), body.get("operatorId"));
+        u.setPasswordHash(null);
+        return Result.success(u);
+    }
+
+    /**
+     * 批量修改用户状态（封禁 / 解禁 / 升管理员 / 降普通），单个与批量接口共用同一套通知逻辑。
+     *
+     * 请求体：{ ids: ["u1","u2"], action: "ban" | "unban" | "admin" | "normal", operatorId: "当前管理员id" }
+     * ids 为空返回错误；不存在的用户自动跳过，返回 affected / total 便于前端提示。
+     *
+     * @param body 见上
+     * @return {@link Result} { affected, total, action }
+     */
+    @PutMapping("/users/batch")
+    public Result<Map<String, Object>> batchUpdateUsers(@RequestBody Map<String, Object> body) {
+        List<String> ids = toStringList(body.get("ids"));
+        if (ids.isEmpty()) return Result.error("请先选择用户");
+        String action = str(body.getOrDefault("action", "ban"));
+        String operatorId = str(body.get("operatorId"));
+        int affected = 0;
+        for (String id : ids) {
+            User u = userMapper.selectById(id);
+            if (u == null) continue;
+            applyUserAction(u, action, operatorId);
+            affected++;
+        }
+        Map<String, Object> m = new HashMap<>();
+        m.put("affected", affected);
+        m.put("total", ids.size());
+        m.put("action", action);
+        return Result.success(m);
+    }
+
+    /**
+     * 批量删除用户（物理删除，风险操作）。
+     *
+     * 请求体：{ ids: ["u1","u2"] }
+     * 安全护栏：自动跳过管理员账号与当前操作者自身，避免误删管理权限。
+     *
+     * @param body 含 ids 数组
+     * @return {@link Result} { affected, skipped, total }
+     */
+    @DeleteMapping("/users/batch")
+    public Result<Map<String, Object>> batchDeleteUsers(@RequestBody Map<String, Object> body) {
+        List<String> ids = toStringList(body.get("ids"));
+        if (ids.isEmpty()) return Result.error("请先选择用户");
+        String operatorId = str(body.get("operatorId"));
+        List<String> deletable = new ArrayList<>();
+        int skipped = 0;
+        for (String id : ids) {
+            User u = userMapper.selectById(id);
+            // 管理员与操作者本人不允许被批量删除
+            if (u == null || "管理员".equals(u.getUserType()) || (operatorId != null && operatorId.equals(id))) {
+                skipped++;
+                continue;
+            }
+            deletable.add(id);
+        }
+        int affected = deletable.isEmpty() ? 0 : userMapper.deleteBatchIds(deletable);
+        Map<String, Object> m = new HashMap<>();
+        m.put("affected", affected);
+        m.put("skipped", skipped);
+        m.put("total", ids.size());
+        return Result.success(m);
+    }
+
+    /**
+     * 应用单个用户的状态变更并写入站内通知，供单个/批量接口复用。
+     *
+     * @param u          目标用户实体（方法内会更新 userType 并落库）
+     * @param action     ban / unban / admin / normal
+     * @param operatorId 执行操作的管理员 id（用于站内通知标记发送人）
+     */
+    private void applyUserAction(User u, String action, String operatorId) {
         String newType;
         if ("ban".equals(action)) newType = "已封禁";
         else if ("unban".equals(action)) newType = "普通用户";
@@ -246,7 +329,6 @@ public class AdminController {
         userMapper.updateById(u);
 
         // 状态变更写入站内通知（消息中心可见；actorId = 操作的管理员，显示其昵称与头像）
-        String operatorId = body.get("operatorId");
         User operator = (operatorId != null && !operatorId.isBlank()) ? userMapper.selectById(operatorId) : null;
         boolean fromAdmin = operator != null && "管理员".equals(operator.getUserType());
         String notice;
@@ -259,23 +341,19 @@ public class AdminController {
         } else {
             notice = null; // 降为普通用户/普通状态变更不通知
         }
-        if (notice != null) {
-            Notification n = new Notification();
-            n.setId(UUID.randomUUID().toString());
-            n.setUserId(id);
-            n.setType("system");
-            // 有合法操作管理员则标记发送人，前端显示其昵称/头像；否则为系统通知
-            n.setActorId(fromAdmin ? operator.getId() : null);
-            n.setTargetType("system");
-            n.setTargetId(id);
-            n.setContentSnippet(notice);
-            n.setIsRead(false);
-            n.setCreatedAt(LocalDateTime.now());
-            notificationMapper.insert(n);
-        }
-
-        u.setPasswordHash(null);
-        return Result.success(u);
+        if (notice == null) return;
+        Notification n = new Notification();
+        n.setId(UUID.randomUUID().toString());
+        n.setUserId(u.getId());
+        n.setType("system");
+        // 有合法操作管理员则标记发送人，前端显示其昵称/头像；否则为系统通知
+        n.setActorId(fromAdmin ? operator.getId() : null);
+        n.setTargetType("system");
+        n.setTargetId(u.getId());
+        n.setContentSnippet(notice);
+        n.setIsRead(false);
+        n.setCreatedAt(LocalDateTime.now());
+        notificationMapper.insert(n);
     }
 
     /**
@@ -388,6 +466,38 @@ public class AdminController {
             return Result.error("非法订单状态: " + status);
         }
         return Result.success(o);
+    }
+
+    /**
+     * 批量修改订单状态（逐条校验 {@link OrderStatus} 合法性）。
+     *
+     * 请求体：{ ids: ["o1","o2"], status: "completed" }
+     * 状态非法/为空返回错误；不存在的订单自动跳过，返回 affected / total。
+     *
+     * @param body 见上
+     * @return {@link Result} { affected, total, status }
+     */
+    @PutMapping("/orders/batch-status")
+    public Result<Map<String, Object>> batchUpdateOrderStatus(@RequestBody Map<String, Object> body) {
+        List<String> ids = toStringList(body.get("ids"));
+        if (ids.isEmpty()) return Result.error("请先选择订单");
+        String status = str(body.get("status"));
+        if (status == null || !OrderStatus.isValid(status)) return Result.error("非法订单状态: " + status);
+        LocalDateTime now = LocalDateTime.now();
+        int affected = 0;
+        for (String id : ids) {
+            Order o = orderMapper.selectById(id);
+            if (o == null) continue;
+            o.setStatus(status);
+            o.setUpdatedAt(now);
+            orderMapper.updateById(o);
+            affected++;
+        }
+        Map<String, Object> m = new HashMap<>();
+        m.put("affected", affected);
+        m.put("total", ids.size());
+        m.put("status", status);
+        return Result.success(m);
     }
 
     // ======== 上架 Listings 管理 ========
@@ -884,6 +994,171 @@ public class AdminController {
         if (body.getRemark() != null) pm.setRemark(body.getRemark());
         paymentMethodMapper.updateById(pm);
         return Result.success(pm);
+    }
+
+    // ======== 数据导出（CSV，UTF-8 + BOM 保证 Excel 直接双击不乱码） ========
+
+    /**
+     * 导出用户列表为 CSV（支持与列表页相同的关键词/角色筛选）。
+     *
+     * 导出列：ID / 用户名 / 昵称 / 手机号 / 邮箱 / 角色 / 钱包余额 / 注册时间。
+     * 始终导出 password_hash 之外的字段，不导出任何密码信息。
+     *
+     * @param keyword 可选，用户名/昵称/手机号模糊筛选
+     * @param role    可选，按 user_type 精确筛选
+     * @return CSV 文件流（attachment）
+     */
+    @GetMapping("/export/users")
+    public ResponseEntity<byte[]> exportUsers(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String role) {
+        StringBuilder where = new StringBuilder("WHERE 1=1");
+        List<Object> params = new ArrayList<>();
+        if (keyword != null && !keyword.isBlank()) {
+            where.append(" AND (u.username LIKE ? OR u.nickname LIKE ? OR u.phone LIKE ?)");
+            String like = "%" + keyword + "%";
+            params.add(like); params.add(like); params.add(like);
+        }
+        if (role != null && !role.isBlank()) {
+            where.append(" AND u.user_type = ?");
+            params.add(role);
+        }
+        String sql = "SELECT u.id, u.username, u.nickname, u.phone, u.email, u.user_type, u.created_at, " +
+                "w.balance AS wallet_balance FROM users u " +
+                "LEFT JOIN user_wallets w ON w.user_id = u.id " +
+                where + " ORDER BY u.created_at DESC";
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, params.toArray());
+        return csvResponse("users",
+                new String[]{"ID", "用户名", "昵称", "手机号", "邮箱", "角色", "钱包余额", "注册时间"},
+                new String[]{"id", "username", "nickname", "phone", "email", "user_type", "wallet_balance", "created_at"},
+                rows);
+    }
+
+    /**
+     * 导出订单列表为 CSV（可按状态筛选）。
+     *
+     * 导出列：订单号 / 买家ID / 游戏 / 类型 / 金额 / CDKey / 状态 / 创建时间。
+     *
+     * @param status 可选，订单状态
+     * @return CSV 文件流（attachment）
+     */
+    @GetMapping("/export/orders")
+    public ResponseEntity<byte[]> exportOrders(@RequestParam(required = false) String status) {
+        StringBuilder where = new StringBuilder("WHERE 1=1");
+        List<Object> params = new ArrayList<>();
+        if (status != null && !status.isBlank()) {
+            where.append(" AND status = ?");
+            params.add(status);
+        }
+        String sql = "SELECT id, order_no, buyer_id, game_name, order_type, total_price, cdkey, status, created_at " +
+                "FROM orders " + where + " ORDER BY created_at DESC";
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, params.toArray());
+        return csvResponse("orders",
+                new String[]{"订单号", "买家ID", "游戏", "类型", "金额", "CDKey", "状态", "创建时间"},
+                new String[]{"order_no", "buyer_id", "game_name", "order_type", "total_price", "cdkey", "status", "created_at"},
+                rows);
+    }
+
+    /**
+     * 导出游戏列表为 CSV。
+     *
+     * @return CSV 文件流（attachment）
+     */
+    @GetMapping("/export/games")
+    public ResponseEntity<byte[]> exportGames() {
+        String sql = "SELECT id, name, name_cn, developer, release_date, price, stock, is_presale " +
+                "FROM games ORDER BY created_at DESC";
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        return csvResponse("games",
+                new String[]{"ID", "名称", "中文名", "开发商", "发行日期", "价格", "库存", "是否预售"},
+                new String[]{"id", "name", "name_cn", "developer", "release_date", "price", "stock", "is_presale"},
+                rows);
+    }
+
+    /**
+     * 导出提现申请为 CSV（可按状态筛选）。
+     *
+     * @param status 可选，提现状态（pending / success / failed）
+     * @return CSV 文件流（attachment）
+     */
+    @GetMapping("/export/withdrawals")
+    public ResponseEntity<byte[]> exportWithdrawals(@RequestParam(required = false) String status) {
+        StringBuilder where = new StringBuilder("WHERE 1=1");
+        List<Object> params = new ArrayList<>();
+        if (status != null && !status.isBlank()) {
+            where.append(" AND w.status = ?");
+            params.add(status);
+        }
+        String sql = "SELECT w.id, w.order_no, w.user_id, u.username, w.pay_method, w.account, w.real_name, " +
+                "w.bank_name, w.amount, w.fee, w.net_amount, w.status, w.applied_at FROM withdraw_records w " +
+                "LEFT JOIN users u ON u.id = w.user_id " + where + " ORDER BY w.applied_at DESC";
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, params.toArray());
+        return csvResponse("withdrawals",
+                new String[]{"提现单号", "用户ID", "用户名", "收款方式", "收款账号", "开户名", "银行", "金额", "手续费", "实际到账", "状态", "申请时间"},
+                new String[]{"order_no", "user_id", "username", "pay_method", "account", "real_name", "bank_name", "amount", "fee", "net_amount", "status", "applied_at"},
+                rows);
+    }
+
+    /**
+     * 统一构造 CSV 响应（UTF-8 + BOM，文件名带导出日期）。
+     *
+     * @param name    导出名（用于文件名 steampy-{name}-yyyyMMdd.csv）
+     * @param headers 中文表头
+     * @param keys    与表头一一对应的 Map 键（原生 SQL 查询结果的列名）
+     * @param rows    数据行
+     * @return HTTP 附件响应
+     */
+    private ResponseEntity<byte[]> csvResponse(String name, String[] headers, String[] keys,
+                                               List<Map<String, Object>> rows) {
+        StringBuilder sb = new StringBuilder("\uFEFF"); // BOM：Excel 打开不乱码
+        sb.append(String.join(",", headers)).append("\r\n");
+        for (Map<String, Object> row : rows) {
+            for (int i = 0; i < keys.length; i++) {
+                if (i > 0) sb.append(",");
+                sb.append(csvCell(row.get(keys[i])));
+            }
+            sb.append("\r\n");
+        }
+        byte[] body = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        String filename = "steampy-" + name + "-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".csv";
+        HttpHeaders h = new HttpHeaders();
+        h.setContentType(new MediaType("text", "csv", StandardCharsets.UTF_8));
+        h.setContentDispositionFormData("attachment", filename);
+        h.setContentLength(body.length);
+        return new ResponseEntity<>(body, h, org.springframework.http.HttpStatus.OK);
+    }
+
+    /**
+     * 单个 CSV 单元格转义：含逗号/引号/换行时用双引号包裹并转义内部引号；
+     * 以 = + - @ 开头的内容前置单引号，避免 Excel 公式注入。
+     */
+    private String csvCell(Object v) {
+        if (v == null) return "";
+        String s = String.valueOf(v);
+        if (!s.isEmpty() && "=+-@".indexOf(s.charAt(0)) >= 0) s = "'" + s;
+        if (s.contains(",") || s.contains("\"") || s.contains("\n") || s.contains("\r")) {
+            return "\"" + s.replace("\"", "\"\"") + "\"";
+        }
+        return s;
+    }
+
+    /** 安全取字符串（兼容前端传 String / Number / null）。 */
+    private String str(Object o) {
+        return o == null ? null : String.valueOf(o);
+    }
+
+    /** 把前端传入的 ids 数组（List<?>）安全转为 List&lt;String&gt;，非法元素自动忽略。 */
+    private List<String> toStringList(Object o) {
+        List<String> list = new ArrayList<>();
+        if (o instanceof List<?> raw) {
+            for (Object item : raw) {
+                if (item == null) continue;
+                String s = String.valueOf(item);
+                if (!s.isBlank()) list.add(s);
+            }
+        }
+        return list;
     }
 }
 

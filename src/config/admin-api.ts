@@ -1,5 +1,6 @@
 // 管理员专用 API 模块
 // 基于 supabase-local.ts 的 supabaseRequest 封装
+import axios from 'axios'
 import supabaseRequest, { authAPI } from './supabase-local'
 
 // ============ 管理员鉴权（复用用户登录，仅做角色判断）============
@@ -302,5 +303,41 @@ export const adminAnnouncementAPI = {
     } catch (error: any) {
       return { error: error.message }
     }
+  }
+}
+
+// ============ 数据导出（CSV）============
+export const adminExportAPI = {
+  /**
+   * 下载管理后台 CSV 导出文件。
+   *
+   * 走后端 /api/admin/export/{type}（响应 text/csv + BOM），必须携带 X-Admin-Id 鉴权头。
+   *
+   * @param type   users / orders / games / withdrawals
+   * @param params 可选筛选参数（如 keyword / role / status），与列表页筛选保持一致
+   */
+  async downloadCsv(
+    type: 'users' | 'orders' | 'games' | 'withdrawals',
+    params: Record<string, string> = {}
+  ): Promise<void> {
+    const entries = Object.entries(params).filter(([, v]) => v !== '' && v !== undefined && v !== null)
+    const qs = new URLSearchParams(entries as [string, string][]).toString()
+    const url = `/api/admin/export/${type}${qs ? '?' + qs : ''}`
+    const admin = adminAuthAPI.getCurrentAdmin()
+
+    const res = await axios.get(url, {
+      responseType: 'blob',
+      headers: admin?.id ? { 'X-Admin-Id': admin.id } : {}
+    })
+
+    const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8' })
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `steampy-${type}-${today}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(link.href)
   }
 }
