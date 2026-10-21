@@ -334,6 +334,13 @@ public class SteamController {
         // 返回前端
         List<SteamLibrary> libs = steamService.getLibraryByAccountId(account.getId());
 
+        // 预查全部 games，按英文名建索引（O(1) 匹配，避免 N+1 查询）
+        List<Game> allGames = gameMapper.selectList(null);
+        java.util.Map<String, Game> gameIndex = new java.util.HashMap<>();
+        for (Game g : allGames) {
+            if (g.getName() != null) gameIndex.put(g.getName().toLowerCase(), g);
+        }
+
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("steam_account_id", account.getId());
         resp.put("steam_id", account.getSteamId64());
@@ -349,7 +356,21 @@ public class SteamController {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("game_id", sl.getGameId());
             m.put("game_name", sl.getGameName());
-            m.put("game_image", sl.getGameImage());
+
+            // 关联本地 games 表：英文名 → 中文名 + 更可靠的封面
+            Game localGame = sl.getGameName() != null ? gameIndex.get(sl.getGameName().toLowerCase()) : null;
+            if (localGame != null) {
+                // 中文名有则用中文名，没有则回退英文名
+                m.put("game_name_cn", localGame.getNameCn() != null ? localGame.getNameCn() : sl.getGameName());
+                // 封面优先用本地 games.image（本地资源更稳定），否则用 Steam 原始图
+                String img = (localGame.getImage() != null && !localGame.getImage().isBlank())
+                        ? localGame.getImage() : sl.getGameImage();
+                m.put("game_image", img);
+            } else {
+                m.put("game_name_cn", sl.getGameName());   // 没匹配到就用英文名本身
+                m.put("game_image", sl.getGameImage());
+            }
+
             m.put("playtime", sl.getPlaytime());
             return m;
         }).collect(Collectors.toList()));

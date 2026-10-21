@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <Layout>
     <div class="cjx-settings-page">
       <!-- 侧边标签 -->
@@ -247,7 +247,9 @@
                     <div v-else class="cjx-library-img-fallback">🎮</div>
                     <div class="cjx-library-playtime">⏱ {{ item.playtime ?? 0 }}h</div>
                   </div>
-                  <div class="cjx-library-name" :title="item.game_name">{{ item.game_name }}</div>
+                  <div class="cjx-library-name" :title="item.game_name_cn || item.game_name">
+                    {{ item.game_name_cn || item.game_name }}
+                  </div>
                 </div>
               </div>
               <div v-else class="cjx-library-empty">
