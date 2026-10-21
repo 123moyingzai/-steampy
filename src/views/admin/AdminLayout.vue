@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="admin-layout">
     <!-- 侧边栏 -->
     <aside class="admin-sidebar">
@@ -33,21 +33,144 @@
           <h2 class="page-title">{{ currentTitle }}</h2>
         </div>
         <div class="header-right">
-          <div class="admin-info">
-            <div class="admin-avatar">{{ adminName.substring(0, 1) }}</div>
+          <div ref="triggerRef" class="admin-trigger" :class="{ active: showMenu }" @click.stop="showMenu = !showMenu">
+            <div class="admin-avatar">
+              <img v-if="adminAvatar" :src="adminAvatar" alt="头像" />
+              <span v-else>{{ adminName.substring(0, 1) }}</span>
+            </div>
             <div class="admin-detail">
               <div class="admin-name">{{ adminName }}</div>
               <div class="admin-role">管理员</div>
             </div>
-          </div>
-          <button class="logout-btn" @click="handleLogout">
-            <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
+            <svg class="admin-caret" :class="{ open: showMenu }" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M7 10l5 5 5-5z" />
             </svg>
-            退出
-          </button>
+
+            <transition name="dropdown">
+              <div v-if="showMenu" class="admin-dropdown" @click.stop>
+                <div class="dropdown-item" @click="openProfile('basic')">账号设置</div>
+                <div class="dropdown-item" @click="openProfile('security')">修改密码</div>
+                <div class="dropdown-divider"></div>
+                <div class="dropdown-item dropdown-item--danger" @click="handleLogout">退出登录</div>
+              </div>
+            </transition>
+          </div>
         </div>
       </header>
+
+      <!-- 账号设置弹窗 -->
+      <div v-if="showProfile" class="profile-mask" @click.self="closeProfile">
+        <div class="profile-dialog">
+          <div class="profile-dialog__header">
+            <h3>账号设置</h3>
+            <button class="profile-close" @click="closeProfile">×</button>
+          </div>
+
+          <div class="profile-dialog__body">
+            <aside class="profile-tabs">
+              <div
+                class="profile-tab"
+                :class="{ active: activeTab === 'basic' }"
+                @click="activeTab = 'basic'"
+              >基本信息</div>
+              <div
+                class="profile-tab"
+                :class="{ active: activeTab === 'security' }"
+                @click="activeTab = 'security'"
+              >安全设置</div>
+            </aside>
+
+            <section class="profile-panel">
+              <h4 class="panel-title">{{ activeTab === 'basic' ? '基本信息' : '修改密码' }}</h4>
+
+              <template v-if="activeTab === 'basic'">
+                <div class="form-row">
+                  <label>用户头像</label>
+                  <div class="avatar-edit">
+                    <div class="avatar-preview">
+                      <img v-if="form.avatarUrl" :src="form.avatarUrl" alt="头像" />
+                      <span v-else>{{ (form.nickname || adminName).substring(0, 1) }}</span>
+                    </div>
+                    <button class="btn-ghost" :disabled="uploadingAvatar" @click="pickAvatar">
+                      {{ uploadingAvatar ? '上传中...' : '更换头像' }}
+                    </button>
+                    <input ref="fileRef" type="file" accept="image/*" class="hidden-file" @change="handleAvatarFile" />
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <label>用户名</label>
+                  <div class="form-control">
+                    <input :value="admin?.username" disabled class="form-input" />
+                    <span class="form-hint">用户名不可修改</span>
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <label>用户 ID</label>
+                  <div class="form-static">{{ admin?.id }}</div>
+                </div>
+
+                <div class="form-row">
+                  <label>昵称</label>
+                  <div class="form-control">
+                    <input v-model="form.nickname" class="form-input" placeholder="默认昵称" maxlength="30" />
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <label>手机号</label>
+                  <div class="form-control">
+                    <input v-model="form.phone" class="form-input" placeholder="请输入手机号" maxlength="20" />
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <label>邮箱</label>
+                  <div class="form-control">
+                    <input v-model="form.email" class="form-input" placeholder="请输入邮箱" maxlength="60" />
+                  </div>
+                </div>
+
+                <div class="form-actions">
+                  <button class="btn-primary" :disabled="saving" @click="saveBasic">
+                    {{ saving ? '保存中...' : '保存修改' }}
+                  </button>
+                </div>
+              </template>
+
+              <template v-else>
+                <div class="form-row">
+                  <label>原密码</label>
+                  <div class="form-control">
+                    <input v-model="pwdForm.old" type="password" class="form-input" placeholder="请输入原密码" />
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <label>新密码</label>
+                  <div class="form-control">
+                    <input v-model="pwdForm.new" type="password" class="form-input" placeholder="不少于 4 位" />
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <label>确认密码</label>
+                  <div class="form-control">
+                    <input v-model="pwdForm.confirm" type="password" class="form-input" placeholder="请再次输入新密码" />
+                  </div>
+                </div>
+
+                <div class="form-actions">
+                  <button class="btn-primary" :disabled="savingPwd" @click="savePassword">
+                    {{ savingPwd ? '保存中...' : '保存修改' }}
+                  </button>
+                </div>
+              </template>
+            </section>
+          </div>
+        </div>
+      </div>
 
       <!-- 页面内容 -->
       <main class="admin-content">
@@ -62,14 +185,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import axios from 'axios'
 import { adminAuthAPI } from '../../config/admin-api'
+import { authAPI } from '../../config/supabase-local'
 
 const router = useRouter()
 const route = useRoute()
 
 const adminName = ref('管理员')
+const admin = ref<any>(null)
+const adminAvatar = computed(() => form.avatarUrl || '')
+
+// 头像下拉菜单
+const showMenu = ref(false)
+const triggerRef = ref<HTMLElement | null>(null)
+
+// 账号设置弹窗
+const showProfile = ref(false)
+const activeTab = ref<'basic' | 'security'>('basic')
+const saving = ref(false)
+const savingPwd = ref(false)
+const uploadingAvatar = ref(false)
+const fileRef = ref<HTMLInputElement | null>(null)
+
+const form = reactive({ nickname: '', phone: '', email: '', avatarUrl: '' })
+const pwdForm = reactive({ old: '', new: '', confirm: '' })
 
 // 侧边栏菜单项
 const menuItems = [
@@ -128,24 +270,145 @@ const currentTitle = computed(() => {
   return matched ? matched.label : '管理后台'
 })
 
+const closeMenu = (e: MouseEvent) => {
+  if (triggerRef.value && !triggerRef.value.contains(e.target as Node)) {
+    showMenu.value = false
+  }
+}
+
+const loadAdmin = () => {
+  const current = adminAuthAPI.getCurrentAdmin()
+  admin.value = current
+  if (current) {
+    adminName.value = current.nickname || current.username || '管理员'
+    form.nickname = current.nickname || ''
+    form.phone = current.phone || ''
+    form.email = current.email || ''
+    form.avatarUrl = current.avatarUrl || ''
+    // 全局注入管理后台鉴权请求头（后端 AdminAuthFilter 校验 /api/admin/**）
+    axios.defaults.headers.common['X-Admin-Id'] = current.id
+  }
+}
+
+const openProfile = (tab: 'basic' | 'security') => {
+  showMenu.value = false
+  activeTab.value = tab
+  showProfile.value = true
+}
+
+const closeProfile = () => {
+  showProfile.value = false
+  pwdForm.old = ''
+  pwdForm.new = ''
+  pwdForm.confirm = ''
+}
+
+const pickAvatar = () => fileRef.value?.click()
+
+const handleAvatarFile = async (e: Event) => {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  if (file.size > 5 * 1024 * 1024) {
+    alert('图片不能超过 5MB')
+    input.value = ''
+    return
+  }
+  uploadingAvatar.value = true
+  try {
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await fetch('/api/upload/avatar', { method: 'POST', body: fd })
+    const json = await res.json()
+    if (json.code !== 200 || !json.data?.url) {
+      alert('上传失败：' + (json.message || '未知错误'))
+      return
+    }
+    form.avatarUrl = json.data.url
+  } catch (err: any) {
+    alert('上传失败：' + (err?.message || '网络错误'))
+  } finally {
+    uploadingAvatar.value = false
+    input.value = ''
+  }
+}
+
+const saveBasic = async () => {
+  if (!admin.value?.id) return
+  saving.value = true
+  const result = await authAPI.updateUser(admin.value.id, {
+    nickname: form.nickname,
+    phone: form.phone,
+    email: form.email,
+    avatarUrl: form.avatarUrl
+  } as any)
+  saving.value = false
+
+  if (result.error) {
+    alert('保存失败：' + result.error)
+    return
+  }
+
+  const merged = { ...admin.value, ...(result.data || {}) }
+  admin.value = merged
+  adminName.value = merged.nickname || merged.username || '管理员'
+  form.avatarUrl = merged.avatarUrl || form.avatarUrl
+  sessionStorage.setItem('steampy_user', JSON.stringify(merged))
+  window.dispatchEvent(new Event('user-data-updated'))
+  alert('保存成功！')
+  showProfile.value = false
+}
+
+const savePassword = async () => {
+  if (!pwdForm.old || !pwdForm.new || !pwdForm.confirm) {
+    alert('请填写完整')
+    return
+  }
+  if (pwdForm.new.length < 4) {
+    alert('新密码不少于 4 位')
+    return
+  }
+  if (pwdForm.new !== pwdForm.confirm) {
+    alert('两次输入的新密码不一致')
+    return
+  }
+  if (!admin.value?.id) return
+
+  savingPwd.value = true
+  const result = await authAPI.changePassword(admin.value.id, pwdForm.old, pwdForm.new)
+  savingPwd.value = false
+
+  if (result.error) {
+    alert('修改失败：' + result.error)
+    return
+  }
+  alert('密码修改成功，请牢记新密码')
+  closeProfile()
+}
+
 const handleLogout = () => {
   if (confirm('确定要退出管理员登录吗？')) {
+    showMenu.value = false
     adminAuthAPI.logout()
-    router.replace('/admin/login')
+    delete axios.defaults.headers.common['X-Admin-Id']
+    router.replace('/')
   }
 }
 
 onMounted(() => {
-  const admin = adminAuthAPI.getCurrentAdmin()
-  if (admin) {
-    adminName.value = admin.nickname || admin.username || '管理员'
-  }
+  loadAdmin()
+  document.addEventListener('click', closeMenu)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', closeMenu)
 })
 
 watch(() => route.path, () => {
-  const admin = adminAuthAPI.getCurrentAdmin()
-  if (admin) {
-    adminName.value = admin.nickname || admin.username || '管理员'
+  const current = adminAuthAPI.getCurrentAdmin()
+  if (current) {
+    admin.value = current
+    adminName.value = current.nickname || current.username || '管理员'
   }
 })
 </script>
@@ -283,10 +546,21 @@ watch(() => route.path, () => {
   gap: 1.5rem;
 }
 
-.admin-info {
+.admin-trigger {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  user-select: none;
+}
+
+.admin-trigger:hover,
+.admin-trigger.active {
+  background-color: #eef2f6;
 }
 
 .admin-avatar {
@@ -300,6 +574,14 @@ watch(() => route.path, () => {
   justify-content: center;
   font-weight: bold;
   font-size: 14px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.admin-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .admin-name {
@@ -313,27 +595,298 @@ watch(() => route.path, () => {
   color: #7f8c8d;
 }
 
-.logout-btn {
-  padding: 0.4rem 1rem;
-  background-color: #95a5a6;
+.admin-caret {
+  width: 18px;
+  height: 18px;
+  color: #7f8c8d;
+  transition: transform 0.2s;
+}
+
+.admin-caret.open {
+  transform: rotate(180deg);
+}
+
+/* 头像下拉菜单 */
+.admin-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 132px;
+  background: #fff;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.1);
+  padding: 6px 0;
+  z-index: 50;
+}
+
+.dropdown-item {
+  padding: 0.55rem 1rem;
+  font-size: 0.86rem;
+  color: #303133;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.dropdown-item:hover {
+  background-color: #f5f7fa;
+  color: #3498db;
+}
+
+.dropdown-item--danger:hover {
+  background-color: #fef0f0;
+  color: #e74c3c;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background-color: #ebeef5;
+  margin: 5px 0;
+}
+
+.dropdown-enter-active,
+.dropdown-leave-active {
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.dropdown-enter-from,
+.dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* 账号设置弹窗 */
+.profile-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.profile-dialog {
+  width: 720px;
+  max-width: calc(100vw - 2rem);
+  max-height: calc(100vh - 4rem);
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.profile-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #ebeef5;
+}
+
+.profile-dialog__header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.profile-close {
+  border: none;
+  background: transparent;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: #909399;
+  cursor: pointer;
+  padding: 0 0.2rem;
+}
+
+.profile-close:hover {
+  color: #303133;
+}
+
+.profile-dialog__body {
+  display: flex;
+  min-height: 360px;
+  overflow: auto;
+}
+
+.profile-tabs {
+  width: 130px;
+  flex-shrink: 0;
+  background: #f7f8fa;
+  border-right: 1px solid #ebeef5;
+  padding: 0.75rem 0;
+}
+
+.profile-tab {
+  padding: 0.65rem 1.2rem;
+  font-size: 0.86rem;
+  color: #606266;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: all 0.15s;
+}
+
+.profile-tab:hover {
+  color: #3498db;
+}
+
+.profile-tab.active {
+  background: #e8f2fc;
+  color: #3498db;
+  border-left-color: #3498db;
+  font-weight: 500;
+}
+
+.profile-panel {
+  flex: 1;
+  padding: 1.25rem 1.75rem 1.5rem;
+  min-width: 0;
+}
+
+.panel-title {
+  margin: 0 0 1.25rem;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.form-row {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 1.05rem;
+}
+
+.form-row > label {
+  width: 88px;
+  flex-shrink: 0;
+  text-align: right;
+  padding-right: 1rem;
+  line-height: 34px;
+  font-size: 0.85rem;
+  color: #606266;
+}
+
+.form-control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.form-input {
+  width: 300px;
+  max-width: 100%;
+  height: 34px;
+  padding: 0 0.65rem;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: #303133;
+  outline: none;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.form-input:focus {
+  border-color: #3498db;
+}
+
+.form-input:disabled {
+  background: #f5f7fa;
+  color: #909399;
+  cursor: not-allowed;
+}
+
+.form-static {
+  line-height: 34px;
+  font-size: 0.85rem;
+  color: #303133;
+  word-break: break-all;
+}
+
+.form-hint {
+  font-size: 0.75rem;
+  color: #a8abb2;
+}
+
+.avatar-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.avatar-preview {
+  width: 72px;
+  height: 72px;
+  border-radius: 6px;
+  border: 1px dashed #dcdfe6;
+  background: #fafafa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: #3498db;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.avatar-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.hidden-file {
+  display: none;
+}
+
+.btn-ghost {
+  padding: 0.4rem 0.9rem;
+  background: #fff;
+  border: 1px solid #dcdfe6;
+  border-radius: 4px;
+  color: #606266;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  border-color: #3498db;
+  color: #3498db;
+}
+
+.btn-primary {
+  padding: 0.45rem 1.3rem;
+  background: #3498db;
   border: none;
   border-radius: 4px;
   color: #fff;
+  font-size: 0.85rem;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.9rem;
   transition: background-color 0.2s;
 }
 
-.logout-btn:hover {
-  background-color: #7f8c8d;
+.btn-primary:hover:not(:disabled) {
+  background: #2980b9;
 }
 
-.logout-btn svg {
-  width: 16px;
-  height: 16px;
+.btn-primary:disabled,
+.btn-ghost:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.form-actions {
+  display: flex;
+  gap: 0.75rem;
+  padding-left: 88px;
+  margin-top: 1.5rem;
 }
 
 /* 内容区 */
