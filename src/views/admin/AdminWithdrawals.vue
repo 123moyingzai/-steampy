@@ -85,11 +85,10 @@ async function loadWithdrawals() {
 }
 
 async function review(w: any, action: 'approve' | 'reject') {
-  const remark = action === 'approve'
-    ? (prompt('审核备注（可选）:', '已核对，打款中') || '')
-    : (prompt('拒绝原因:', '信息不符') || '')
+  const msg = action === 'approve' ? '确定通过该提现申请？' : '确定拒绝该提现申请？余额将退回用户'
+  if (!confirm(msg)) return
   try {
-    await axios.put(`/api/admin/withdrawals/${w.id}/review`, { action, remark })
+    await axios.put(`/api/admin/withdrawals/${w.id}/review`, { action, remark: '' })
     alert(action === 'approve' ? '已通过，打款中' : '已拒绝，余额已退回用户')
     loadWithdrawals()
   } catch (e: any) { alert('操作失败: ' + (e?.response?.data?.message || e.message)) }
