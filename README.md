@@ -1,178 +1,272 @@
 # Steam PY匹歪 — Steam 游戏交易平台
 
-基于 **Vue3 + Vite + Spring Boot 3 + MySQL** 构建的 Steam 游戏交易平台，支持 CDK国区、礼物代购、余额购 三大购买入口。
+基于 **Vue 3 + Vite + Spring Boot 3 + MySQL** 构建的 Steam 游戏交易平台，提供 **CDK国区 / 礼物代购 / 余额购** 三大购买入口，并配套钱包资金、卖家上架、买家订单、管理后台与社区（评测 / 举报 / 公告 / 消息）。
 
-## ✨ 核心功能
+> 部署上线请直接看 [DEPLOY.md](./DEPLOY.md)；团队分工见 [TEAM_ASSIGNMENT.md](./TEAM_ASSIGNMENT.md)。
 
-### 🛒 三大购买入口
-- **CDK国区** — 官方正版 CDKey + 玩家上架，按价格升序聚合，卖家脱敏（`S***y`）
-- **礼物代购** — 代购卖家表格（流畅度/发货类型/额度/折扣/成交数），完整下单链路生成 PY代购订单
-- **余额购** — 平台热门游戏网格，用余额 + 支付宝混合支付
+---
 
-### 💸 支付与钱包
-- **余额混合支付** — 买家余额无手续费，不足走支付宝模拟
-- **钱包管理**（右上角入口 `/wallet`）— 3 Tab：申请提现 / 资金提现说明 / 提现记录
-- **提现** — 1% 手续费，最低 ¥1 上限 ¥50，支持支付宝 / 银行卡
-- **提现记录持久化** — 每次提现写 `withdraw_records` 表（订单号 WD+时间戳）
+## 一、核心功能
 
-### 👤 卖家中心（SellerCenter）
-- **上架 CDK** — 实时查重 / CDK 生成器 / 搜索游戏候选 Top10 / 一键定价（最低 - 0.01）
-- **CDK 管理 Tab** — 按在售→待激活排序，批量勾选改价（同游戏自动合并），单个 ⚡定价，在售下架变待激活，待激活→重新上架（跳转上架 Tab 预填锁死 CDK）
+### 1. 购物与交易
 
-### 🎮 游戏详情页（GameDetail）
-- 全量后端 API 驱动（彻底砍掉本地 cdk_games.json 硬编码 fallback）
-- 右侧购买弹窗 / 余额勾选 / 订单确认 / 模拟支付 / CDKey 自动发货
-- 卖家表格 + 价格升序 + 自购拦截（前端禁用 + 后端双重校验）
-- 版本自动归组（豪华版/标准版 同 baseName 归一起）
+| 模块 | 说明 |
+|---|---|
+| **CDK国区** | 官方 CDKey + 玩家上架聚合，价格升序，卖家名脱敏（`S***y`） |
+| **礼物代购** | 代购卖家列表（流畅度 / 发货类型 / 额度 / 折扣 / 成交数），下单生成代购订单 |
+| **余额购** | 平台游戏网格，余额 + 支付宝混合支付 |
+| **游戏详情** | 版本自动归组（标准版 / 豪华版）、CDKey 列表、购买弹窗、自购拦截（前端 + 后端双重校验） |
+| **订单** | 下单即时发货；订单状态机 7 态；`pending` 超时自动关闭并释放上架 |
 
-### � 图片架构
-- **游戏封面** — Steam 官方全球 CDN：`https://cdn.akamai.steamstatic.com/steam/apps/{appid}/header.jpg`，零成本、永不丢失
-- **本地图片** — `/public/picture/` 存放旧 12 个游戏图片 + 默认头像
+### 2. 资金
 
-### 📊 数据规模
-- 50 款付费游戏（已删除 7 款免费游戏）
-- 预售仅 2 款（生化危机安魂曲 + 豪华版）
-- 分页每页 70 条，不足则不显示分页控件
+| 模块 | 说明 |
+|---|---|
+| **钱包** | `user_wallets` 记录 `balance` / `frozen_balance`，余额变动写入前后快照 |
+| **充值** | 余额充值 + 充值渠道配置（`payment_methods`） |
+| **提现** | 手续费 clamp 公式：`fee = clamp(amount × fee_rate, min_fee, max_fee)`，默认 1% / ¥1 / ¥50；审核通过后扣冻结额 |
+| **交易流水** | `transactions` 记录 purchase / sale / withdraw / fee / recharge，含正负号 |
+| **退款** | 买家申请 → 管理员审核 → 订单置 `refunded` + 原路退回余额 + 扣回卖家 |
 
-## 🛠 技术栈
+### 3. 卖家与买家中心
+
+- **卖家中心**：批量粘贴上架、CDKey 查重、批量改价、下架 / 重新上架、库存与订单
+- **买家中心**：订单列表、状态筛选、退款申请、我的游戏库
+
+### 4. 管理后台（`/admin`，与用户端完全分离）
+
+| 页面 | 能力 |
+|---|---|
+| 数据概览 | 用户 / 订单 / 游戏 / 总收入 / 今日收入 / 状态分布 / 热销 Top5 |
+| 用户管理 | 搜索 + 角色筛选、封禁 / 解封 / 设管理员、单条与批量删除、CSV 导出 |
+| 游戏管理 | CRUD、中文名（`name_cn`）维护、CSV 导出 |
+| 订单管理 | 筛选、改状态（状态机校验）、批量改状态、CSV 导出 |
+| 提现审核 | 通过 / 拒绝（拒绝退回余额 + 反向流水）、CSV 导出 |
+| 退款审核 | 通过 / 拒绝（事务内订单 + 双端资金） |
+| 评测审核 | 举报数 > 0 的评测优先，保留 / 拒绝 / 删除 |
+| 公告管理 | 公告 CRUD |
+| 支付渠道 | 费率 / 最小 / 最大手续费 / 启停 / 排序 |
+
+### 5. 社区与账号
+
+Steam 绑定与游戏库、评测与回复、点赞、举报、收藏、AI 助手、站内消息、公告、帮助中心。
+
+---
+
+## 二、技术栈
 
 | 层 | 技术 | 版本 |
 |---|---|---|
-| **前端** | Vue 3 + Vite + TypeScript | Vue 3.x / Vite 5.x |
-| **后端** | Spring Boot + MyBatis-Plus + JWT | 3.2.5 |
-| **数据库** | MySQL | 8.0 |
-| **ORM** | MyBatis-Plus | 3.5.x |
-| **构建** | Maven（阿里云镜像 settings.xml） | 3.9+ |
+| 前端框架 | Vue 3 | 3.4.x |
+| 构建 | Vite | 5.x |
+| 语言 | TypeScript | 5.x / 6.x |
+| 路由 | Vue Router | 4.3.x |
+| 移动端 UI | Vant | 3.6.x |
+| HTTP | Axios | 1.x |
+| 后端框架 | Spring Boot | 3.2.5（Java 17） |
+| ORM | MyBatis-Plus | 3.5.5 |
+| 数据库 | MySQL | 8.x（`utf8mb4_unicode_ci`） |
+| 密码 | Spring Security Crypto（BCrypt） | — |
+| 校验 | Spring Validation | — |
 
-## 📂 项目结构
+**约定**
+
+- 统一返回 `Result<T>`：`{ code, message, data }`，成功 `code = 200`
+- Jackson 全局 `SNAKE_CASE`，前端在 `apiRequest` 出口统一转驼峰
+- 主键：业务表 `varchar(36)` UUID（人可读种子如 `pm-bank` 除外）
+- 时间：`LocalDateTime` + `@TableField(fill = ...)` 自动填充
+- 订单状态：`OrderStatus` 常量类 + `String` 字段（不是 Java enum）
+
+**鉴权模型（重要，不是 JWT）**
+
+- 登录接口校验密码后**直接返回用户对象**，不签发 token；前端存入 `localStorage`，后续请求带 `user_id`
+- 管理端接口由 `AdminAuthFilter` 校验请求头 `X-Admin-Id` + 该用户 `user_type = 管理员`，否则 403
+- `BanCheckFilter` 对已封禁用户拦截所有写操作（GET 放行，余额可见）
+
+---
+
+## 三、项目结构
 
 ```
 -steampy/
-├── backend/                              # Spring Boot 后端
+├── backend/                                   # Spring Boot 后端
 │   ├── src/main/java/com/steampy/
-│   │   ├── controller/
-│   │   │   ├── OrderController.java          # 订单（混合支付 + 自购拦截 + PY代购跳过 user_games）
-│   │   │   ├── ListingController.java        # CDKey 上架 / available-grouped(-all) / check-cdkey / py-sellers
-│   │   │   ├── WalletController.java         # 钱包 / 充值 / 提现 / withdraw-records
-│   │   │   ├── GameController.java           # 游戏
-│   │   │   └── UserController.java           # 用户
-│   │   ├── entity/
-│   │   │   ├── WithdrawRecord.java           # 提现记录新实体
-│   │   │   └── Listing.java                  # 已加 type / quota / autoDeliver
-│   │   ├── mapper/
-│   │   │   └── WithdrawRecordMapper.java
-│   │   └── config/                           # Jackson SNAKE_CASE / WebMvcConfig
+│   │   ├── controller/                        # 19 个 Controller（见下表）
+│   │   ├── entity/  mapper/  dto/
+│   │   ├── config/                            # CorsConfig / WebConfig / AdminAuthFilter / BanCheckFilter
+│   │   ├── constant/OrderStatus.java          # 订单状态机
+│   │   ├── task/OrderTimeoutScheduler.java    # 超时自动关闭
+│   │   └── service/SteamService.java          # Steam 数据抓取
 │   ├── src/main/resources/
-│   │   ├── sql/seed_games.sql                # 45 款新游戏种子（Steam CDN 图）
 │   │   ├── application.properties
-│   │   └── init.sql                          # 数据库建表脚本
+│   │   ├── init.sql                           # 建表脚本
+│   │   └── sql/                               # 游戏种子数据（seed_games_v1~v4 / name_cn_mapping）
+│   ├── src/test/java/.../SteamServiceTest.java
 │   ├── pom.xml
-│   └── settings.xml                          # Maven 阿里云镜像
+│   └── settings-custom.xml                    # 可写本地仓库的 Maven 配置
 │
-├── src/                                   # Vue 前端
-│   ├── views/
-│   │   ├── CDKeyMarket.vue                   # 商城网格（含 🔥火热预售 单独一行）
-│   │   ├── GameDetail.vue                    # 游戏详情 + 卖家表格 + 完整购买流程
-│   │   ├── GiftPurchase.vue                  # 礼物代购完整交易页（PY代购订单）
-│   │   ├── BalancePurchase.vue               # 余额购（GiftPurchase 同款网格，已删 Tab/sidebar）
-│   │   ├── Wallet.vue                        # 钱包（提现 / 规则 / 记录 3 Tab）
-│   │   ├── SellerCenter.vue                  # 卖家中心（上架 / CDK管理 / 订单）
-│   │   ├── BuyerCenter.vue                   # 买家中心（CDKey / PY代购 Tab）
-│   │   ├── Login.vue                         # 登录注册
-│   │   ├── Home.vue                          # 首页
-│   │   └── ...
-│   ├── config/supabase-local.ts              # API client（walletAPI / orderAPI / listingAPI / fetchAllGames）
-│   ├── components/Layout.vue                 # 右上角"钱包 / 明细"导航
-│   └── router/index.ts                       # 路由含 /wallet /gift /balance /cdkey
+├── src/                                       # Vue 前端
+│   ├── views/                                 # 18 个用户端页面 + admin/ 下 10 个后台页面
+│   ├── components/                            # Layout / GameCard / Pagination / Toast / ...
+│   ├── config/supabase-local.ts               # HTTP client（apiRequest / *API / snakeToCamel）
+│   ├── config/admin-api.ts                    # 管理端 API 封装（含 CSV 导出）
+│   ├── directives/lazy.ts                     # v-lazy 图片懒加载
+│   ├── router/index.ts                        # 路由 + /admin 权限守卫
+│   └── main.ts
 │
-├── public/picture/                        # 本地游戏图片（旧12款 + 默认头像）
-├── README.md
-├── GUIDE.md                               # 组员操作指南
-└── vite.config.ts                         # 代理 /api → localhost:8080
+├── e2e/                                       # smoke.mjs（业务流程冒烟）/ regression.mjs（编码回归）
+├── public/                                    # 静态资源与本地图片
+├── steampy_full_backup.sql                    # 全库终态备份（结构 + 数据）
+├── vite.config.ts                             # /api、/uploads 代理；manualChunks 分包
+├── DEPLOY.md                                  # 部署文档
+└── README.md
 ```
 
-## 🗄 数据库表结构
+### Controller 一览（19）
 
-```
-users          — 用户（id VARCHAR36 PK, username UNIQUE）
-games          — 游戏（id INT PK AUTO_INCREMENT, name, price, original_price, image Steam CDN, developer, release_date, is_presale）
-listings       — CDKey 上架（id VARCHAR36 PK, game_id, seller_id, price, cdkey, status available/sold/pending_activation, type cdkey/py, quota, auto_deliver）
-orders         — 订单（order_type cdkey/py, cdkey 仅 cdkey 类型有，payment_method alipay/balance/hybrid）
-transactions   — 交易明细（type purchase/sale/withdraw/fee/recharge, reference_type withdraw/order, amount NEG/pos）
-user_wallets   — 钱包（user_id PK, balance, frozen_balance）
-user_games     — 用户游戏库（source cdkey=玩家购 / store=PY代购 / official=官方）
-withdraw_records — 提现记录（order_no WD+时间戳, pay_method alipay/bank, account, real_name, amount, fee, net_amount, status success）
-```
+| 域 | Controller |
+|---|---|
+| 交易 | `GameController` `OrderController` `ListingController` `WalletController` `TransactionController` `RefundController` `PaymentMethodController` `BankCardController` |
+| 账号与社区 | `AuthController` `UserGameController` `FavoriteController` `ReviewController` `ReportController` `AnnouncementController` `NotificationController` `SteamController` `AIController` `UploadController` |
+| 后台 | `AdminController`（仪表盘 / 用户 / 游戏 / 订单 / 上架 / 提现 / 退款 / 评测 / 公告 / 支付渠道 / 导出 / 批量） |
 
-## 🔌 关键 API
+---
+
+## 四、数据库（24 张表）
+
+| 分组 | 表 |
+|---|---|
+| 用户 | `users` `user_wallets` `bank_cards` `user_notifications` |
+| 商品 | `games` `listings` `seller_quota` |
+| 交易 | `orders` `transactions` `withdraw_records` `refunds` `payment_methods` |
+| 社区 | `reviews` `review_replies` `review_likes` `review_reply_likes` `reports` `favorites` `announcements` `announcement_reads` |
+| Steam | `steam_accounts` `steam_libraries` `user_steam_bindings` `user_games` |
+
+**设计要点**
+
+- 金额一律 `decimal(10,2)` / `decimal(12,2)`，Java 侧 `BigDecimal`，避免浮点误差
+- 订单、资产做**快照固化**（冗余存商品名称 / 图片），历史数据不受后续改名影响
+- 订单 / 提现 / 退款使用状态机字段并建索引
+- 资金表记录变动前后余额，支持对账
+- 多对多关联（收藏、绑卡）使用复合唯一键防重
+
+---
+
+## 五、关键 API
+
+### 交易
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| `GET` | `/api/games` | 所有游戏（返回 Steam CDN 图 URL） |
-| `GET` | `/api/listings/available-grouped?game_id=&game_name=` | 某游戏可售 CDKey（按 卖家+价格 聚合，seller_name 脱敏） |
-| `GET` | `/api/listings/available-grouped-all` | 跨游戏聚合（带 original_price 用于 catalog 折扣计算） |
-| `GET` | `/api/listings/py-sellers?game_id=` | 礼物代购卖家列表（含 quota / auto_deliver / py 类型） |
-| `POST` | `/api/listings` | 玩家上架 CDKey |
-| `PUT` | `/api/listings/{id}/price` | 单个改价 |
-| `PUT` | `/api/listings/batch-price` | 批量改价 `{updates: {listingId: price}}` |
-| `PUT` | `/api/listings/{id}/soft-delete` | 在售 → 待激活 |
-| `PUT` | `/api/listings/{id}/relist` | 待激活 → 重新上架 |
-| `PUT` | `/api/listings/{id}/self-activate` | 待激活 → 写入 user_games + DELETE listing |
-| `GET` | `/api/listings/check-cdkey?cdkey=` | CDKey 格式校验 + 查重 |
-| `POST` | `/api/orders?balance_amount=` | 创建订单（混合支付，支持 order_type=cdkey/py） |
-| `GET` | `/api/wallets/user/{userId}` | 查钱包余额 |
-| `POST` | `/api/wallets/user/{userId}/recharge` | 充值 |
-| `POST` | `/api/wallets/user/{userId}/withdraw` | 提现（扩展 body: `{pay_method, account, real_name}`） |
-| `GET` | `/api/wallets/user/{userId}/withdraw-records` | 提现记录列表 |
-| `GET` | `/api/transactions/user/{userId}` | 交易明细 |
+| `GET` | `/api/games` | 游戏列表（可按 `isPresale` 过滤） |
+| `GET` | `/api/games/{id}` | 游戏详情 |
+| `GET` | `/api/listings/available` | 可售 CDKey |
+| `GET` | `/api/listings/available-grouped` | 按卖家 + 价格聚合（卖家脱敏） |
+| `POST` | `/api/listings` | 上架 CDKey |
+| `PUT` | `/api/listings/batch-price` | 批量改价 |
+| `POST` | `/api/orders?balance_amount=` | 下单（混合支付，`@Transactional`） |
+| `GET` | `/api/wallets/user/{userId}` | 钱包余额 |
+| `POST` | `/api/wallets/user/{userId}/withdraw` | 提现（校验渠道状态 + 手续费 clamp） |
+| `GET` | `/api/transactions/user/{userId}` | 交易流水 |
 
-## 🚀 快速开始
+### 管理端（均需 `X-Admin-Id`）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| `GET` | `/api/admin/stats` | 仪表盘聚合 |
+| `GET` | `/api/admin/users` | 用户分页（关键词 + 角色） |
+| `PUT` | `/api/admin/users/{id}/ban` | 封禁 / 解封 / 设角色 |
+| `PUT` / `DELETE` | `/api/admin/users/batch` | 批量改角色 / 批量删除（跳过管理员与操作者本人） |
+| `PUT` | `/api/admin/orders/batch-status` | 批量改订单状态 |
+| `PUT` | `/api/admin/withdrawals/{id}/review` | 提现审核 |
+| `PUT` | `/api/admin/refunds/{id}/review` | 退款审核 |
+| `GET` | `/api/admin/export/{users\|orders\|games\|withdrawals}` | CSV 导出（UTF-8 + BOM、中文表头、公式注入防护） |
+
+> 全部 33 个管理端端点见 `AdminController` 类注释。
+
+---
+
+## 六、本地运行
+
+### 前置
+
+- JDK 17、Maven 3.9+、Node.js 18+、MySQL 8.x
+
+### 1. 初始化数据库
 
 ```bash
-# 1. 克隆
-git clone https://github.com/123moyingzai/-steampy.git
-cd -steampy
-
-# 2. 初始化 MySQL
-mysql -u root -proot -e "CREATE DATABASE steampy DEFAULT CHARACTER SET utf8mb4"
+mysql -u root -proot -e "CREATE DATABASE steampy DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
 mysql -u root -proot steampy < backend/init.sql
-mysql -u root -proot steampy < backend/import.sql
-
-# 3. 执行种子数据（45 款 Steam CDN 新游戏）
-mysql -u root -proot steampy < backend/src/main/resources/sql/seed_games.sql
-
-# 4. 启动后端
-cd backend
-mvn spring-boot:run -s settings.xml
-# 看到 Started SteampyApplication → http://localhost:8080
-
-# 5. 启动前端（另开终端）
-cd ..
-npm install
-npm run dev
-# → http://localhost:5173
+# 可选：导入全库终态（结构 + 数据）
+mysql -u root -proot steampy < steampy_full_backup.sql
 ```
 
-> 详细搭建教程见 [`GUIDE.md`](./GUIDE.md)（组员操作指南）
+种子数据（按需）：
 
-## 🔑 测试账号
+```bash
+mysql -u root -proot steampy < backend/src/main/resources/sql/seed_games.sql
+mysql -u root -proot steampy < backend/src/main/resources/sql/name_cn_mapping.sql
+```
+
+### 2. 启动后端
+
+```bash
+cd backend
+mvn -s settings-custom.xml -DskipTests package
+java -jar target/steampy-backend-1.0.0.jar
+# → http://localhost:8080
+```
+
+> 若 Maven 全局 settings.xml 把本地仓库指向只读目录，**必须**用 `-s settings-custom.xml` 覆盖。
+
+### 3. 启动前端
+
+```bash
+npm install
+npm run dev
+# → http://localhost:5173（/api、/uploads 由 Vite 代理到 8080）
+```
+
+### 4. 测试
+
+```bash
+npm run build          # 生产构建校验
+npm run test:e2e       # puppeteer-core 冒烟（5 条主流程）
+node e2e/regression.mjs  # 文件编码回归
+cd backend && mvn -s settings-custom.xml test   # SteamServiceTest 15 例
+```
+
+---
+
+## 七、测试账号
 
 | 用户名 | 密码 | 说明 |
 |---|---|---|
-| `123456` | `password` | 卖家（有 ¥75 余额，上架过多款 CDKey） |
-| `aaa` | `aaa` | 买家（有 ¥42 余额） |
-| 其他账号 | 自行注册 | 新注册默认余额 ¥0 |
+| `1234567` | `1234567` | 管理员（可进 `/admin`） |
+| `123456` | `123456` | 超级管理员（已绑定 Steam） |
+| `aaa` | `1` | 买家（已绑定 Steam，有余额） |
+| `seed_001` ~ `seed_050` | `1` | 种子用户（含 2 个已封禁：seed_004 / seed_005） |
 
-## 📄 命名约定
+完整账号清单见 [TEST_ACCOUNTS.md](./TEST_ACCOUNTS.md)。
 
-- 前端：所有组件 class 前缀 `cjx-`
-- Jackson 全局 SNAKE_CASE：Java `currentPrice` → JSON `current_price`
-- 数据库 id：users / orders / listings / withdraw_records 用 VARCHAR(36) UUID；games 用 INT AUTO_INCREMENT
-- 游戏图片：优先 Steam CDN `https://cdn.akamai.steamstatic.com/steam/apps/{appid}/header.jpg`
+---
 
-## 📦 部署注意
+## 八、命名与编码约定
 
-- 后端启动前确保 MySQL 里 `games.id` 有 AUTO_INCREMENT（本次已 ALTER）
-- listings 表需要 `type / quota / auto_deliver` 三个新列
-- withdraw_records 表必须存在（本次已 CREATE）
-- 前端 Vite 代理 `/api` → `localhost:8080`，实际部署 Nginx 需同步配置
+- 前端组件 class 前缀 `cjx-`
+- 后端返回 snake_case，前端 `apiRequest` 后统一 `snakeToCamel`
+- 游戏封面优先 Steam CDN：`https://cdn.akamai.steamstatic.com/steam/apps/{appid}/header.jpg`
+- 上传文件经 `UploadController` 落盘到 `uploads/`，通过 `/uploads/**` 静态映射访问（`app.upload-dir` 可配）
+- 所有源文件统一 **UTF-8 无 BOM**，提交前跑 `node e2e/regression.mjs` 校验
+
+---
+
+## 九、相关文档
+
+| 文档 | 内容 |
+|---|---|
+| [DEPLOY.md](./DEPLOY.md) | 生产部署：构建、Nginx、服务化、排错 |
+| [TEAM_ASSIGNMENT.md](./TEAM_ASSIGNMENT.md) | 两人业务域划分与协作边界 |
+| [718_GUIDE.md](./718_GUIDE.md) / [719_GUIDE.md](./719_GUIDE.md) | 各业务域专属指南 |
+| [TEST_ACCOUNTS.md](./TEST_ACCOUNTS.md) | 测试账号与角色 |
+| [PROJECT_STATUS.md](./PROJECT_STATUS.md) | 项目进度与遗留事项 |
