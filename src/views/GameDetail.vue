@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <Layout>
     <div class="cjx-detail-page">
       <!-- 返回按钮 -->
@@ -751,7 +751,7 @@ const buyCDKey = async (cdkey) => {
   const bound = !!(currentUser.steamAccountId || currentUser.steam_account_id)
     || currentUser.steam_bound === true
   if (!bound) {
-    const go = confirm('请先绑定 Steam 账号后才能购买游戏。\n\n是否前往绑定页面？')
+    const go = await confirm('请先绑定 Steam 账号后才能购买游戏。\n\n是否前往绑定页面？')
     if (go) router.push('/settings')
     return
   }
@@ -1330,7 +1330,7 @@ async function onDeleteFromMenu() {
   if (!u) { alert('请先登录'); closeMoreMenu(); return }
   const mm = moreMenu.value!
   if (mm.target.userId !== u.id) { closeMoreMenu(); return }
-  if (!confirm('确定删除？此操作不可恢复')) { closeMoreMenu(); return }
+  if (!await confirm('确定删除？此操作不可恢复')) { closeMoreMenu(); return }
   try {
     if (mm.type === 'review') {
       await reviewAPI.delete(mm.target.id, u.id)

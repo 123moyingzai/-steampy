@@ -386,8 +386,8 @@ const savePassword = async () => {
   closeProfile()
 }
 
-const handleLogout = () => {
-  if (confirm('确定要退出管理员登录吗？')) {
+const handleLogout = async () => {
+  if (await confirm('确定要退出管理员登录吗？')) {
     showMenu.value = false
     adminAuthAPI.logout()
     delete axios.defaults.headers.common['X-Admin-Id']

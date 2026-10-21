@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="admin-games">
     <!-- 工具栏 -->
     <div class="toolbar">
@@ -256,7 +256,7 @@ const handleSave = async () => {
 }
 
 const handleDelete = async (game: any) => {
-  if (!confirm(`确定删除游戏 "${game.name}" 吗？此操作不可恢复！`)) return
+  if (!await confirm(`确定删除游戏 "${game.name}" 吗？此操作不可恢复！`)) return
   try {
     await axios.delete(`/api/admin/games/${game.id}`)
     alert('删除成功'); await loadGames()

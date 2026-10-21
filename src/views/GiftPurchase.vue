@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <Layout>
     <div class="cjx-gift-page">
 
@@ -397,7 +397,7 @@ const showBuyDialog = async (s: any) => {
   const bound = !!(user.steamAccountId || user.steam_account_id)
     || user.steam_bound === true
   if (!bound) {
-    const go = confirm('请先绑定 Steam 账号后才能代购。\n\n是否前往绑定页面？')
+    const go = await confirm('请先绑定 Steam 账号后才能代购。\n\n是否前往绑定页面？')
     if (go) router.push('/settings')
     return
   }

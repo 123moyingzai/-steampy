@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <Layout>
     <div class="cjx-seller-page">
       <h2 class="cjx-page-title">卖家中心</h2>
@@ -635,7 +635,7 @@ const applySinglePrice = async () => {
 // ======== 下架（available → pending_activation）/ 重新上架 / 自己激活 ========
 /** available 下架 → 变成 pending_activation（不丢 CDK / 不丢 price / 可重新上架）*/
 const softDeleteListing = async (l: any) => {
-  if (!confirm(`确定下架 CDKey (${l.cdkey?.substring(0, 8)}...)？下架后将进入"待激活"状态，随时可重新上架。`)) return
+  if (!await confirm(`确定下架 CDKey (${l.cdkey?.substring(0, 8)}...)？下架后将进入"待激活"状态，随时可重新上架。`)) return
   try {
     const r = await listingAPI.softDelete(l.id)
     if (r.error) showToast('下架失败: ' + r.error)
@@ -674,8 +674,8 @@ const jumpToRelist = async (l: any) => {
 }
 
 /** 取消重新上架模式 — 回到正常上架 */
-const cancelRelist = () => {
-  if (!confirm('取消重新上架？已填的表单会清空。')) return
+const cancelRelist = async () => {
+  if (!await confirm('取消重新上架？已填的表单会清空。')) return
   relistTarget.value = null
   newForm.value = { game_id: '', game_name: '', game_image: '', version: '标准版', price: null, original_price: 0, region: '国区', cdkeys: '' }
   selectedGame.value = null
@@ -699,7 +699,7 @@ const relistPending = async (l: any) => {
 const selfActivate = async (l: any) => {
   const user = authAPI.getCurrentUser()
   if (!user) { showToast('请先登录'); return }
-  if (!confirm(`确认将该 CDKey (${l.cdkey?.substring(0, 8)}...) 激活到你自己的账号？`)) return
+  if (!await confirm(`确认将该 CDKey (${l.cdkey?.substring(0, 8)}...) 激活到你自己的账号？`)) return
   try {
     const r = await listingAPI.selfActivate(l.id)
     if (r.error) showToast('激活失败: ' + r.error)
@@ -709,7 +709,7 @@ const selfActivate = async (l: any) => {
 
 /** 待激活 → 彻底删除（不可恢复）*/
 const deletePending = async (l: any) => {
-  if (!confirm(`⚠️ 确定永久删除该 CDKey？此操作不可恢复！\n游戏: ${l.game_name}\nCDKey: ${l.cdkey?.substring(0, 8)}...`)) return
+  if (!await confirm(`⚠️ 确定永久删除该 CDKey？此操作不可恢复！\n游戏: ${l.game_name}\nCDKey: ${l.cdkey?.substring(0, 8)}...`)) return
   try {
     const r = await listingAPI.deleteListing(l.id)
     if (r.error) showToast('删除失败: ' + r.error)
@@ -729,7 +729,7 @@ const batchSoftDelete = async () => {
   const tip = nonAvail > 0
     ? `将下架 ${availCount} 个在售 CDKey（${nonAvail} 个非在售状态将被跳过）。确定？`
     : `确定批量下架 ${availCount} 个 CDKey？下架后将进入"待激活"状态，可随时重新上架。`
-  if (!confirm(tip)) return
+  if (!await confirm(tip)) return
   try {
     const r = await listingAPI.batchSoftDelete(ids)
     if (r.error) showToast('批量下架失败: ' + r.error)
@@ -751,7 +751,7 @@ const batchRelist = async () => {
   const tip = nonPending > 0
     ? `将上架 ${pendingCount} 个待激活 CDKey（${nonPending} 个非待激活状态将被跳过）。确定？`
     : `确定批量上架 ${pendingCount} 个 CDKey？`
-  if (!confirm(tip)) return
+  if (!await confirm(tip)) return
   try {
     const r = await listingAPI.batchRelist(ids)
     if (r.error) showToast('批量上架失败: ' + r.error)
@@ -773,7 +773,7 @@ const batchDelete = async () => {
   const tip = soldCount > 0
     ? `⚠️ 确定永久删除 ${delCount} 个 CDKey？（${soldCount} 个已售将被跳过）此操作不可恢复！`
     : `⚠️ 确定永久删除选中的 ${delCount} 个 CDKey？此操作不可恢复！`
-  if (!confirm(tip)) return
+  if (!await confirm(tip)) return
   try {
     const r = await listingAPI.batchDelete(ids)
     if (r.error) showToast('批量删除失败: ' + r.error)

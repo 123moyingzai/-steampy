@@ -35,6 +35,10 @@ import {
 } from 'vant'
 import 'vant/lib/index.css'
 
+// 全局替换浏览器原生 alert → Vant Dialog（好看 + 不阻塞主线程）
+import { patchBrowser } from './utils/ui'
+patchBrowser()
+
 const app = createApp(App)
 
 // 注册Vant组件

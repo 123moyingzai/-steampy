@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="admin-orders">
     <!-- 工具栏 -->
     <div class="toolbar">
@@ -259,7 +259,7 @@ const toggleSelectAll = () => {
 const handleBatchStatus = async () => {
   if (!batchStatus.value) { alert('请先选择目标状态'); return }
   const label = getStatusText(batchStatus.value)
-  if (!confirm(`确定将选中的 ${selectedIds.value.length} 笔订单状态改为「${label}」吗？`)) return
+  if (!await confirm(`确定将选中的 ${selectedIds.value.length} 笔订单状态改为「${label}」吗？`)) return
   batching.value = true
   try {
     const r = await axios.put('/api/admin/orders/batch-status', {
@@ -295,7 +295,7 @@ const handleStatusChange = async (order: any) => {
 }
 
 const handleDelete = async (order: any) => {
-  if (!confirm(`确定删除订单 "${order.order_no || order.id}" 吗？`)) return
+  if (!await confirm(`确定删除订单 "${order.order_no || order.id}" 吗？`)) return
   try {
     await axios.delete(`/api/orders/${order.id}`)
     alert('删除成功')

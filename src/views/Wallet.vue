@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <Layout>
     <!-- 返回 -->
     <div class="cjx-wallet-back" @click="$router.back()">← 返回</div>
@@ -412,7 +412,7 @@ async function submitAddCard() {
 }
 
 async function disableCard(c: any) {
-  if (!confirm(`确定停用银行卡 ${c.bank_name} ${c.card_number_masked}？停用后该卡不可再用于提现`)) return
+  if (!await confirm(`确定停用银行卡 ${c.bank_name} ${c.card_number_masked}？停用后该卡不可再用于提现`)) return
   const res = await bankCardAPI.disable(c.id)
   if (res.error) { showToast('停用失败: ' + res.error); return }
   showToast('已停用该银行卡')
@@ -489,7 +489,7 @@ async function submitWithdraw() {
   const u = authAPI.getCurrentUser()
   if (!u?.id) { showToast('请先登录'); router.push('/login'); return }
 
-  if (!confirm(`确认提现 ¥${withdrawAmount.value.toFixed(2)}？\n手续费 ¥${fee.value.toFixed(2)}，实际到账 ¥${netAmount.value.toFixed(2)}`)) return
+  if (!await confirm(`确认提现 ¥${withdrawAmount.value.toFixed(2)}？\n手续费 ¥${fee.value.toFixed(2)}，实际到账 ¥${netAmount.value.toFixed(2)}`)) return
 
   const res = await walletAPI.withdraw(u.id, withdrawAmount.value, {
     pay_method: payMethod.value,

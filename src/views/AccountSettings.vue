@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <Layout>
     <div class="cjx-settings-page">
       <!-- 侧边标签 -->
@@ -582,7 +582,7 @@ const loadFavorites = async () => {
 const unfavorite = async (f: any) => {
   const currentUser = authAPI.getCurrentUser()
   if (!currentUser) return
-  if (!confirm(`取消收藏「${f.name}」？`)) return
+  if (!await confirm(`取消收藏「${f.name}」？`)) return
   await favoriteAPI.remove(String(currentUser.id), Number(f.gameId))
   await loadFavorites()
 }
