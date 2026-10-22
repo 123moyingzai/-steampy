@@ -44,7 +44,7 @@
           :class="{ 'cjx-activated': game.status === 'activated' }"
         >
           <div class="cjx-game-cover">
-            <img :src="game.image" :alt="game.name" />
+            <img :src="resolveImage(game.image)" :alt="game.name" />
             <span class="cjx-status-badge" :class="`status-${game.status}`">
               {{ game.status === 'activated' ? '已入库' : '待激活' }}
             </span>
@@ -215,6 +215,17 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { authAPI, userGameAPI, orderAPI } from '../config/supabase-local.ts'
 import Layout from '../components/Layout.vue'
+
+/** 图片路径解析 */
+const resolveImage = (path) => {
+  if (!path) return ''
+  if (path.startsWith('http://') || path.startsWith('https://')) return path
+  if (path.includes('picture/')) {
+    const tail = path.split('picture/')[1]
+    if (tail) return `/picture/${tail}`
+  }
+  return path.startsWith('/') ? path : `/${path}`
+}
 
 const router = useRouter()
 

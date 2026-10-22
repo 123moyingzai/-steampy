@@ -95,6 +95,7 @@ import { useRouter } from 'vue-router'
 import axios from 'axios'
 import Layout from '../components/Layout.vue'
 import { fetchAllGames, listingAPI } from '../config/supabase-local.ts'
+import { getImageUrl, onImgError } from '@/composables/useGameImage'
 
 const router = useRouter()
 
@@ -114,32 +115,7 @@ const sortOptions = [
   { value: 'price-desc', label: '价格降序' }
 ]
 
-const getImageUrl = (path: string) => {
-  if (!path) return '/picture/安魂曲.jpg'
-  if (path.startsWith('http')) {
-    // Steam CDN header URL 偶尔缺后缀：/header → /header.jpg
-    if (path.includes('/header') && !/\.(jpg|jpeg|png|gif|webp|avif)$/i.test(path)) {
-      return path + '.jpg'
-    }
-    return path
-  }
-  if (path.includes('picture/')) {
-    const fn = path.split('picture/')[1]
-    if (fn) return `/picture/${fn}`
-  }
-  return path.startsWith('/') ? path : `/${path}`
-}
-
-/** 图片加载失败兜底 — 显示占位符 */
-const onImgError = (e: any) => {
-  const el = e.target as HTMLImageElement
-  if (el && !el.src.includes('安魂曲')) {
-    el.src = '/picture/安魂曲.jpg'
-    el.onerror = null  // 防止兜底图也挂了死循环
-  }
-}
-
-// 合并：每个游戏一行，价格取最低价（玩家 < 官方）
+// Merged: one row per game, take min price (player < official)
 const allGames = computed(() => {
   const map = new Map<string, any>()
 
