@@ -144,8 +144,9 @@ const router = createRouter({
   scrollBehavior(to, from, savedPosition) {
     // 浏览器后退/前进：恢复原位置
     if (savedPosition) return savedPosition
-    // 列表页之间切换（CDK国区 ↔ 礼物代购 ↔ 余额购 ↔ 首页）：也保持顶部
-    // 详情页 / 钱包 / 充值 / 订单 等任何新页面：滚到顶部
+    // 同页面内切换通知（path 不变仅 query 变）：scrollToHighlight 自己滚，Router 不要抢
+    // 跨页面跳转（path 变了）：还是 Router 先滚到顶部，交给 onMounted 里的 scrollToHighlight
+    if (to.path === from.path && to.query?.highlight) return false
     return { top: 0 }
   }
 })

@@ -1471,44 +1471,87 @@ onMounted(async () => {
   if (hid) scrollToHighlight(hid, hlType)
 })
 
-// 监听 query 变化（同页面内点通知，Vue 不 remount）
-watch(() => route.query, (q) => {
-  if (q?.highlight) scrollToHighlight(q.highlight as string, q.hlType as string)
+// 监听路由：
+//  1. params.id 变了 → 换了游戏，重新加载游戏数据 + 评论
+//  2. query 变了    → 同游戏内切换通知，只重新定位（不重载数据）
+// 注意：从 /game/5 跳到 /game/100?highlight=xxx 时，两个 watch 都会触发。
+// params.id 的 watch 会先 await loadReviews()，等它完成后 reviews.value 已经是新游戏的数据，
+// 这时 query 的 watch 再调 scrollToHighlight 就能找到目标了。
+let loadingNewGame = false
+watch(() => route.params.id, async () => {
+  loadingNewGame = true
+  await loadData()
+  await checkFavorite()
+  await loadReviews()
+  loadingNewGame = false
+  const hid = route.query.highlight as string
+  const hlType = route.query.hlType as string
+  if (hid) scrollToHighlight(hid, hlType)
+})
+
+watch(() => route.query, async (q) => {
+  if (!q?.highlight) return
+  // 如果 params.id watch 正在加载新游戏的数据，等它完成再 scroll，避免在旧 reviews 里找不到
+  if (loadingNewGame) return
+  scrollToHighlight(q.highlight as string, q.hlType as string)
 })
 
 // 通知跳转定位：找到并展开对应的 review/reply
+// 支持 retry（DOM 可能还在渲染中），以及目标已被删除的 fallback
 async function scrollToHighlight(targetId: string, hlType?: string) {
-  const u = authAPI.getCurrentUser()
-  // 是 review：直接展开 + scroll
-  const review = reviews.value.find((r: any) => r.id === targetId)
-  if (review || hlType === 'review') {
-    if (review) {
-      // 先拉好 replies 数据再展开，避免空容器撑页面抖动
-      if (!review._replies) {
-        review._replies = await reviewAPI.listReplies(review.id, u?.id)
-      }
-      expandedReviews.value[review.id] = true
-      await nextTick()
-      scrollAndFlash(`[data-review-id="${review.id}"]`)
-    }
+  if (!targetId) return
+
+  // 如果 reviews 还没加载完，延迟再试
+  if (!reviews.value || reviews.value.length === 0) {
+    setTimeout(() => scrollToHighlight(targetId, hlType), 300)
     return
   }
-  // 是 reply：先遍历所有 review 把 replies 数据拉齐（不展开），找到父 review 后再展开 + scroll
+
+  const u = authAPI.getCurrentUser()
+
+  // ======== review 类型：直接找 ========
+  const review = reviews.value.find((r: any) => r.id === targetId)
+  if (review) {
+    if (!review._replies) {
+      try { review._replies = await reviewAPI.listReplies(review.id, u?.id) } catch {}
+    }
+    expandedReviews.value[review.id] = true
+    await nextTick()
+    scrollAndFlash(`[data-review-id="${review.id}"]`)
+    return
+  }
+
+  // ======== reply 类型：遍历所有 review 拉 replies 找父 review ========
   let parentReview: any = null
   for (const r of reviews.value) {
     if (!r._replies) {
-      r._replies = await reviewAPI.listReplies(r.id, u?.id)
+      try { r._replies = await reviewAPI.listReplies(r.id, u?.id) } catch {}
     }
     if (!parentReview && r._replies?.some((rp: any) => rp.id === targetId)) {
       parentReview = r
     }
   }
   if (parentReview) {
-    // 数据都齐了，现在只展开父 review（DOM 一次到位，不会抖）
     expandedReviews.value[parentReview.id] = true
     await nextTick()
-    scrollAndFlash(`[data-reply-id="${targetId}"]`)
+    // DOM 可能还没完全渲染出 reply 节点，延迟 300ms 重试一次
+    const ok = await tryScrollAndFlash(`[data-reply-id="${targetId}"]`)
+    if (!ok) setTimeout(() => tryScrollAndFlash(`[data-reply-id="${targetId}"]`), 300)
+    return
   }
+
+  // ======== Fallback：目标已被删除/审核拒绝 —— 至少滚到评论区顶部 ========
+  console.warn('[scrollToHighlight] 未找到 targetId=' + targetId + '，目标可能已删除或隐藏')
+  const firstReview = document.querySelector('[data-review-id]') as HTMLElement | null
+  if (firstReview) firstReview.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
+async function tryScrollAndFlash(selector: string): Promise<boolean> {
+  await nextTick()
+  const el = document.querySelector(selector) as HTMLElement | null
+  if (!el) return false
+  scrollAndFlash(selector)
+  return true
 }
 
 function scrollAndFlash(selector: string) {
@@ -1518,9 +1561,7 @@ function scrollAndFlash(selector: string) {
     el.scrollIntoView({ behavior: 'smooth', block: 'center' })
     el.style.transition = 'box-shadow 0.5s'
     el.style.boxShadow = '0 0 0 3px #3498db'
-    setTimeout(() => {
-      el.style.boxShadow = ''
-    }, 2500)
+    setTimeout(() => { el.style.boxShadow = '' }, 2500)
   })
 }
 </script>
