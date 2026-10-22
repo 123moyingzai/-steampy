@@ -124,6 +124,9 @@ public class ListingController {
      */
     @PostMapping
     public Result<Listing> createListing(@RequestBody Listing listing) {
+        if (!fillGameId(listing)) {
+            return Result.error("游戏「" + safeName(listing.getGameName()) + "」不存在，无法上架");
+        }
         listing.setId(UUID.randomUUID().toString());
         if (listing.getStatus() == null) listing.setStatus("available");
         if (listing.getVersion() == null) listing.setVersion("标准版");
@@ -138,12 +141,19 @@ public class ListingController {
      * 批量上架多条 CDKey（循环逐条入库）。
      *
      * 自动补全同 {@link #createListing}：UUID id、status/version/region 默认值、时间戳。
+     * 入库前先校验游戏是否存在，全部通过才写库，避免只写进去一半。
      *
      * @param listings Listing 数组
      * @return {@link Result} 插入后的 Listing 列表
      */
     @PostMapping("/batch")
     public Result<List<Listing>> createBatch(@RequestBody List<Listing> listings) {
+        if (listings == null || listings.isEmpty()) return Result.error("上架内容为空");
+        for (Listing l : listings) {
+            if (!fillGameId(l)) {
+                return Result.error("游戏「" + safeName(l.getGameName()) + "」不存在，无法上架");
+            }
+        }
         for (Listing l : listings) {
             l.setId(UUID.randomUUID().toString());
             if (l.getStatus() == null) l.setStatus("available");
@@ -154,6 +164,38 @@ public class ListingController {
             listingMapper.insert(l);
         }
         return Result.success(listings);
+    }
+
+    /**
+     * 补全 gameId：前端没传（或传成 null）时，按游戏名回查 games 表。
+     * <p>
+     * listings.game_id 是 NOT NULL 列，缺值会直接抛 500，这里提前兜住。
+     * </p>
+     *
+     * @param l 上架记录
+     * @return true 表示 gameId 可用；false 表示游戏名查不到
+     */
+    private boolean fillGameId(Listing l) {
+        if (l.getGameId() != null && !l.getGameId().isBlank()) return true;
+        if (l.getGameName() == null || l.getGameName().isBlank()) return false;
+        QueryWrapper<Game> qw = new QueryWrapper<>();
+        qw.eq("name", l.getGameName().trim()).last("LIMIT 1");
+        Game g = gameMapper.selectOne(qw);
+        if (g == null) return false;
+        l.setGameId(g.getId());
+        l.setGameName(g.getName());
+        if (l.getGameImage() == null || l.getGameImage().isBlank()) l.setGameImage(g.getImage());
+        return true;
+    }
+
+    /**
+     * 取用于错误提示的游戏名，空值给个占位符。
+     *
+     * @param name 游戏名
+     * @return 可读名称
+     */
+    private String safeName(String name) {
+        return name == null || name.isBlank() ? "未知游戏" : name.trim();
     }
 
     /**

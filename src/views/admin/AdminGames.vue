@@ -48,7 +48,7 @@
             <td>
               <span class="discount">-{{ game.discount || '0' }}%</span>
             </td>
-            <td>{{ game.stock ?? '∞' }}</td>
+            <td :title="'在售 CDKey 数量（由卖家上架决定）'">{{ stockMap[String(game.id)] || 0 }} 件</td>
             <td>
               <span class="badge" :class="game.is_presale ? 'warning' : 'success'">
                 {{ game.is_presale ? '预售' : '正式' }}
@@ -94,7 +94,12 @@
           <div class="form-row">
             <div class="form-group">
               <label>游戏名称 *</label>
-              <input type="text" v-model="formData.name" placeholder="请输入游戏名称">
+              <input type="text" v-model="formData.name" placeholder="请输入游戏名称"
+                     @keyup.enter="autoFillByName" @blur="checkExists">
+              <p v-if="nameExists" class="field-hint error">
+                游戏「{{ existingName }}」已存在，不能重复添加
+                <button type="button" class="btn-link" @click="editExistingGame">去编辑该游戏</button>
+              </p>
             </div>
             <div class="form-group">
               <label>开发商</label>
@@ -119,8 +124,10 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label>库存</label>
-              <input type="number" v-model.number="formData.stock" min="0" placeholder="留空为无限">
+              <label>在售数量</label>
+              <input type="text" :value="(stockMap[String(formData.id)] || 0) + ' 件'" disabled
+                     title="由卖家上架的 CDKey 数量自动汇总，不可手工修改">
+              <p class="field-hint">在售库存由卖家上架决定，管理员不再手工填写</p>
             </div>
             <div class="form-group">
               <label>是否预售</label>
@@ -133,7 +140,21 @@
 
           <div class="form-group">
             <label>封面图片URL</label>
-            <input type="text" v-model="formData.image" placeholder="https://... 或 /picture/xxx.jpg">
+            <div class="image-row">
+              <input type="text" v-model="formData.image" placeholder="https://... 或 /picture/xxx.jpg"
+                     @input="imageStatus = 'loading'" @blur="checkImage">
+              <button type="button" class="btn btn-default btn-download" :disabled="downloading"
+                      @click="downloadImage">
+                {{ downloading ? '下载中...' : '下载到本地' }}
+              </button>
+            </div>
+            <div v-if="previewUrl" class="image-preview">
+              <img :src="previewUrl" alt="封面预览"
+                   @load="imageStatus = 'ok'" @error="imageStatus = 'error'">
+              <span class="field-hint" :class="{ error: imageStatus === 'error' }">
+                {{ imageStatus === 'ok' ? '图片可正常访问' : imageStatus === 'error' ? '图片无法访问，保存时会自动尝试下载' : '正在检测图片...' }}
+              </span>
+            </div>
           </div>
 
           <div class="form-group">
@@ -147,8 +168,13 @@
           </div>
         </div>
         <div class="modal-footer">
+          <button type="button" class="btn btn-ai footer-ai" :disabled="aiFilling" @click="autoFillByName">
+            {{ aiFilling ? 'AI 生成中...' : 'AI 自动填写' }}
+          </button>
           <button class="btn btn-default" @click="closeModal">取消</button>
-          <button class="btn btn-primary" @click="handleSave" :disabled="saving">
+          <button class="btn btn-primary" @click="handleSave"
+                  :disabled="saving || nameExists"
+                  :title="nameExists ? '该游戏已存在，不能重复添加' : ''">
             {{ saving ? '保存中...' : '保存' }}
           </button>
         </div>
@@ -164,6 +190,8 @@ import { adminExportAPI } from '../../config/admin-api'
 
 const games = ref<any[]>([])
 const filteredGames = ref<any[]>([])
+/** 各游戏在售 CDKey 数量（由 listings 聚合，管理端只读展示） */
+const stockMap = ref<Record<string, number>>({})
 const searchKeyword = ref('')
 const showModal = ref(false)
 const editingGame = ref<any>(null)
@@ -193,14 +221,120 @@ const displayPages = computed(() => {
 watch(filteredGames, () => { currentPage.value = 1 })
 
 const formData = reactive({
+  id: '' as string,
   name: '', developer: '', price: 0, original_price: 0, discount: 0,
-  stock: null as number | null, is_presale: false, image: '',
+  is_presale: false, image: '',
   description: '', release_date: ''
 })
 
 const resetForm = () => {
-  Object.assign(formData, { name: '', developer: '', price: 0, original_price: 0, discount: 0,
-    stock: null, is_presale: false, image: '', description: '', release_date: '' })
+  Object.assign(formData, { id: '', name: '', developer: '', price: 0, original_price: 0, discount: 0,
+    is_presale: false, image: '', description: '', release_date: '' })
+  nameExists.value = false
+  existingName.value = ''
+  imageStatus.value = 'loading'
+}
+
+/** 游戏名重复检测结果与提示文案 */
+const nameExists = ref(false)
+const existingName = ref('')
+const existingId = ref('')
+/** 封面图片可用性：loading 检测中 / ok 可访问 / error 加载失败 */
+const imageStatus = ref<'loading' | 'ok' | 'error'>('loading')
+const downloading = ref(false)
+
+/** 预览地址：相对路径补前导斜杠，网络地址原样使用 */
+const previewUrl = computed(() => {
+  const p = (formData.image || '').trim()
+  if (!p) return ''
+  if (p.startsWith('http://') || p.startsWith('https://')) return p
+  return p.startsWith('/') ? p : '/' + p
+})
+
+/** 名称失焦时查重（编辑时排除自身） */
+const checkExists = async () => {
+  const name = formData.name.trim()
+  if (!name) { nameExists.value = false; return }
+  try {
+    const r = await axios.get('/api/admin/games/exists', { params: { name } })
+    const d: any = r.data?.data || {}
+    const selfId = editingGame.value ? String(editingGame.value.id) : null
+    if (d.exists && (!selfId || String(d.id) !== selfId)) {
+      nameExists.value = true
+      existingName.value = d.name || name
+      existingId.value = String(d.id || '')
+    } else {
+      nameExists.value = false
+      existingId.value = ''
+    }
+  } catch {
+    nameExists.value = false
+  }
+}
+
+/** 图片地址变化后重新检测（img 的 load/error 回调负责置状态） */
+const checkImage = () => {
+  if ((formData.image || '').trim()) imageStatus.value = 'loading'
+}
+
+/** 把网络封面下载到服务器本地，保证后续长期可显示 */
+const downloadImage = async () => {
+  const url = (formData.image || '').trim()
+  if (!url.startsWith('http')) { alert('请先填写 http(s) 开头的图片地址'); return }
+  downloading.value = true
+  try {
+    const r = await axios.post('/api/upload/remote-image', { url }, { timeout: 40000 })
+    const d: any = r.data?.data
+    if (!d?.url) throw new Error(r.data?.message || '下载失败')
+    formData.image = d.url
+    alert('已下载到本地：' + d.url)
+  } catch (e: any) {
+    alert('下载失败: ' + (e?.response?.data?.message || e.message))
+  } finally {
+    downloading.value = false
+  }
+}
+
+/** AI 自动填写：按游戏名补全开发商 / 封面 / 简介 / 发售日期 */
+const aiFilling = ref(false)
+const autoFillByName = async () => {
+  const name = formData.name.trim()
+  if (!name) { alert('请先填写游戏名称'); return }
+  if (aiFilling.value) return
+  // 已存在的游戏不再重复生成内容
+  await checkExists()
+  if (nameExists.value) {
+    alert('游戏「' + existingName.value + '」已存在，无需再自动填写')
+    return
+  }
+  aiFilling.value = true
+  try {
+    const r = await axios.post('/api/ai/game-info', { name }, { timeout: 45000 })
+    const d: any = r.data?.data || {}
+    // 只补空字段，不覆盖用户已经手填的内容
+    let filled = 0
+    const keys = ['developer', 'image', 'description', 'release_date',
+      'price', 'original_price', 'discount', 'is_presale'] as const
+    for (const key of keys) {
+      const val: any = d[key]
+      if (val === undefined || val === null || val === '') continue
+      // 折扣 0 没有填写意义，其余数字（含免费游戏的 0 元）按实填写
+      if (typeof val === 'number' && val === 0 && key !== 'price' && key !== 'original_price') continue
+      if (!formData[key]) {
+        ;(formData as any)[key] = val
+        filled++
+      }
+    }
+    if (!filled) {
+      alert('没有可自动填写的新内容，表单已有值或未识别到该游戏')
+    } else {
+      alert(`已自动填写 ${filled} 项${d.steam_appid ? '（封面来自 Steam AppID ' + d.steam_appid + '）' : ''}`)
+    }
+  } catch (e: any) {
+    alert('自动填写失败: ' + (e?.response?.data?.message || e.message))
+  } finally {
+    aiFilling.value = false
+  }
 }
 
 const loadGames = async () => {
@@ -208,7 +342,21 @@ const loadGames = async () => {
     const r = await axios.get('/api/admin/games')
     games.value = r.data?.data || []
     filteredGames.value = [...games.value]
+    await loadStockStats()
   } catch (e) { console.error('加载游戏失败', e) }
+}
+
+/** 拉取各游戏在售数量（listings 聚合），用于「库存」列只读展示 */
+const loadStockStats = async () => {
+  try {
+    const r = await axios.get('/api/admin/games/stock-stats')
+    const map: Record<string, number> = {}
+    for (const row of (r.data?.data || [])) {
+      const key = String(row.game_id ?? row.gameId ?? '')
+      if (key) map[key] = Number(row.cnt ?? 0)
+    }
+    stockMap.value = map
+  } catch { stockMap.value = {} }
 }
 
 const filterGames = () => {
@@ -220,28 +368,54 @@ const openCreateModal = () => { editingGame.value = null; resetForm(); showModal
 const openEditModal = (game: any) => {
   editingGame.value = game
   Object.assign(formData, {
+    id: String(game.id || ''),
     name: game.name, developer: game.developer || '',
     price: Number(game.price || 0), original_price: Number(game.original_price || 0),
-    discount: Number(game.discount || 0), stock: game.stock ?? null,
+    discount: Number(game.discount || 0),
     is_presale: !!game.is_presale, image: game.image || '',
     description: game.description || '',
     release_date: game.release_date ? game.release_date.slice(0, 10) : ''
   })
+  nameExists.value = false; existingId.value = ''
   showModal.value = true
+}
+/** 重名时直接跳到编辑该游戏，避免"想补录资料却被拦住" */
+const editExistingGame = () => {
+  const target = games.value.find(g => String(g.id) === existingId.value)
+  if (target) openEditModal(target)
+  else alert('列表里没找到该游戏，请刷新后重试')
 }
 const closeModal = () => { showModal.value = false; resetForm() }
 
 const handleSave = async () => {
   if (!formData.name.trim()) { alert('请输入游戏名称'); return }
   if (formData.price < 0) { alert('价格不能为负'); return }
+  if (nameExists.value) { alert('游戏「' + existingName.value + '」已存在，不能重复添加'); return }
   saving.value = true
   try {
     const payload: any = {
       name: formData.name, developer: formData.developer,
       price: formData.price, original_price: formData.original_price || null,
-      discount: formData.discount || 0, stock: formData.stock,
+      discount: formData.discount || 0,
       is_presale: formData.is_presale, image: formData.image,
       description: formData.description, release_date: formData.release_date || null
+    }
+    // 网络封面先下载到服务器本地，避免 CDN 失效导致列表图片空白
+    if (payload.image && String(payload.image).trim().startsWith('http')) {
+      try {
+        const r = await axios.post('/api/upload/remote-image',
+          { url: String(payload.image).trim() }, { timeout: 40000 })
+        if (r.data?.data?.url) {
+          payload.image = r.data.data.url
+        } else {
+          throw new Error(r.data?.message || '下载失败')
+        }
+      } catch (e: any) {
+        alert('封面图片下载失败，请换一个可访问的图片地址：' +
+          (e?.response?.data?.message || e.message))
+        saving.value = false
+        return
+      }
     }
     if (editingGame.value) {
       await axios.put(`/api/admin/games/${editingGame.value.id}`, payload)
@@ -336,6 +510,61 @@ onMounted(loadGames)
 
 .btn-primary:hover:not(:disabled) {
   opacity: 0.9;
+}
+
+.btn-ai {
+  background: linear-gradient(135deg, #7b5cf0, #4f9df7);
+  color: #fff;
+  white-space: nowrap;
+}
+
+.btn-ai:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+/* 弹窗左下角：自动填写按钮靠左，取消/保存保持右侧 */
+.footer-ai {
+  margin-right: auto;
+}
+
+/* 封面 URL 输入行 + 预览 */
+.image-row {
+  display: flex;
+  gap: 8px;
+}
+
+.image-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-download {
+  white-space: nowrap;
+}
+
+.image-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.image-preview img {
+  width: 140px;
+  height: 52px;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #f2f4f8;
+}
+
+.field-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #8a94a6;
+}
+
+.field-hint.error {
+  color: #e5484d;
 }
 
 .btn-outline {

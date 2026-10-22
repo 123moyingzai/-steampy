@@ -392,7 +392,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { authAPI, listingAPI, orderAPI, gameAPI } from '../config/supabase-local.ts'
 import Layout from '../components/Layout.vue'
 
@@ -830,6 +830,25 @@ const selectGame = async (g: any) => {
   showGameDropdown.value = false
 }
 
+/**
+ * 搜索时本地没匹配到 → 重新拉一次游戏列表。
+ * 管理员刚新增的游戏，卖家不用刷新页面也能搜到。
+ */
+let lastGameRefresh = 0
+const refreshGames = async () => {
+  if (Date.now() - lastGameRefresh < 3000) return
+  lastGameRefresh = Date.now()
+  try {
+    const gr = await gameAPI.getGames()
+    if (gr.data) games.value = gr.data
+  } catch { /* 忽略，保留旧列表 */ }
+}
+watch(gameSearchQuery, (q) => {
+  const kw = (q || '').trim().toLowerCase()
+  if (kw.length < 2) return
+  if (!games.value.some(g => (g.name || '').toLowerCase().includes(kw))) refreshGames()
+})
+
 /** 当前最低在售价 */
 const currentMinPrice = computed<number | null>(() => {
   if (!selectedGame.value) return null
@@ -945,6 +964,10 @@ const submitListings = async () => {
   if (!selectedGame.value || !newForm.value.game_id) { showToast('请先搜索并选择游戏'); return }
   if (!newForm.value.price || newForm.value.price <= 0) { showToast('请输入有效售价'); return }
 
+  // 同一游戏重复上架：提示已有记录，避免误以为可以覆盖
+  const sameGame = sellerListings.value.filter((l: any) => String(l.game_id) === String(newForm.value.game_id))
+  if (sameGame.length > 0 && !window.confirm('你已经有该游戏的 ' + sameGame.length + ' 条在售 CDKey，本次会追加为新的记录，是否继续？')) return
+
   const lines = newForm.value.cdkeys.split('\n').map(x => x.trim().toUpperCase()).filter(x => CDK_PATTERN.test(x))
   if (lines.length === 0) { showToast('请至少输入一个格式正确的 CDKey'); return }
 
@@ -965,7 +988,7 @@ const submitListings = async () => {
       // ====== 普通批量上架 ======
       const items = lines.map(cdkey => ({
         seller_id: user.id,
-        game_id: Number(newForm.value.game_id),
+        game_id: String(newForm.value.game_id || ''),
         game_name: newForm.value.game_name,
         game_image: newForm.value.game_image,
         version: newForm.value.version,

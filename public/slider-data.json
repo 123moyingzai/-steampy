@@ -2,15 +2,15 @@
   "slides": [
     {
       "imageUrl": "./picture/gun3.png",
-      "altText": "¿ª·¢ÕßÖ§³Ö¼Æ»®"
+      "altText": "å¼€å‘è€…æ”¯æŒè®¡åˆ’"
     },
     {
       "imageUrl": "./picture/gun2.png",
-      "altText": "ÈÈÃÅÓÎÏ·ÍÆ¼ö"
+      "altText": "çƒ­é—¨æ¸¸æˆæ¨è"
     },
     {
       "imageUrl": "./picture/gun1.png",
-      "altText": "ÏŞÊ±ÌØ»İ"
+      "altText": "é™æ—¶ç‰¹æƒ "
     }
   ]
 }

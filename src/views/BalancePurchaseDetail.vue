@@ -131,6 +131,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import Layout from '../components/Layout.vue'
 import { authAPI, fetchAllGames } from '../config/supabase-local.ts'
+import { getImageUrl } from '@/composables/useGameImage'
 
 const router = useRouter()
 const route = useRoute()
@@ -141,21 +142,6 @@ const game = ref<any>(null)
 const loading = ref(true)
 /** 登录用户的钱包余额 */
 const walletBalance = ref(0.06)
-
-/**
- * 解析图片路径，兼容多种格式
- * @param path 原始图片路径
- * @returns 可访问的 URL
- */
-const getImageUrl = (path: string) => {
-  if (!path) return '/picture/安魂曲.jpg'
-  if (path.startsWith('http')) return path
-  if (path.includes('picture/')) {
-    const fn = path.split('picture/')[1]
-    if (fn) return `/picture/${fn}`
-  }
-  return path.startsWith('/') ? path : `/${path}`
-}
 
 /**
  * 解析后的游戏封面图 URL，game 为 null 时返回占位图

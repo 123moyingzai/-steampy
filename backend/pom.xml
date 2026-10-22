@@ -86,4 +86,73 @@
             </plugin>
         </plugins>
     </build>
+
+    <!-- ============================================================ -->
+    <!-- 前端打包进后端 Profile（-Pwith-frontend）                         -->
+    <!-- 依赖 Node.js 18+ 与前端源码目录，仅在显式激活时生效；             -->
+    <!-- 默认开发态走 Vite 代理，不触发 npm build。                       -->
+    <!-- ============================================================ -->
+    <profiles>
+        <profile>
+            <id>with-frontend</id>
+            <properties>
+                <frontend.dir>${project.basedir}/..</frontend.dir>
+                <frontend.dist>${frontend.dir}/dist</frontend.dist>
+                <backend.static>${project.basedir}/src/main/resources/static</backend.static>
+            </properties>
+            <build>
+                <plugins>
+                    <!-- 1. 在前端目录执行 npm ci && npm run build -->
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <executions>
+                            <execution>
+                                <id>npm-ci</id>
+                                <phase>prepare-package</phase>
+                                <goals><goal>exec</goal></goals>
+                                <configuration>
+                                    <workingDirectory>${frontend.dir}</workingDirectory>
+                                    <executable>npm</executable>
+                                    <arguments><argument>ci</argument></arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>npm-build</id>
+                                <phase>prepare-package</phase>
+                                <goals><goal>exec</goal></goals>
+                                <configuration>
+                                    <workingDirectory>${frontend.dir}</workingDirectory>
+                                    <executable>npm</executable>
+                                    <arguments><argument>run</argument><argument>build</argument></arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <!-- 2. 清空后端 static 目录并复制 dist 产物 -->
+                    <plugin>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <executions>
+                            <execution>
+                                <id>copy-frontend</id>
+                                <phase>prepare-package</phase>
+                                <goals><goal>run</goal></goals>
+                                <configuration>
+                                    <target>
+                                        <delete dir="${backend.static}" failonerror="false"/>
+                                        <mkdir dir="${backend.static}"/>
+                                        <copy todir="${backend.static}" overwrite="true">
+                                            <fileset dir="${frontend.dist}" includes="**/*"/>
+                                        </copy>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

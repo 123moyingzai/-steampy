@@ -7,6 +7,11 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -33,6 +38,12 @@ public class UploadController {
     // 上传根目录（相对路径，从项目运行目录下创建）
     @Value("${app.upload-dir:uploads}")
     private String uploadDir;
+
+    /** 下载网络图片用的 HTTP 客户端（复用连接、跟随 302 重定向） */
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(10))
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .build();
 
     /**
      * 上传用户头像图片
@@ -122,6 +133,85 @@ public class UploadController {
 
         Map<String, String> resp = new HashMap<>();
         resp.put("url", "/uploads/reviews/" + filename);
+        resp.put("filename", filename);
+        return Result.success(resp);
+    }
+
+    /**
+     * 把网络图片下载到本地并返回可访问地址（新增游戏封面用）。
+     * <p>
+     * 后端管理端填写的封面多是 Steam CDN 地址，直接引用存在被墙/失效后
+     * 页面显示空白的风险，这里下载一份到 uploads/games/ 长期可访问。
+     * </p>
+     *
+     * @param body { url: 图片地址 }
+     * @return {@link Result} 包含 url（/uploads/games/xxx.jpg）和 filename
+     */
+    @PostMapping("/remote-image")
+    public Result<Map<String, String>> uploadRemoteImage(@RequestBody Map<String, String> body) {
+        String url = body == null ? null : body.get("url");
+        if (url == null || !url.startsWith("http")) {
+            return Result.error("图片地址无效");
+        }
+
+        byte[] bytes;
+        String contentType;
+        try {
+            HttpResponse<byte[]> resp = HTTP_CLIENT.send(
+                    HttpRequest.newBuilder(URI.create(url))
+                            .timeout(Duration.ofSeconds(15))
+                            .header("User-Agent", "Mozilla/5.0")
+                            .GET().build(),
+                    HttpResponse.BodyHandlers.ofByteArray());
+            if (resp.statusCode() != 200) {
+                return Result.error("图片下载失败：HTTP " + resp.statusCode());
+            }
+            contentType = resp.headers().firstValue("content-type").orElse("");
+            bytes = resp.body();
+        } catch (Exception e) {
+            return Result.error("图片下载失败：" + e.getMessage());
+        }
+
+        if (contentType != null && !contentType.isEmpty() && !contentType.toLowerCase().startsWith("image/")) {
+            return Result.error("该地址返回的不是图片");
+        }
+        if (bytes == null || bytes.length == 0) {
+            return Result.error("图片内容为空");
+        }
+        if (bytes.length > 5 * 1024 * 1024) {
+            return Result.error("图片不能超过 5MB");
+        }
+
+        // 扩展名优先取 Content-Type，其次取 URL 后缀，最后按 jpg 兜底
+        String ext = ".jpg";
+        if (contentType != null) {
+            String ct = contentType.toLowerCase();
+            if (ct.contains("png")) ext = ".png";
+            else if (ct.contains("webp")) ext = ".webp";
+            else if (ct.contains("gif")) ext = ".gif";
+            else if (ct.contains("jpeg") || ct.contains("jpg")) ext = ".jpg";
+        }
+
+        // Steam 封面地址形如 .../apps/{appid}/header.jpg，直接用 appid 命名便于排查
+        String filename;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("/apps/(\\d+)/").matcher(url);
+        if (m.find()) {
+            filename = m.group(1) + "_header" + ext;
+        } else {
+            filename = UUID.randomUUID().toString().replace("-", "") + ext;
+        }
+
+        File dir = new File(uploadDir, "games");
+        if (!dir.exists()) dir.mkdirs();
+        File dest = new File(dir.getAbsoluteFile(), filename);
+        try {
+            java.nio.file.Files.write(dest.toPath(), bytes);
+        } catch (IOException e) {
+            return Result.error("保存图片失败：" + e.getMessage());
+        }
+
+        Map<String, String> resp = new HashMap<>();
+        resp.put("url", "/uploads/games/" + filename);
         resp.put("filename", filename);
         return Result.success(resp);
     }

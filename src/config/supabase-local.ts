@@ -3,6 +3,26 @@ import axios from 'axios'
 
 const API_BASE = '/api'
 
+// ============ 全局 axios 拦截器 ============
+// 每次请求前自动从 sessionStorage 读取管理员身份，注入 X-Admin-Id
+// 解决 AdminLayout.onMounted 与子组件 AdminOrders.onMounted 的竞态
+axios.interceptors.request.use((config) => {
+  // 仅对 /api/admin/** 请求注入管理员头
+  if (config.url && config.url.startsWith('/api/admin')) {
+    const raw = sessionStorage.getItem('steampy_user')
+    if (raw) {
+      try {
+        const user = JSON.parse(raw)
+        if (user?.id) {
+          config.headers = config.headers || {}
+          config.headers['X-Admin-Id'] = user.id
+        }
+      } catch { /* 忽略坏 JSON */ }
+    }
+  }
+  return config
+})
+
 // 通用请求
 async function apiRequest<T = any>(
   path: string,
@@ -647,7 +667,7 @@ export const listingAPI = {
     try {
       const body: any = {
         seller_id: String(listing.seller_id),
-        game_id: Number(listing.game_id),
+        game_id: listing.game_id ? String(listing.game_id) : '',
         game_name: listing.game_name,
         game_image: listing.game_image || '',
         version: listing.version || '标准版',
@@ -667,7 +687,7 @@ export const listingAPI = {
     try {
       const body = listings.map(l => ({
         seller_id: String(l.seller_id),
-        game_id: Number(l.game_id),
+        game_id: l.game_id ? String(l.game_id) : '',
         game_name: l.game_name,
         game_image: l.game_image || '',
         version: l.version || '标准版',

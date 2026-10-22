@@ -20,6 +20,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { getImageUrl } from '@/composables/useGameImage'
 
 const props = defineProps({
   title: {
@@ -46,15 +47,7 @@ const props = defineProps({
 
 const emit = defineEmits(['click'])
 
-const imageUrl = computed(() => {
-  if (!props.image) return '/picture/安魂曲.jpg'
-  if (props.image.startsWith('http')) return props.image
-  if (props.image.includes('picture/')) {
-    const fileName = props.image.split('picture/')[1]
-    return `/picture/${fileName}`
-  }
-  return props.image.startsWith('/') ? props.image : `/${props.image}`
-})
+const imageUrl = computed(() => getImageUrl(props.image))
 
 const handleClick = () => {
   emit('click')

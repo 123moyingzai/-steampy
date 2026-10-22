@@ -393,10 +393,78 @@ public class AdminController {
     @PostMapping("/games")
     public Result<Game> createGame(@RequestBody Game g) {
         if (g.getName() == null || g.getName().isBlank()) return Result.error("游戏名不能为空");
+        String name = g.getName().trim();
+        if (countByName(name, null) > 0) {
+            return Result.error("游戏「" + name + "」已存在，不能重复添加");
+        }
+        g.setName(name);
         g.setCreatedAt(LocalDateTime.now());
         g.setUpdatedAt(LocalDateTime.now());
         gameMapper.insert(g);
         return Result.success(g);
+    }
+
+    /**
+     * 新增游戏时预检查游戏名是否已存在（前端失焦即提示，避免填完才报错）。
+     *
+     * @param name 游戏名称
+     * @return {@link Result} data 为 { exists: true/false, id, name }
+     */
+    @GetMapping("/games/exists")
+    public Result<Map<String, Object>> gameExists(@RequestParam String name) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("exists", false);
+        if (name == null || name.isBlank()) return Result.success(data);
+        Game exist = findByExactName(name.trim());
+        if (exist != null) {
+            data.put("exists", true);
+            data.put("id", exist.getId());
+            data.put("name", exist.getName());
+        }
+        return Result.success(data);
+    }
+
+    /**
+     * 各游戏的在售 CDKey 数量（按 listings 中 status=available 聚合）。
+     * <p>
+     * 管理端「库存」不再手工填写，统一展示这个聚合值，避免 games.stock 与卖家真实上架数量对不上。
+     * </p>
+     *
+     * @return {@link Result} [{game_id, cnt}] 列表
+     */
+    @GetMapping("/games/stock-stats")
+    public Result<List<Map<String, Object>>> gameStockStats() {
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT game_id, COUNT(*) AS cnt FROM listings WHERE status = 'available' GROUP BY game_id");
+        return Result.success(rows);
+    }
+
+    /**
+     * 按名称查重（忽略大小写与首尾空格）。
+     *
+     * @param name      游戏名称
+     * @param excludeId 需要排除的游戏 id（编辑场景传自身 id，新增传 null）
+     * @return 命中的记录数
+     */
+    private long countByName(String name, String excludeId) {
+        QueryWrapper<Game> qw = new QueryWrapper<>();
+        qw.apply("LOWER(TRIM(name)) = {0}", name.toLowerCase());
+        if (excludeId != null && !excludeId.isBlank()) qw.ne("id", excludeId);
+        Long c = gameMapper.selectCount(qw);
+        return c == null ? 0 : c;
+    }
+
+    /**
+     * 按名称精确查询一条游戏记录（忽略大小写与首尾空格）。
+     *
+     * @param name 游戏名称
+     * @return 命中的游戏，未命中返回 null
+     */
+    private Game findByExactName(String name) {
+        QueryWrapper<Game> qw = new QueryWrapper<>();
+        qw.apply("LOWER(TRIM(name)) = {0}", name.toLowerCase());
+        qw.last("LIMIT 1");
+        return gameMapper.selectOne(qw);
     }
 
     /**

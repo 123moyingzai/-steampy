@@ -1,6 +1,27 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
+import axios from 'axios'
+
+// ============ 全局 axios 拦截器：自动注入管理员身份 ============
+// 所有 .vue 文件都 import axios from 'axios'（默认实例）
+// 所以在这里加拦截器，每次请求 /api/admin/** 前自动从 sessionStorage 读 X-Admin-Id
+// 解决 AdminLayout.onMounted 与子组件 AdminOrders.onMounted 的竞态
+axios.interceptors.request.use((config) => {
+  if (config.url && config.url.startsWith('/api/admin')) {
+    const raw = sessionStorage.getItem('steampy_user')
+    if (raw) {
+      try {
+        const user = JSON.parse(raw)
+        if (user?.id) {
+          config.headers = config.headers || {}
+          config.headers['X-Admin-Id'] = user.id
+        }
+      } catch { /* 忽略坏 JSON */ }
+    }
+  }
+  return config
+})
 
 // 引入Vant组件和样式
 import {
