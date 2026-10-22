@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -96,6 +97,212 @@ public class AIController {
             fallback.put("reply", "抱歉我这边出了点小状况 🥲 你可以试试换个问法，或者直接告诉我你想找什么游戏～");
             fallback.put("games", List.of());
             return Result.success(fallback);
+        }
+    }
+
+    /**
+     * 新增游戏弹窗的「AI 自动填写」。
+     *
+     * 输入游戏名，返回可直接回填表单的字段：
+     *   - image：走 Steam 商店搜索拿到真实 AppID 后拼 header.jpg（不会像 LLM 那样瞎编 AppID）
+     *   - developer / description / release_date：复用客服同一套 ai.api-key 调 LLM 生成
+     *   - 若 LLM 不可用，则用 Steam appdetails 官方数据补齐开发商与发售日期
+     *
+     * @param body { name: 游戏名称 }
+     * @return {@link Result} data 为可回填的字段 Map，取不到的字段不会出现在 Map 里
+     */
+    @PostMapping("/game-info")
+    public Result<Map<String, Object>> gameInfo(@RequestBody Map<String, Object> body) {
+        String name = Objects.toString(body.getOrDefault("name", ""), "").trim();
+        if (name.isEmpty()) return Result.error("请先填写游戏名称");
+
+        Map<String, Object> data = new LinkedHashMap<>();
+        long appid = -1L;
+
+        // ① Steam 商店搜索：游戏名 → AppID → 官方封面
+        try {
+            String term = URLEncoder.encode(name, StandardCharsets.UTF_8);
+            String url = "https://store.steampowered.com/api/storesearch/?term=" + term + "&l=schinese&cc=CN";
+            HttpResponse<String> resp = httpClient.send(
+                    HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(10)).GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() == 200) {
+                JsonNode items = om.readTree(resp.body()).path("items");
+                if (items.isArray() && !items.isEmpty()) {
+                    appid = items.get(0).path("id").asLong(-1);
+                    if (appid > 0) {
+                        data.put("steam_appid", appid);
+                        data.put("image", "https://cdn.akamai.steamstatic.com/steam/apps/" + appid + "/header.jpg");
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            // 搜索失败不阻断，后续仍可用 LLM 生成其它字段
+        }
+
+        // ② Steam 官方详情：开发商 / 发售日期 / 中文简介 / 价格（一手数据，优先采用）
+        if (appid > 0) {
+            try {
+                String url = "https://store.steampowered.com/api/appdetails?appids=" + appid + "&l=schinese&cc=CN";
+                HttpResponse<String> resp = httpClient.send(
+                        HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(10)).GET().build(),
+                        HttpResponse.BodyHandlers.ofString());
+                if (resp.statusCode() == 200) {
+                    JsonNode detail = om.readTree(resp.body()).path(String.valueOf(appid)).path("data");
+                    if (detail.isObject()) {
+                        String dev = detail.path("developers").path(0).asText("");
+                        if (!dev.isBlank()) data.put("developer", dev);
+                        String rel = normalizeDate(detail.path("release_date").path("date").asText(""));
+                        if (rel != null) {
+                            data.put("release_date", rel);
+                            // 发售日期在今天就按预售处理
+                            if (java.time.LocalDate.parse(rel).isAfter(java.time.LocalDate.now())) {
+                                data.put("is_presale", true);
+                            }
+                        }
+                        String desc = detail.path("short_description").asText("");
+                        if (!desc.isBlank()) data.put("description", desc);
+
+                        // 价格：Steam 返回单位是「分」，这里换算成元；免费游戏没有 price_overview 节点
+                        JsonNode price = detail.path("price_overview");
+                        if (price.isObject()) {
+                            data.put("original_price", price.path("initial").asInt(0) / 100.0);
+                            data.put("price", price.path("final").asInt(0) / 100.0);
+                            data.put("discount", price.path("discount_percent").asInt(0));
+                        } else {
+                            data.put("original_price", 0);
+                            data.put("price", 0);
+                            data.put("discount", 0);
+                        }
+                    }
+                }
+            } catch (Exception ignored) {
+                // 详情补全失败忽略，继续走 LLM 兜底
+            }
+        }
+
+        // ③ Steam 没给到的字段，再用客服同一套 LLM 补全（只补缺，不覆盖官方数据）
+        if (apiKey != null && !apiKey.isBlank()) {
+            Map<String, String> ai = callLLMForGame(name);
+            ai.forEach((k, v) -> {
+                if (v != null && !v.isBlank()) data.putIfAbsent(k, v);
+            });
+        }
+
+        if (data.isEmpty()) return Result.error("没能识别到这款游戏，请检查名称或换用英文名重试");
+        return Result.success(data);
+    }
+
+    /**
+     * 让 LLM 生成新增游戏需要的文本字段。
+     *
+     * @param name 游戏名称
+     * @return 只包含 developer / description / release_date 三个键的 Map，解析失败时为空 Map
+     */
+    private Map<String, String> callLLMForGame(String name) {
+        Map<String, String> result = new LinkedHashMap<>();
+        String systemPrompt = """
+                你是 Steam 游戏资料整理助手。用户会给你一个游戏名称，请输出该游戏的真实资料。
+                只输出一个 JSON 对象，不要任何解释、不要 markdown 代码块，格式如下：
+                {"developer":"开发商名称","description":"80 字以内的中文游戏简介","release_date":"YYYY-MM-DD"}
+                要求：
+                1. 必须是真实存在的 Steam 游戏；不确定的字段直接留空字符串
+                2. description 用简体中文，客观描述玩法，不要带营销夸张词
+                3. release_date 只写日期，格式必须是 YYYY-MM-DD；不确定具体日期就留空字符串
+                """;
+        String content = callLLMText(systemPrompt, "游戏名称：" + name);
+        if (content == null) return result;
+
+        // 去掉可能出现的 ```json 代码块包裹，再截取最外层 JSON
+        String json = content.trim();
+        int start = json.indexOf('{');
+        int end = json.lastIndexOf('}');
+        if (start < 0 || end <= start) return result;
+
+        try {
+            JsonNode node = om.readTree(json.substring(start, end + 1));
+            String dev = node.path("developer").asText("").trim();
+            String desc = node.path("description").asText("").trim();
+            String rel = normalizeDate(node.path("release_date").asText(""));
+            if (!dev.isBlank()) result.put("developer", dev);
+            if (!desc.isBlank()) result.put("description", desc);
+            if (rel != null) result.put("release_date", rel);
+        } catch (Exception ignored) {
+            // 模型偶尔会输出不合法 JSON，忽略即可，交由 Steam 官方数据兜底
+        }
+        return result;
+    }
+
+    /**
+     * 单轮调用 LLM，返回文本内容。
+     *
+     * @param systemPrompt 系统提示词
+     * @param userPrompt   用户消息
+     * @return 模型回复文本；未配置 key、非 200 或异常时返回 null
+     */
+    private String callLLMText(String systemPrompt, String userPrompt) {
+        try {
+            List<Map<String, String>> messages = new ArrayList<>();
+            Map<String, String> sys = new LinkedHashMap<>();
+            sys.put("role", "system");
+            sys.put("content", systemPrompt);
+            messages.add(sys);
+            Map<String, String> usr = new LinkedHashMap<>();
+            usr.put("role", "user");
+            usr.put("content", userPrompt);
+            messages.add(usr);
+
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("model", model);
+            payload.put("messages", messages);
+            payload.put("temperature", 0.2);
+            payload.put("max_tokens", 500);
+
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(endpoint))
+                    .header("Content-Type", "application/json; charset=UTF-8")
+                    .header("Authorization", "Bearer " + apiKey.trim())
+                    .timeout(Duration.ofSeconds(30))
+                    .POST(HttpRequest.BodyPublishers.ofString(om.writeValueAsString(payload), StandardCharsets.UTF_8))
+                    .build();
+
+            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) return null;
+            return om.readTree(resp.body()).path("choices").path(0).path("message").path("content").asText("");
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * 把各种日期写法归一化成 yyyy-MM-dd，供 input[type=date] 直接使用。
+     *
+     * 支持：2023-03-24、2023/3/24、2023 年 3 月 24 日、Mar 24, 2023。
+     * 无法识别（如「即将推出」）时返回 null。
+     *
+     * @param raw 原始日期文本
+     * @return 归一化后的日期，识别失败返回 null
+     */
+    private String normalizeDate(String raw) {
+        if (raw == null) return null;
+        String s = raw.trim();
+        if (s.isEmpty()) return null;
+
+        if (s.matches("\\d{4}-\\d{2}-\\d{2}")) return s;
+
+        java.util.regex.Matcher cn = java.util.regex.Pattern
+                .compile("(\\d{4})\\s*[年/.-]\\s*(\\d{1,2})\\s*[月/.-]\\s*(\\d{1,2})")
+                .matcher(s);
+        if (cn.find()) {
+            return String.format("%s-%02d-%02d", cn.group(1),
+                    Integer.parseInt(cn.group(2)), Integer.parseInt(cn.group(3)));
+        }
+
+        try {
+            java.time.format.DateTimeFormatter f = java.time.format.DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH);
+            return java.time.LocalDate.parse(s, f).toString();
+        } catch (Exception ignored) {
+            return null;
         }
     }
 

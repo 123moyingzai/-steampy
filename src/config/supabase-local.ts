@@ -667,7 +667,7 @@ export const listingAPI = {
     try {
       const body: any = {
         seller_id: String(listing.seller_id),
-        game_id: Number(listing.game_id),
+        game_id: listing.game_id ? String(listing.game_id) : '',
         game_name: listing.game_name,
         game_image: listing.game_image || '',
         version: listing.version || '标准版',
@@ -687,7 +687,7 @@ export const listingAPI = {
     try {
       const body = listings.map(l => ({
         seller_id: String(l.seller_id),
-        game_id: Number(l.game_id),
+        game_id: l.game_id ? String(l.game_id) : '',
         game_name: l.game_name,
         game_image: l.game_image || '',
         version: l.version || '标准版',

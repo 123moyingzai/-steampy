@@ -965,7 +965,7 @@ const submitListings = async () => {
       // ====== 普通批量上架 ======
       const items = lines.map(cdkey => ({
         seller_id: user.id,
-        game_id: Number(newForm.value.game_id),
+        game_id: String(newForm.value.game_id || ''),
         game_name: newForm.value.game_name,
         game_image: newForm.value.game_image,
         version: newForm.value.version,
