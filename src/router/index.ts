@@ -14,6 +14,11 @@ const routes: RouteRecordRaw[] = [
     component: () => import('../views/Login.vue')
   },
   {
+    path: '/admin/login',
+    name: 'AdminLogin',
+    component: () => import('../views/admin/AdminLogin.vue')
+  },
+  {
     path: '/test-cors',
     name: 'TestCORS',
     component: () => import('../views/TestCORS.vue')
@@ -153,14 +158,18 @@ const router = createRouter({
 
 // 路由守卫 - 管理员权限检查
 router.beforeEach((to, from, next) => {
+  // 管理员登录页放行，避免死循环
+  if (to.path === '/admin/login') {
+    next()
+    return
+  }
   // 访问 /admin/* 路由需要管理员权限
   if (to.path.startsWith('/admin')) {
     const admin = adminAuthAPI.getCurrentAdmin()
     const isAdmin = admin && admin.userType === '管理员'
     if (!adminAuthAPI.isAdminLoggedIn() || !isAdmin) {
-      // 未登录或非管理员，跳转登录页，登录后自动回跳（普通用户登录后会被 Login.vue 静默拦到首页）
       next({
-        path: '/login',
+        path: '/admin/login',
         query: { redirect: to.fullPath }
       })
       return

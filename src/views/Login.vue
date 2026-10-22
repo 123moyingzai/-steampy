@@ -301,6 +301,7 @@
 
     <div class="cjx-footer">
       - Steam游戏交易平台 | 沪ICP备19042195号-1
+      <router-link to="/admin/login" class="cjx-admin-entry">管理员登录入口</router-link>
     </div>
   </div>
 </template>
@@ -483,31 +484,25 @@ const handleLogin = async () => {
 
     if (result.error) {
       errors.loginPassword = result.error
-      alert(result.error) // 使用alert确保错误信息显示
+      alert(result.error)
     } else {
       const user = result.data as any
-      const isAdmin = user?.userType === '管理员'
-      // 先清掉旧的 admin 标记（可能是之前登管理员残留），再按当前角色设置
-      sessionStorage.removeItem('steampy_admin')
-      if (isAdmin) {
-        sessionStorage.setItem('steampy_admin', 'true')
+      // 管理员账号不允许从前台登录页进入
+      if (user?.userType === '管理员') {
+        errors.loginPassword = '管理员请使用独立登录入口'
+        alert('管理员请使用独立登录入口')
+        return
       }
+      sessionStorage.removeItem('steampy_admin')
       const isBanned = (user as any)?.userType === '已封禁'
       alert(isBanned ? '登录成功，但您的账号已被封禁，购买、出售等功能暂时无法使用！' : '登录成功！')
       window.dispatchEvent(new Event('user-logged-in'))
 
-      // 优先使用 redirect 参数（从路由守卫跳转过来的）
       const redirect = route.query.redirect as string
-      if (redirect && redirect.startsWith('/admin')) {
-        if (isAdmin) {
-          router.replace(redirect)
-        } else {
-          router.replace('/')
-        }
-      } else if (redirect && redirect.startsWith('/')) {
+      if (redirect && redirect.startsWith('/')) {
         router.replace(redirect)
       } else {
-        router.replace(isAdmin ? '/admin/dashboard' : '/')
+        router.replace('/')
       }
     }
   } catch (error) {
@@ -552,12 +547,14 @@ const handlePhoneLogin = async () => {
       const user = snakeToCamel(json.data.user)
       sessionStorage.setItem('steampy_user', JSON.stringify(user))
       sessionStorage.removeItem('steampy_admin')
-      const isAdmin = (user as any)?.userType === '管理员'
-      if (isAdmin) sessionStorage.setItem('steampy_admin', 'true')
+      if ((user as any)?.userType === '管理员') {
+        alert('管理员请使用独立登录入口')
+        return
+      }
       const isBanned = (user as any)?.userType === '已封禁'
       alert(isBanned ? '登录成功，但您的账号已被封禁，购买、出售等功能暂时无法使用！' : '登录成功！')
       window.dispatchEvent(new Event('user-logged-in'))
-      router.replace(isAdmin ? '/admin/dashboard' : '/')
+      router.replace('/')
     } else {
       alert(json.message || '登录失败')
     }
@@ -639,12 +636,14 @@ const handlePhoneCodeLogin = async () => {
       const user = snakeToCamel(json.data.user)
       sessionStorage.setItem('steampy_user', JSON.stringify(user))
       sessionStorage.removeItem('steampy_admin')
-      const isAdmin = (user as any)?.userType === '管理员'
-      if (isAdmin) sessionStorage.setItem('steampy_admin', 'true')
+      if ((user as any)?.userType === '管理员') {
+        errors.phoneCode = '管理员请使用独立登录入口'
+        return
+      }
       const isBanned = (user as any)?.userType === '已封禁'
       alert(isBanned ? '登录成功，但您的账号已被封禁，购买、出售等功能暂时无法使用！' : '登录成功！')
       window.dispatchEvent(new Event('user-logged-in'))
-      router.replace(isAdmin ? '/admin/dashboard' : '/')
+      router.replace('/')
     } else {
       errors.phoneCode = json.message || '登录失败'
     }
@@ -1015,6 +1014,18 @@ onMounted(() => {
   margin-top: 40px;
   color: #777;
   font-size: 12px;
+}
+
+.cjx-admin-entry {
+  margin-left: 12px;
+  color: #999;
+  text-decoration: none;
+  cursor: pointer;
+  font-size: 12px;
+}
+.cjx-admin-entry:hover {
+  color: #e94560;
+  text-decoration: underline;
 }
 
 .cjx-password-toggle {

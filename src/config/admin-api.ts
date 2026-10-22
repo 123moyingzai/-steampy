@@ -3,44 +3,37 @@
 import axios from 'axios'
 import supabaseRequest, { authAPI } from './supabase-local'
 
-// ============ 管理员鉴权（复用用户登录，仅做角色判断）============
+// ============ 管理员鉴权（独立存储，不与普通用户 steampy_user 混用）============
 export const adminAuthAPI = {
-  /**
-   * 判断当前登录用户是否为管理员
-   */
   isAdminLoggedIn(): boolean {
-    const isAdmin = sessionStorage.getItem('steampy_admin') === 'true'
-    return isAdmin
+    return sessionStorage.getItem('steampy_admin') === 'true'
   },
 
-  /**
-   * 设置管理员标记（由 Login.vue 在登录成功后调用）
-   */
   setAdmin() {
     sessionStorage.setItem('steampy_admin', 'true')
   },
 
-  /**
-   * 清除管理员标记
-   */
   clearAdmin() {
     sessionStorage.removeItem('steampy_admin')
+    sessionStorage.removeItem('steampy_admin_user')
   },
 
-  /**
-   * 管理员退出（同时清除普通用户和管理员标记）
-   */
   logout() {
     sessionStorage.removeItem('steampy_admin')
+    sessionStorage.removeItem('steampy_admin_user')
+    // 管理员退出时如果 steampy_user 也是同一账号，也清掉（因为 admin 和 user 不能同时"半登录"）
+    // 但如果是先登 user 再登 admin（不合法流程），steampy_user 已被覆盖成 admin 数据
+    // 所以直接清 steampy_user 也安全 —— 管理员不应该同时是普通用户
     sessionStorage.removeItem('steampy_user')
   },
 
-  /**
-   * 获取当前管理员信息
-   */
   getCurrentAdmin() {
-    const user = sessionStorage.getItem('steampy_user')
-    return user ? JSON.parse(user) : null
+    const u = sessionStorage.getItem('steampy_admin_user')
+    return u ? JSON.parse(u) : null
+  },
+
+  setAdminUser(user: any) {
+    sessionStorage.setItem('steampy_admin_user', JSON.stringify(user))
   }
 }
 

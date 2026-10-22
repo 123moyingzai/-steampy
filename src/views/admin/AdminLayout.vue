@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="admin-layout">
     <!-- 侧边栏 -->
     <aside class="admin-sidebar">
@@ -353,7 +353,7 @@ const saveBasic = async () => {
   admin.value = merged
   adminName.value = merged.nickname || merged.username || '管理员'
   form.avatarUrl = merged.avatarUrl || form.avatarUrl
-  sessionStorage.setItem('steampy_user', JSON.stringify(merged))
+  adminAuthAPI.setAdminUser(merged)
   window.dispatchEvent(new Event('user-data-updated'))
   alert('保存成功！')
   showProfile.value = false
