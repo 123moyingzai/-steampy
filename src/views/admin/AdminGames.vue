@@ -48,7 +48,7 @@
             <td>
               <span class="discount">-{{ game.discount || '0' }}%</span>
             </td>
-            <td>{{ game.stock ?? '∞' }}</td>
+            <td :title="'在售 CDKey 数量（由卖家上架决定）'">{{ stockMap[String(game.id)] || 0 }} 件</td>
             <td>
               <span class="badge" :class="game.is_presale ? 'warning' : 'success'">
                 {{ game.is_presale ? '预售' : '正式' }}
@@ -98,6 +98,7 @@
                      @keyup.enter="autoFillByName" @blur="checkExists">
               <p v-if="nameExists" class="field-hint error">
                 游戏「{{ existingName }}」已存在，不能重复添加
+                <button type="button" class="btn-link" @click="editExistingGame">去编辑该游戏</button>
               </p>
             </div>
             <div class="form-group">
@@ -123,8 +124,10 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label>库存</label>
-              <input type="number" v-model.number="formData.stock" min="0" placeholder="留空为无限">
+              <label>在售数量</label>
+              <input type="text" :value="(stockMap[String(formData.id)] || 0) + ' 件'" disabled
+                     title="由卖家上架的 CDKey 数量自动汇总，不可手工修改">
+              <p class="field-hint">在售库存由卖家上架决定，管理员不再手工填写</p>
             </div>
             <div class="form-group">
               <label>是否预售</label>
@@ -187,6 +190,8 @@ import { adminExportAPI } from '../../config/admin-api'
 
 const games = ref<any[]>([])
 const filteredGames = ref<any[]>([])
+/** 各游戏在售 CDKey 数量（由 listings 聚合，管理端只读展示） */
+const stockMap = ref<Record<string, number>>({})
 const searchKeyword = ref('')
 const showModal = ref(false)
 const editingGame = ref<any>(null)
@@ -216,14 +221,15 @@ const displayPages = computed(() => {
 watch(filteredGames, () => { currentPage.value = 1 })
 
 const formData = reactive({
+  id: '' as string,
   name: '', developer: '', price: 0, original_price: 0, discount: 0,
-  stock: 999 as number | null, is_presale: false, image: '',
+  is_presale: false, image: '',
   description: '', release_date: ''
 })
 
 const resetForm = () => {
-  Object.assign(formData, { name: '', developer: '', price: 0, original_price: 0, discount: 0,
-    stock: 999, is_presale: false, image: '', description: '', release_date: '' })
+  Object.assign(formData, { id: '', name: '', developer: '', price: 0, original_price: 0, discount: 0,
+    is_presale: false, image: '', description: '', release_date: '' })
   nameExists.value = false
   existingName.value = ''
   imageStatus.value = 'loading'
@@ -232,6 +238,7 @@ const resetForm = () => {
 /** 游戏名重复检测结果与提示文案 */
 const nameExists = ref(false)
 const existingName = ref('')
+const existingId = ref('')
 /** 封面图片可用性：loading 检测中 / ok 可访问 / error 加载失败 */
 const imageStatus = ref<'loading' | 'ok' | 'error'>('loading')
 const downloading = ref(false)
@@ -255,8 +262,10 @@ const checkExists = async () => {
     if (d.exists && (!selfId || String(d.id) !== selfId)) {
       nameExists.value = true
       existingName.value = d.name || name
+      existingId.value = String(d.id || '')
     } else {
       nameExists.value = false
+      existingId.value = ''
     }
   } catch {
     nameExists.value = false
@@ -333,7 +342,21 @@ const loadGames = async () => {
     const r = await axios.get('/api/admin/games')
     games.value = r.data?.data || []
     filteredGames.value = [...games.value]
+    await loadStockStats()
   } catch (e) { console.error('加载游戏失败', e) }
+}
+
+/** 拉取各游戏在售数量（listings 聚合），用于「库存」列只读展示 */
+const loadStockStats = async () => {
+  try {
+    const r = await axios.get('/api/admin/games/stock-stats')
+    const map: Record<string, number> = {}
+    for (const row of (r.data?.data || [])) {
+      const key = String(row.game_id ?? row.gameId ?? '')
+      if (key) map[key] = Number(row.cnt ?? 0)
+    }
+    stockMap.value = map
+  } catch { stockMap.value = {} }
 }
 
 const filterGames = () => {
@@ -345,14 +368,22 @@ const openCreateModal = () => { editingGame.value = null; resetForm(); showModal
 const openEditModal = (game: any) => {
   editingGame.value = game
   Object.assign(formData, {
+    id: String(game.id || ''),
     name: game.name, developer: game.developer || '',
     price: Number(game.price || 0), original_price: Number(game.original_price || 0),
-    discount: Number(game.discount || 0), stock: game.stock ?? null,
+    discount: Number(game.discount || 0),
     is_presale: !!game.is_presale, image: game.image || '',
     description: game.description || '',
     release_date: game.release_date ? game.release_date.slice(0, 10) : ''
   })
+  nameExists.value = false; existingId.value = ''
   showModal.value = true
+}
+/** 重名时直接跳到编辑该游戏，避免"想补录资料却被拦住" */
+const editExistingGame = () => {
+  const target = games.value.find(g => String(g.id) === existingId.value)
+  if (target) openEditModal(target)
+  else alert('列表里没找到该游戏，请刷新后重试')
 }
 const closeModal = () => { showModal.value = false; resetForm() }
 
@@ -365,7 +396,7 @@ const handleSave = async () => {
     const payload: any = {
       name: formData.name, developer: formData.developer,
       price: formData.price, original_price: formData.original_price || null,
-      discount: formData.discount || 0, stock: formData.stock,
+      discount: formData.discount || 0,
       is_presale: formData.is_presale, image: formData.image,
       description: formData.description, release_date: formData.release_date || null
     }

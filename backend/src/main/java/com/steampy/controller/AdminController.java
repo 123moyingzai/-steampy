@@ -425,6 +425,21 @@ public class AdminController {
     }
 
     /**
+     * 各游戏的在售 CDKey 数量（按 listings 中 status=available 聚合）。
+     * <p>
+     * 管理端「库存」不再手工填写，统一展示这个聚合值，避免 games.stock 与卖家真实上架数量对不上。
+     * </p>
+     *
+     * @return {@link Result} [{game_id, cnt}] 列表
+     */
+    @GetMapping("/games/stock-stats")
+    public Result<List<Map<String, Object>>> gameStockStats() {
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT game_id, COUNT(*) AS cnt FROM listings WHERE status = 'available' GROUP BY game_id");
+        return Result.success(rows);
+    }
+
+    /**
      * 按名称查重（忽略大小写与首尾空格）。
      *
      * @param name      游戏名称
