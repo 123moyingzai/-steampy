@@ -398,6 +398,10 @@ public class AdminController {
             return Result.error("游戏「" + name + "」已存在，不能重复添加");
         }
         g.setName(name);
+        if (g.getId() == null || g.getId().isBlank()) {
+            Long maxId = gameMapper.selectMaxNumericId();
+            g.setId(String.valueOf((maxId == null ? 0L : maxId) + 1));
+        }
         g.setCreatedAt(LocalDateTime.now());
         g.setUpdatedAt(LocalDateTime.now());
         gameMapper.insert(g);
@@ -1062,6 +1066,63 @@ public class AdminController {
         if (body.getRemark() != null) pm.setRemark(body.getRemark());
         paymentMethodMapper.updateById(pm);
         return Result.success(pm);
+    }
+
+    /** 内置渠道编码：这些渠道被充值/提现主流程硬编码使用，只允许停用不允许删除 */
+    private static final Set<String> BUILTIN_PAY_CODES = Set.of("alipay", "wechat", "bank", "balance");
+
+    /**
+     * 新增支付渠道（自定义渠道）。
+     *
+     * 编码必填且全局唯一；费率/手续费为空时按 0 处理，未指定用途时默认 both。
+     *
+     * @param body 渠道配置（methodCode / methodName / type / feeRate / minFee / maxFee / sortOrder / remark）
+     * @return {@link Result} 新增后的渠道；编码重复返回 error
+     */
+    @PostMapping("/payment-methods")
+    public Result<PaymentMethod> createPaymentMethod(@RequestBody PaymentMethod body) {
+        String code = body.getMethodCode() == null ? "" : body.getMethodCode().trim();
+        String name = body.getMethodName() == null ? "" : body.getMethodName().trim();
+        if (code.isEmpty() || name.isEmpty()) return Result.error("渠道编码和渠道名称不能为空");
+        Long exists = paymentMethodMapper.selectCount(new QueryWrapper<PaymentMethod>().eq("method_code", code));
+        if (exists != null && exists > 0) return Result.error("渠道编码「" + code + "」已存在");
+        body.setId(UUID.randomUUID().toString());
+        body.setMethodCode(code);
+        body.setMethodName(name);
+        if (body.getType() == null || body.getType().isBlank()) body.setType("both");
+        if (body.getFeeRate() == null || body.getFeeRate().compareTo(BigDecimal.ZERO) < 0) body.setFeeRate(BigDecimal.ZERO);
+        if (body.getMinFee() == null || body.getMinFee().compareTo(BigDecimal.ZERO) < 0) body.setMinFee(BigDecimal.ZERO);
+        if (body.getMaxFee() == null || body.getMaxFee().compareTo(BigDecimal.ZERO) < 0) body.setMaxFee(BigDecimal.ZERO);
+        if (body.getSortOrder() == null) body.setSortOrder(0);
+        body.setCreatedAt(LocalDateTime.now());
+        body.setUpdatedAt(LocalDateTime.now());
+        paymentMethodMapper.insert(body);
+        return Result.success(body);
+    }
+
+    /**
+     * 删除支付渠道。
+     *
+     * 内置渠道（alipay/wechat/bank/balance）不允许删除；已有订单或提现记录引用的渠道
+     * 也不允许删除，避免历史数据失去渠道含义——这两种情况都应改用「停用」。
+     *
+     * @param id 渠道主键
+     * @return {@link Result} 删除结果
+     */
+    @DeleteMapping("/payment-methods/{id}")
+    public Result<String> deletePaymentMethod(@PathVariable String id) {
+        PaymentMethod pm = paymentMethodMapper.selectById(id);
+        if (pm == null) return Result.error("支付渠道不存在");
+        String code = pm.getMethodCode();
+        if (BUILTIN_PAY_CODES.contains(code)) {
+            return Result.error("内置渠道「" + pm.getMethodName() + "」不可删除，请改用停用");
+        }
+        long refs = paymentMethodMapper.countOrderRefs(code) + paymentMethodMapper.countWithdrawRefs(code);
+        if (refs > 0) {
+            return Result.error("该渠道已有 " + refs + " 条历史记录引用，不可删除，请改用停用");
+        }
+        paymentMethodMapper.deleteById(id);
+        return Result.success("已删除");
     }
 
     // ======== 数据导出（CSV，UTF-8 + BOM 保证 Excel 直接双击不乱码） ========
