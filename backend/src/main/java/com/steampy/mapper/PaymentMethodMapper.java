@@ -10,4 +10,25 @@ package com.steampy.mapper;
  */
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.steampy.entity.PaymentMethod;
-public interface PaymentMethodMapper extends BaseMapper<PaymentMethod> {}
+import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Select;
+public interface PaymentMethodMapper extends BaseMapper<PaymentMethod> {
+
+    /**
+     * 统计该渠道编码被订单引用的次数（删除前校验）。
+     *
+     * @param code 渠道编码
+     * @return 引用条数
+     */
+    @Select("SELECT COUNT(*) FROM orders WHERE payment_method = #{code}")
+    long countOrderRefs(@Param("code") String code);
+
+    /**
+     * 统计该渠道编码被提现记录引用的次数（删除前校验）。
+     *
+     * @param code 渠道编码
+     * @return 引用条数
+     */
+    @Select("SELECT COUNT(*) FROM withdraw_records WHERE pay_method = #{code}")
+    long countWithdrawRefs(@Param("code") String code);
+}

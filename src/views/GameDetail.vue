@@ -361,6 +361,11 @@
           </div>
         </div>
 
+        <!-- 评测输入框（点击跳发布页） -->
+        <div class="cjx-review-input" @click="goReviewPublish">
+          <span class="cjx-review-input-ph">我也要评测</span>
+        </div>
+
         <!-- 评论列表 -->
         <div class="cjx-review-list" v-if="reviews.length">
           <div class="cjx-review-item" v-for="r in reviews" :key="r.id" :data-review-id="r.id">
@@ -491,12 +496,7 @@
           </div>
         </div>
         <div class="cjx-review-empty" v-else>
-          <p>还没有任何评测，来做第一个评价的人吧 👇</p>
-        </div>
-
-        <!-- 底部输入框 → 点击跳发布页 -->
-        <div class="cjx-review-input" @click="goReviewPublish">
-          <span class="cjx-review-input-ph">我也要评测</span>
+          <p>还没有任何评测，点击上方「我也要评测」写下第一条吧</p>
         </div>
       </div>
     </div>
@@ -3030,6 +3030,7 @@ function scrollAndFlash(selector: string) {
 
 .cjx-review-input {
   margin-top: 8px;
+  margin-bottom: 18px;
   padding: 14px 18px;
   background: #f5f6f8;
   border: 1px solid #e5e6e8;
