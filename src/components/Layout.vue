@@ -1,5 +1,18 @@
 <template>
   <div class="cjx-layout-container">
+    <!-- 顶部固定区：封禁提示与导航栏一起吸顶，滚动时始终可见 -->
+    <div class="cjx-sticky-top">
+    <!-- 账号封禁提示：管理员封禁后全站页面顶部常驻展示，解封后自动消失 -->
+    <div class="cjx-ban-banner" v-if="isBanned" role="alert">
+      <svg class="cjx-ban-icon" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+      </svg>
+      <div class="cjx-ban-text">
+        <strong>您的账号已被封禁</strong>
+        <span>购买、出售、充值、提现、评价等功能暂时无法使用；账户余额仍正常保留，解封后即可恢复。如有疑问请联系管理员。</span>
+      </div>
+    </div>
+
     <!-- 顶部导航栏 -->
     <header class="cjx-top-nav">
       <!-- 左侧 Logo -->
@@ -160,6 +173,7 @@
         </div>
       </div>
     </header>
+    </div>
 
     <!-- 主内容区 -->
     <main class="cjx-main-content">
@@ -188,6 +202,7 @@ const currentUser = ref(null)
 const walletBalance = ref(0)
 const showMenu = ref(false)
 const mobileNavOpen = ref(false)
+const isBanned = ref(false)
 
 // 路由切换时自动关闭移动端菜单
 import { watch } from 'vue'
@@ -226,6 +241,7 @@ const handleLogout = () => {
   authAPI.logout()
   currentUser.value = null
   walletBalance.value = 0
+  isBanned.value = false
   router.push('/login')
 }
 
@@ -347,12 +363,29 @@ const loadBalance = async () => {
   }
 }
 
+// 封禁状态：sessionStorage 里的用户信息可能是登录时的旧数据，
+// 管理员封禁/解封后需向后端拉取最新 user_type，保证顶部提示能及时出现与消失
+const refreshBanStatus = async () => {
+  const cached = authAPI.getCurrentUser()
+  if (!cached?.id) {
+    isBanned.value = false
+    return
+  }
+  // 先用本地缓存兜底，避免接口返回前没有提示
+  isBanned.value = (cached as any).userType === '已封禁'
+  const fresh = await authAPI.getUser(String(cached.id))
+  if (fresh) isBanned.value = (fresh as any).userType === '已封禁'
+}
+
 // 加载数据
 const loadData = () => {
   currentUser.value = authAPI.getCurrentUser()
   if (currentUser.value) {
     loadBalance()
     loadUnread()   // 登录后立即加载未读数
+    refreshBanStatus()
+  } else {
+    isBanned.value = false
   }
 }
 
@@ -368,8 +401,10 @@ onMounted(() => {
       if (currentUser.value) {
         loadBalance()
         loadUnread()
+        refreshBanStatus()
       } else {
         walletBalance.value = 0
+        isBanned.value = false
       }
     }
   })
@@ -380,17 +415,22 @@ onMounted(() => {
     if (currentUser.value) {
       loadBalance()
       loadUnread()
+      refreshBanStatus()
     }
   })
 
   // 同 tab 内用户资料更新（头像/昵称等）— AccountSettings 保存后 dispatch
   window.addEventListener('user-data-updated', () => {
     currentUser.value = authAPI.getCurrentUser()
+    refreshBanStatus()
   })
 
-  // 每 30 秒轮询未读数
+  // 每 30 秒轮询未读数与封禁状态（管理员封禁/解封后无需刷新页面即可看到提示变化）
   msgTimer = setInterval(() => {
-    if (currentUser.value?.id) loadUnread()
+    if (currentUser.value?.id) {
+      loadUnread()
+      refreshBanStatus()
+    }
   }, 30000)
 })
 
@@ -408,6 +448,43 @@ onUnmounted(() => {
   background: #f5f5f5;
 }
 
+/* 账号封禁提示条 */
+.cjx-ban-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 1.5rem;
+  background: #fdecea;
+  border-bottom: 1px solid #f3b7b2;
+  color: #8c1d18;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.cjx-ban-icon {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  color: #d93025;
+}
+.cjx-ban-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+.cjx-ban-text strong {
+  font-weight: 700;
+  color: #b3261e;
+}
+
+/* 顶部固定区：封禁提示 + 导航栏整体吸顶 */
+.cjx-sticky-top {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
 /* 顶部导航栏 */
 .cjx-top-nav {
   height: 64px;
@@ -416,9 +493,6 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   padding: 0 1.5rem;
-  position: sticky;
-  top: 0;
-  z-index: 100;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   gap: 1.5rem;
 }

@@ -21,8 +21,8 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="ann in announcements" :key="ann.id">
-            <td class="mono">{{ ann.id }}</td>
+          <tr v-for="(ann, index) in announcements" :key="ann.id">
+            <td class="mono">{{ index + 1 }}</td>
             <td class="title-cell">
               <span v-if="ann.is_top" class="top-tag">置顶</span>
               {{ ann.title }}

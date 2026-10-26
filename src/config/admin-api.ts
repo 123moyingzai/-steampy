@@ -246,10 +246,10 @@ export const adminOrderAPI = {
 
 // ============ 公告管理 ============
 export const adminAnnouncementAPI = {
-  /** 获取所有公告 */
+  /** 获取所有公告（含已停用，供管理端列表展示） */
   async getAnnouncements(): Promise<any[]> {
     try {
-      return await supabaseRequest('announcements?select=*&order=publish_date.desc')
+      return await supabaseRequest('/announcements/all')
     } catch (error: any) {
       console.error('获取公告列表失败:', error)
       return []
@@ -259,17 +259,14 @@ export const adminAnnouncementAPI = {
   /** 创建公告 */
   async createAnnouncement(data: any): Promise<{ data?: any; error?: string }> {
     try {
-      const result = await supabaseRequest('announcements', {
-        method: 'POST',
-        body: JSON.stringify({
-          title: data.title,
-          content: data.content || '',
-          publish_date: data.publish_date || new Date().toISOString(),
-          is_top: data.is_top || false,
-          is_active: data.is_active !== undefined ? data.is_active : true
-        })
+      const result = await supabaseRequest('/announcements', 'POST', {
+        title: data.title,
+        content: data.content || '',
+        publish_date: data.publish_date || new Date().toISOString(),
+        is_top: data.is_top || false,
+        is_active: data.is_active !== undefined ? data.is_active : true
       })
-      return { data: result[0] }
+      return { data: result }
     } catch (error: any) {
       return { error: error.message }
     }
@@ -278,11 +275,8 @@ export const adminAnnouncementAPI = {
   /** 更新公告 */
   async updateAnnouncement(id: string, data: any): Promise<{ data?: any; error?: string }> {
     try {
-      const result = await supabaseRequest(`announcements?id=eq.${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(data)
-      })
-      return { data: result[0] }
+      const result = await supabaseRequest(`/announcements/${id}`, 'PUT', data)
+      return { data: result }
     } catch (error: any) {
       return { error: error.message }
     }
@@ -291,7 +285,7 @@ export const adminAnnouncementAPI = {
   /** 删除公告 */
   async deleteAnnouncement(id: string): Promise<{ error?: string }> {
     try {
-      await supabaseRequest(`announcements?id=eq.${id}`, { method: 'DELETE' })
+      await supabaseRequest(`/announcements/${id}`, 'DELETE')
       return {}
     } catch (error: any) {
       return { error: error.message }

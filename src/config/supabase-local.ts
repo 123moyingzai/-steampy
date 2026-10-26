@@ -162,9 +162,9 @@ export const announcementAPI = {
         id: a.id,
         title: a.title,
         content: a.content,
-        publish_date: a.publishDate,
-        is_top: a.isTop,
-        is_active: a.isActive
+        publish_date: a.publish_date ?? a.publishDate,
+        is_top: a.is_top ?? a.isTop ?? false,
+        is_active: a.is_active ?? a.isActive ?? true
       }))
       return { data: mapped }
     } catch (e: any) {

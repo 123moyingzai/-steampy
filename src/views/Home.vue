@@ -201,16 +201,24 @@ const loadGamesData = async () => {
 // 加载公告数据 - 从 Supabase 数据库获取
 const loadAnnouncements = async () => {
   try {
-    const result = await announcementAPI.getAnnouncements(10)
+    const result = await announcementAPI.getAnnouncements()
     if (result.data && result.data.length > 0) {
-      announcements.value = result.data.map(a => ({
+      // 公告栏只展示 6 条：置顶公告无视时间排最前（多条置顶按发布时间倒序），其余按发布时间倒序补足
+      const top6 = [...result.data]
+        .filter(a => a.is_active !== false)
+        .sort((x, y) => {
+          if (!!x.is_top !== !!y.is_top) return x.is_top ? -1 : 1
+          return String(y.publish_date || '').localeCompare(String(x.publish_date || ''))
+        })
+        .slice(0, 6)
+      announcements.value = top6.map(a => ({
         date: a.publish_date,
         title: a.title
       }))
-      sideAnnouncements.value = result.data.slice(0, 5).map(a => ({
+      sideAnnouncements.value = top6.slice(0, 5).map(a => ({
         title: a.title
       }))
-      console.log(`✓ 从数据库加载了 ${result.data.length} 条公告`)
+      console.log(`✓ 从数据库加载了 ${top6.length} 条公告`)
     }
   } catch (error) {
     console.error('从数据库加载公告失败，使用默认数据:', error)
@@ -269,7 +277,7 @@ onUnmounted(() => {
 
 /* 横幅轮播区 */
 .cjx-banner {
-  padding: 1.5rem 2rem;
+  padding: 1.5rem 1rem;
   display: flex;
   gap: 2rem;
 }
@@ -409,17 +417,17 @@ onUnmounted(() => {
 
 /* 内容区域 */
 .cjx-content-wrapper {
-  padding: 0 2rem;
+  padding: 0 1rem;
   display: flex;
   gap: 2rem;
 }
 
 .cjx-main-area {
-  flex: 3;
+  flex: 0 0 70%;
 }
 
 .cjx-sidebar-area {
-  flex: 1;
+  flex: 0 0 30%;
 }
 
 .cjx-banner-img {
@@ -619,6 +627,11 @@ onUnmounted(() => {
 @media (max-width: 1024px) {
   .cjx-content-wrapper {
     flex-direction: column;
+  }
+  .cjx-main-area,
+  .cjx-sidebar-area {
+    flex: none;
+    width: 100%;
   }
 }
 
