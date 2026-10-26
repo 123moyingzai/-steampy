@@ -60,7 +60,7 @@
             @click="goToGame(item)"
           >
             <div class="cjx-card-img-wrapper">
-              <img :src="getImageUrl(item.image)" class="cjx-card-img" />
+              <img :src="getImageUrl(item.image)" class="cjx-card-img" @error="onImgError" />
               <span v-if="item.discount" class="cjx-card-discount">{{ item.discount }}</span>
             </div>
             <div class="cjx-card-info">
@@ -182,11 +182,14 @@ const allGames = computed(() => {
       if (l) {
         const op = Number(l.original_price || 0)
         const d = op > 0 ? '-' + Math.round((1 - info.minPrice / op) * 100) + '%' : ''
+        // 从官方 games 表补齐封面/中文名，避免 listing 缺图时显示成兜底图
+        const g = games.value.find(x => String(x.id) === gid)
         map.set(gid, {
           uid: 's-' + gid,
           game_id: l.game_id,
-          name: l.game_name,
-          image: l.game_image,
+          name: l.game_name || g?.name,
+          name_cn: g?.name_cn || g?.nameCn || l.game_name_cn || null,
+          image: g?.image_url || g?.image || l.game_image,
           price: info.minPrice,
           original_price: op || null,
           discount: d,

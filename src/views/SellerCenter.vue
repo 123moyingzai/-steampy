@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <Layout>
     <div class="cjx-seller-page">
       <h2 class="cjx-page-title">卖家中心</h2>
@@ -395,6 +395,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { authAPI, listingAPI, orderAPI, gameAPI } from '../config/supabase-local.ts'
 import Layout from '../components/Layout.vue'
+import { getImageUrl } from '@/composables/useGameImage'
 
 const activeTab = ref('listings')
 const sellerListings = ref<any[]>([])
@@ -869,12 +870,6 @@ const quickPrice = () => {
   if (currentMinPrice.value == null) return
   newForm.value.price = listingQuickPriceValue.value
   showToast(`已一键定价 ¥${listingQuickPriceValue.value.toFixed(2)}`)
-}
-
-const getImageUrl = (src?: string) => {
-  if (!src) return ''
-  if (src.startsWith('http')) return src
-  return '/picture/' + src
 }
 
 // ======== CDKey 生成 + 查重 ========

@@ -88,6 +88,7 @@ import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { fetchAllGames, announcementAPI } from '../config/supabase-local.ts'
 import Layout from '../components/Layout.vue'
+import { getImageUrl, onImgError } from '@/composables/useGameImage'
 
 const router = useRouter()
 
@@ -107,23 +108,6 @@ const userSettings = ref({})
 
 /** 自动轮播定时器句柄 */
 let slideInterval = null
-
-/**
- * 解析图片路径，兼容多种格式
- * @param path 原始图片路径
- * @returns 可访问的 URL
- */
-const getImageUrl = (path) => {
-  if (!path) return '/picture/安魂曲.jpg'
-  if (path.startsWith('http')) return path
-  if (path.includes('picture/')) {
-    const fileName = path.split('picture/')[1]
-    if (fileName) {
-      return `/picture/${fileName}`
-    }
-  }
-  return path.startsWith('/') ? path : `/${path}`
-}
 
 /**
  * 切换到指定轮播图

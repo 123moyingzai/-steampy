@@ -124,7 +124,7 @@
                   <img :src="getImageUrl(o.gameImage)" @error="(e:any)=>{e.target.style.display='none'}" />
                 </div>
                 <div class="cjx-lib-info">
-                  <div class="cjx-lib-name" :title="o.gameName">{{ o.gameName }}</div>
+                  <div class="cjx-lib-name" :title="o.gameNameCn || o.gameName">{{ o.gameNameCn || o.gameName }}</div>
                   <div class="cjx-lib-date">购买于 {{ formatDate(o.createdAt) }}</div>
                   <div class="cjx-lib-price-row">
                     <span class="cjx-lib-final">¥{{ Number(o.price ?? o.totalPrice ?? 0).toFixed(2) }}</span>
@@ -145,7 +145,7 @@
                   <img :src="getImageUrl(f.imageUrl || f.image)" @error="(e:any)=>{e.target.style.display='none'}" />
                 </div>
                 <div class="cjx-lib-info">
-                  <div class="cjx-lib-name" :title="f.name">{{ f.name }}</div>
+                  <div class="cjx-lib-name" :title="f.name_cn || f.name">{{ f.name_cn || f.name }}</div>
                   <div class="cjx-lib-price-row">
                     <span class="cjx-lib-final">¥{{ Number(f.price ?? 0).toFixed(2) }}</span>
                     <span v-if="f.originalPrice && Number(f.originalPrice) > Number(f.price ?? 0)" class="cjx-lib-original">¥{{ Number(f.originalPrice).toFixed(2) }}</span>
@@ -548,6 +548,7 @@ const loadShowcase = async () => {
       const g = gamesMap[o.gameId] || {}
       const merged = {
         ...o,
+        gameNameCn: g.nameCn || undefined,
         originalPrice: g.originalPrice ?? o.originalPrice,
         discount: g.discount ?? o.discount
       }

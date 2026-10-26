@@ -10,7 +10,7 @@
  */
 
 /** 兜底图：当 image 字段为空或加载失败时显示 */
-export const FALLBACK_IMAGE = '/picture/games/安魂曲.jpg'
+export const FALLBACK_IMAGE = '/picture/安魂曲.jpg'
 
 /** 本地图应该放的子目录 */
 export const LOCAL_GAMES_SUBDIR = '/picture/games/'

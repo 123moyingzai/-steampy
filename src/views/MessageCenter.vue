@@ -33,11 +33,11 @@
       <div v-if="msgList.length === 0" class="cjx-empty">暂无消息，去评论区互动吧～</div>
       <div v-for="n in msgList" :key="n.id" class="cjx-msg-item" :class="{ unread: !n.isRead }" @click="openNotification(n)">
         <div class="cjx-msg-avatar" :style="n.actorAvatarUrl ? `background-image:url(${n.actorAvatarUrl});background-size:cover;background-position:center;` : ''">
-          <span v-if="!n.actorAvatarUrl">{{ (n.actorName || (n.type === 'system' ? '系' : '用')).substring(0, 1) }}</span>
+          <span v-if="!n.actorAvatarUrl">{{ (n.actorName || '用').substring(0, 1) }}</span>
         </div>
         <div class="cjx-msg-body">
           <div class="cjx-msg-title">
-            <span class="cjx-msg-actor">{{ n.actorName || (n.type === 'system' ? '系统' : '某人') }}</span>
+            <span class="cjx-msg-actor">{{ n.actorName || '某人' }}</span>
             <span class="cjx-msg-action">{{ typeText(n.type) }}</span>
           </div>
           <!-- 引用块：like 通知始终显示被点赞的原内容；reply 只在有 targetContent 时显示被回复的原评论 -->
@@ -87,50 +87,27 @@ import { useRouter } from 'vue-router'
 import { authAPI, notificationAPI, announcementAPI } from '../config/supabase-local.ts'
 
 const router = useRouter()
-
-/** 当前选中 Tab：'msg' = 交互消息，'ann' = 官方公告 */
 const tab = ref<'msg' | 'ann'>('msg')
-/** 交互通知列表 */
 const msgList = ref<any[]>([])
-/** 官方公告列表 */
 const annList = ref<any[]>([])
-/** 交互消息未读数 */
 const msgUnread = ref(0)
-/** 公告未读数 */
 const annUnread = ref(0)
-/** 当前登录用户 */
 const currentUser = ref<any>(null)
 
 // 分页 + 筛选
-/** 当前消息页码 */
 const msgPage = ref(1)
-/** 每页消息数量 */
 const msgSize = ref(10)
-/** 消息总条数 */
 const msgTotal = ref(0)
-/** 消息筛选：全部 / 未读 / 已读 */
 const msgFilter = ref<'all' | 'unread' | 'read'>('all')
-/** 消息总页数 */
 const msgTotalPages = computed(() => Math.max(1, Math.ceil(msgTotal.value / msgSize.value)))
 
-/**
- * 将通知类型码转为中文描述
- * @param t 通知类型：reply / like_review / like_reply
- * @returns 中文描述字符串
- */
 const typeText = (t: string) => {
   if (t === 'reply') return '回复了你'
   if (t === 'like_review') return '赞了你的评论'
   if (t === 'like_reply') return '赞了你的回复'
-  if (t === 'system') return '系统通知'
   return ''
 }
 
-/**
- * 时间戳相对时间格式化（刚刚 / N 分钟前 / N 小时前 / N 天前 / 日期）
- * @param t ISO 时间字符串
- * @returns 人类可读的相对时间
- */
 const formatTime = (t: string) => {
   if (!t) return ''
   try {
@@ -144,10 +121,6 @@ const formatTime = (t: string) => {
   } catch { return t }
 }
 
-/**
- * 加载当前页的交互通知列表
- * 根据 msgFilter 决定是否只拉未读/已读
- */
 const loadNotifications = async () => {
   if (!currentUser.value?.id) return
   const isRead = msgFilter.value === 'all' ? undefined : (msgFilter.value === 'read')

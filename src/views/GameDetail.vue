@@ -1,4 +1,4 @@
-﻿<template>
+﻿﻿﻿﻿﻿﻿﻿<template>
   <Layout>
     <div class="cjx-detail-page">
       <!-- 返回按钮 -->
@@ -12,7 +12,7 @@
         <!-- 左侧游戏信息 -->
         <div class="cjx-detail-left">
           <div class="cjx-game-hero">
-            <img :src="getImageUrl(game.image)" :alt="game.name" class="cjx-hero-img">
+            <img :src="getImageUrl(game.image)" :alt="game.name" class="cjx-hero-img" @error="onImgError">
             <div class="cjx-game-badges">
               <span class="cjx-badge" v-if="game.is_presale">预售</span>
               <span class="cjx-badge cjx-badge-discount" v-if="game.discount">{{ game.discount }}</span>
@@ -202,7 +202,7 @@
         <div class="cjx-modal-body">
           <!-- 游戏信息 -->
           <div class="cjx-order-game">
-            <img :src="getImageUrl(game?.image)" :alt="game?.name" class="cjx-order-game-img">
+            <img :src="getImageUrl(game?.image)" :alt="game?.name" class="cjx-order-game-img" @error="onImgError">
           </div>
           
           <div class="cjx-order-info">
@@ -361,11 +361,6 @@
           </div>
         </div>
 
-        <!-- 评测输入框（点击跳发布页） -->
-        <div class="cjx-review-input" @click="goReviewPublish">
-          <span class="cjx-review-input-ph">我也要评测</span>
-        </div>
-
         <!-- 评论列表 -->
         <div class="cjx-review-list" v-if="reviews.length">
           <div class="cjx-review-item" v-for="r in reviews" :key="r.id" :data-review-id="r.id">
@@ -496,7 +491,12 @@
           </div>
         </div>
         <div class="cjx-review-empty" v-else>
-          <p>还没有任何评测，点击上方「我也要评测」写下第一条吧</p>
+          <p>还没有任何评测，来做第一个评价的人吧 👇</p>
+        </div>
+
+        <!-- 底部输入框 → 点击跳发布页 -->
+        <div class="cjx-review-input" @click="goReviewPublish">
+          <span class="cjx-review-input-ph">我也要评测</span>
         </div>
       </div>
     </div>
@@ -583,6 +583,7 @@ import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import { authAPI, orderAPI, transactionAPI, walletAPI, userGameAPI, fetchAllGames, reviewAPI, steamAPI, favoriteAPI } from '../config/supabase-local.ts'
 import Layout from '../components/Layout.vue'
+import { getImageUrl, onImgError } from '@/composables/useGameImage'
 
 const route = useRoute()
 const router = useRouter()
@@ -711,19 +712,6 @@ const switchVersion = (version) => {
   })
 }
 
-// 获取图片URL - 处理本地图片路径
-const getImageUrl = (path) => {
-  if (!path) return '/picture/安魂曲.jpg'
-  if (path.startsWith('http')) return path
-  // 处理 ../picture/xxx.jpg 或 picture/xxx.jpg -> /picture/xxx.jpg
-  if (path.includes('picture/')) {
-    const fileName = path.split('picture/')[1]
-    if (fileName) {
-      return `/picture/${fileName}`
-    }
-  }
-  return path.startsWith('/') ? path : `/${path}`
-}
 
 // 解码游戏ID
 const decodeGameId = (id) => {
@@ -3071,7 +3059,6 @@ function scrollAndFlash(selector: string) {
 
 .cjx-review-input {
   margin-top: 8px;
-  margin-bottom: 18px;
   padding: 14px 18px;
   background: #f5f6f8;
   border: 1px solid #e5e6e8;

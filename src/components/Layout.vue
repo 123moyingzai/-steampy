@@ -170,7 +170,7 @@
       <!-- 底部页脚 -->
       <footer class="cjx-footer">
         <p>进入网页版新澡堂(测试) &nbsp;|&nbsp; 欢迎交流 官方QQ群 807662430</p>
-        <p>用户协议 | 隐私政策 <router-link to="/admin/login" class="cjx-admin-entry">管理员入口</router-link></p>
+        <p>用户协议 | 隐私政策</p>
       </footer>
     </main>
   </div>
@@ -860,17 +860,6 @@ onUnmounted(() => {
 
 .cjx-footer p {
   margin: 0.25rem 0;
-}
-
-.cjx-admin-entry {
-  margin-left: 10px;
-  color: #aaa;
-  font-size: 12px;
-  text-decoration: none;
-}
-.cjx-admin-entry:hover {
-  color: #e94560;
-  text-decoration: underline;
 }
 
 /* 汉堡按钮 */

@@ -40,7 +40,7 @@
         </div>
 
         <template v-if="game">
-          <!-- 游戏介绍区块 -->
+          <!-- 游戏介绍 -->
           <div class="cjx-game-description" v-if="game.description">
             <h2 class="cjx-section-title">游戏介绍</h2>
             <p>{{ game.description }}</p>
@@ -131,29 +131,29 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import Layout from '../components/Layout.vue'
 import { authAPI, fetchAllGames } from '../config/supabase-local.ts'
-import { getImageUrl } from '@/composables/useGameImage'
 
 const router = useRouter()
 const route = useRoute()
 
-/** 当前展示的游戏对象（从路由参数匹配） */
 const game = ref<any>(null)
-/** 游戏数据是否正在加载 */
 const loading = ref(true)
-/** 登录用户的钱包余额 */
 const walletBalance = ref(0.06)
 
-/**
- * 解析后的游戏封面图 URL，game 为 null 时返回占位图
- */
+const getImageUrl = (path: string) => {
+  if (!path) return '/picture/安魂曲.jpg'
+  if (path.startsWith('http')) return path
+  if (path.includes('picture/')) {
+    const fn = path.split('picture/')[1]
+    if (fn) return `/picture/${fn}`
+  }
+  return path.startsWith('/') ? path : `/${path}`
+}
+
 const gameImageUrl = computed(() => {
   return getImageUrl(game.value?.image || '')
 })
 
-/**
- * 根据路由参数加载游戏详情
- * 从 fetchAllGames 返回的列表中匹配 id / game_id / gameId，找不到则置空
- */
+// 用 route.params.game 查 games 表
 const loadGame = async () => {
   loading.value = true
   try {
@@ -184,16 +184,8 @@ const loadGame = async () => {
   }
 }
 
-/** 返回上一页（余额购列表） */
 const goBack = () => router.push('/balance')
 
-/**
- * 计算并返回原价（用于划线展示）
- * 优先使用 original_price 字段，其次从 game 对象取
- * @param price 当前价
- * @param discount 折扣字段（未直接使用）
- * @returns 原价字符串（带 ¥），无折扣则返回空
- */
 const getOriginalPrice = (price: any, discount: any) => {
   if (!game.value) return ''
   // 优先用 original_price 字段

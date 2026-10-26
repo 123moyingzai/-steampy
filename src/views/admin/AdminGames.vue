@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="admin-games">
     <!-- 工具栏 -->
     <div class="toolbar">
@@ -39,10 +39,10 @@
             <td class="mono">{{ game.id }}</td>
             <td>
               <div class="game-thumb">
-                <img :src="game.image || '/picture/安魂曲.jpg'" :alt="game.name">
+                <img :src="getImageUrl(game.image)" :alt="game.name_cn || game.name" @error="onImgError">
               </div>
             </td>
-            <td class="game-name">{{ game.name }}</td>
+            <td class="game-name">{{ game.name_cn || game.name }}</td>
             <td class="price">¥{{ stripYuan(game.price) }}</td>
             <td class="original-price">¥{{ stripYuan(game.original_price) || '-' }}</td>
             <td>
@@ -187,6 +187,7 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import axios from 'axios'
 import { adminExportAPI } from '../../config/admin-api'
+import { getImageUrl, onImgError } from '@/composables/useGameImage'
 
 const games = ref<any[]>([])
 const filteredGames = ref<any[]>([])
@@ -361,7 +362,9 @@ const loadStockStats = async () => {
 
 const filterGames = () => {
   const kw = searchKeyword.value.trim().toLowerCase()
-  filteredGames.value = kw ? games.value.filter(g => (g.name || '').toLowerCase().includes(kw)) : [...games.value]
+  filteredGames.value = kw ? games.value.filter(g =>
+    (g.name_cn || '').includes(kw) || (g.name || '').toLowerCase().includes(kw)
+  ) : [...games.value]
 }
 
 const openCreateModal = () => { editingGame.value = null; resetForm(); showModal.value = true }
@@ -400,7 +403,10 @@ const handleSave = async () => {
       is_presale: formData.is_presale, image: formData.image,
       description: formData.description, release_date: formData.release_date || null
     }
-    // 网络封面先下载到服务器本地，避免 CDN 失效导致列表图片空白
+    // 网络封面先下载到服务器本地，避免 CDN 失效导致列表图片空白；
+    // 下载失败不阻断保存，保留网络地址即可，否则管理员会因为图片问题卡在新增流程
+    let imageLocalized = true
+    let imageError = ''
     if (payload.image && String(payload.image).trim().startsWith('http')) {
       try {
         const r = await axios.post('/api/upload/remote-image',
@@ -411,18 +417,17 @@ const handleSave = async () => {
           throw new Error(r.data?.message || '下载失败')
         }
       } catch (e: any) {
-        alert('封面图片下载失败，请换一个可访问的图片地址：' +
-          (e?.response?.data?.message || e.message))
-        saving.value = false
-        return
+        imageLocalized = false
+        imageError = e?.response?.data?.message || e.message
       }
     }
+    const imageHint = imageLocalized ? '' : `（封面未下载到本地，已保留网络地址：${imageError}）`
     if (editingGame.value) {
       await axios.put(`/api/admin/games/${editingGame.value.id}`, payload)
-      alert('更新成功')
+      alert('更新成功' + imageHint)
     } else {
       await axios.post('/api/admin/games', payload)
-      alert('创建成功')
+      alert('创建成功' + imageHint)
     }
     closeModal(); await loadGames()
   } catch (e: any) { alert('保存失败: ' + (e?.response?.data?.message || e.message)) }
@@ -430,7 +435,7 @@ const handleSave = async () => {
 }
 
 const handleDelete = async (game: any) => {
-  if (!await confirm(`确定删除游戏 "${game.name}" 吗？此操作不可恢复！`)) return
+  if (!await confirm(`确定删除游戏 "${game.name_cn || game.name}" 吗？此操作不可恢复！`)) return
   try {
     await axios.delete(`/api/admin/games/${game.id}`)
     alert('删除成功'); await loadGames()

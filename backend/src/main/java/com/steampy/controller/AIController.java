@@ -8,12 +8,13 @@ import com.steampy.entity.Game;
 import com.steampy.entity.Order;
 import com.steampy.mapper.GameMapper;
 import com.steampy.mapper.OrderMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
-import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -23,23 +24,15 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * AIController
- * 负责 AI 智能助手的 HTTP 接口层，为平台用户提供多轮自然语言问答服务。
- *
- * 回复策略：优先调用 LLM（兼容 DeepSeek / OpenAI Chat Completions 格式），未配置 API key 或调用失败时自动降级到本地增强规则引擎。
- * 知识增强（RAG）：每次请求会把用户问题做游戏模糊搜索并把匹配到的在售游戏拼到 system prompt 里，让 LLM 具备实时商品知识。
- * 游戏召回：无论 LLM 还是规则引擎，都会从回复文本里反向提取实体 Game，以卡片形式附加到返回值中。
- *
- * 提供的核心接口：
- *   - POST /api/ai/chat — 多轮对话入口，body 需含 { userId, messages: [{role, content}] }，返回 { reply, games }
- *
- * @author steampy
- * @date 2026-10-14
+ * AI 智能助手 — 优先调 LLM（DeepSeek 兼容格式），无 API key 时走增强规则引擎。
+ * 上下文：按 userId + 前端传来的 messages 做多轮。
  */
 @RestController
 @RequestMapping("/api/ai")
 @CrossOrigin(origins = "*")
 public class AIController {
+
+    private static final Logger log = LoggerFactory.getLogger(AIController.class);
 
     @Value("${ai.api-key:}")
     private String apiKey;
@@ -61,15 +54,8 @@ public class AIController {
     private final ObjectMapper om = new ObjectMapper();
 
     /**
-     * AI 对话统一入口。
-     *
-     * 请求体格式：{ userId: string, messages: [{ role: "user"|"assistant", content: string }] }。
-     * 处理流程：① 提取最后一条用户消息作为 userQuery；② 若配置了 api-key → 走 LLM（RAG + 最近 6 轮历史）；③ LLM 调用失败或无 key → 降级到规则引擎；④ 兜底返回礼貌错误文案。
-     * 返回体格式：{ reply: string, games: Game[] } — 当 LLM/规则引擎在回复中识别到具体游戏时附带卡片列表，便于前端渲染。
-     * 任何异常都会被捕获并返回固定的兜底话术，保证接口永不抛错。
-     *
-     * @param body 请求体 Map，必须含 userId 和 messages 字段
-     * @return {@link Result} 含 reply 和 games 的 Map；异常时 reply 为兜底文案、games 为空数组
+     * 统一入口。body: { userId, messages: [{role, content}] }
+     * 返回: { reply: string, games: [...optional] }
      */
     @PostMapping("/chat")
     public Result<Map<String, Object>> chat(@RequestBody Map<String, Object> body) {
@@ -101,221 +87,137 @@ public class AIController {
     }
 
     /**
-     * 新增游戏弹窗的「AI 自动填写」。
-     *
-     * 输入游戏名，返回可直接回填表单的字段：
-     *   - image：走 Steam 商店搜索拿到真实 AppID 后拼 header.jpg（不会像 LLM 那样瞎编 AppID）
-     *   - developer / description / release_date：复用客服同一套 ai.api-key 调 LLM 生成
-     *   - 若 LLM 不可用，则用 Steam appdetails 官方数据补齐开发商与发售日期
-     *
-     * @param body { name: 游戏名称 }
-     * @return {@link Result} data 为可回填的字段 Map，取不到的字段不会出现在 Map 里
+     * 管理端 AI 自动填写游戏信息。body: { name: "游戏名" }
+     * 返回 { developer, image, description, release_date, price, original_price, discount, is_presale, steam_appid }
      */
     @PostMapping("/game-info")
-    public Result<Map<String, Object>> gameInfo(@RequestBody Map<String, Object> body) {
-        String name = Objects.toString(body.getOrDefault("name", ""), "").trim();
-        if (name.isEmpty()) return Result.error("请先填写游戏名称");
+    public Result<Map<String, Object>> gameInfo(@RequestBody Map<String, String> body) {
+        String name = body.getOrDefault("name", "").trim();
+        if (name.isBlank()) return Result.error("游戏名称不能为空");
 
-        Map<String, Object> data = new LinkedHashMap<>();
-        long appid = -1L;
-
-        // ① Steam 商店搜索：游戏名 → AppID → 官方封面
-        try {
-            String term = URLEncoder.encode(name, StandardCharsets.UTF_8);
-            String url = "https://store.steampowered.com/api/storesearch/?term=" + term + "&l=schinese&cc=CN";
-            HttpResponse<String> resp = httpClient.send(
-                    HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(10)).GET().build(),
-                    HttpResponse.BodyHandlers.ofString());
-            if (resp.statusCode() == 200) {
-                JsonNode items = om.readTree(resp.body()).path("items");
-                if (items.isArray() && !items.isEmpty()) {
-                    appid = items.get(0).path("id").asLong(-1);
-                    if (appid > 0) {
-                        data.put("steam_appid", appid);
-                        data.put("image", "https://cdn.akamai.steamstatic.com/steam/apps/" + appid + "/header.jpg");
-                    }
-                }
-            }
-        } catch (Exception ignored) {
-            // 搜索失败不阻断，后续仍可用 LLM 生成其它字段
+        // 1) 本地 games 表先查：已有同名就直接返回（不用瞎生成）
+        QueryWrapper<Game> qw = new QueryWrapper<>();
+        qw.eq("name", name).or().eq("name_cn", name);
+        List<Game> matched = gameMapper.selectList(qw);
+        Game exist = matched.isEmpty() ? null : matched.get(0);
+        if (exist != null) {
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("developer", exist.getDeveloper());
+            r.put("image", exist.getImage());
+            r.put("description", exist.getDescription());
+            r.put("release_date", exist.getReleaseDate());
+            r.put("price", exist.getPrice());
+            r.put("original_price", exist.getOriginalPrice());
+            r.put("discount", exist.getDiscount());
+            r.put("is_presale", exist.getIsPresale());
+            return Result.success(r);
         }
 
-        // ② Steam 官方详情：开发商 / 发售日期 / 中文简介 / 价格（一手数据，优先采用）
-        if (appid > 0) {
-            try {
-                String url = "https://store.steampowered.com/api/appdetails?appids=" + appid + "&l=schinese&cc=CN";
-                HttpResponse<String> resp = httpClient.send(
-                        HttpRequest.newBuilder(URI.create(url)).timeout(Duration.ofSeconds(10)).GET().build(),
-                        HttpResponse.BodyHandlers.ofString());
-                if (resp.statusCode() == 200) {
-                    JsonNode detail = om.readTree(resp.body()).path(String.valueOf(appid)).path("data");
-                    if (detail.isObject()) {
-                        String dev = detail.path("developers").path(0).asText("");
-                        if (!dev.isBlank()) data.put("developer", dev);
-                        String rel = normalizeDate(detail.path("release_date").path("date").asText(""));
-                        if (rel != null) {
-                            data.put("release_date", rel);
-                            // 发售日期在今天就按预售处理
-                            if (java.time.LocalDate.parse(rel).isAfter(java.time.LocalDate.now())) {
-                                data.put("is_presale", true);
-                            }
-                        }
-                        String desc = detail.path("short_description").asText("");
-                        if (!desc.isBlank()) data.put("description", desc);
-
-                        // 价格：Steam 返回单位是「分」，这里换算成元；免费游戏没有 price_overview 节点
-                        JsonNode price = detail.path("price_overview");
-                        if (price.isObject()) {
-                            data.put("original_price", price.path("initial").asInt(0) / 100.0);
-                            data.put("price", price.path("final").asInt(0) / 100.0);
-                            data.put("discount", price.path("discount_percent").asInt(0));
-                        } else {
-                            data.put("original_price", 0);
-                            data.put("price", 0);
-                            data.put("discount", 0);
-                        }
-                    }
-                }
-            } catch (Exception ignored) {
-                // 详情补全失败忽略，继续走 LLM 兜底
-            }
-        }
-
-        // ③ Steam 没给到的字段，再用客服同一套 LLM 补全（只补缺，不覆盖官方数据）
+        // 2) 配了 API key → 走 DeepSeek 结构化输出
         if (apiKey != null && !apiKey.isBlank()) {
-            Map<String, String> ai = callLLMForGame(name);
-            ai.forEach((k, v) -> {
-                if (v != null && !v.isBlank()) data.putIfAbsent(k, v);
-            });
+            try {
+                Map<String, Object> llmResult = callGameInfoLLM(name);
+                if (llmResult != null && !llmResult.isEmpty()) return Result.success(llmResult);
+                log.warn("[ai/game-info] LLM 返回空结果, name={}", name);
+            } catch (Exception e) {
+                log.error("[ai/game-info] LLM 调用失败, name=" + name, e);
+                return Result.error("AI 识别失败: " + e.getClass().getSimpleName()
+                        + (e.getMessage() == null ? "" : " - " + e.getMessage()));
+            }
+        } else {
+            log.warn("[ai/game-info] ai.api-key 未配置，跳过 LLM");
         }
 
-        if (data.isEmpty()) return Result.error("没能识别到这款游戏，请检查名称或换用英文名重试");
-        return Result.success(data);
+        // 3) 兜底：返回空，前端不会填充
+        return Result.success(new LinkedHashMap<>());
     }
 
-    /**
-     * 让 LLM 生成新增游戏需要的文本字段。
-     *
-     * @param name 游戏名称
-     * @return 只包含 developer / description / release_date 三个键的 Map，解析失败时为空 Map
-     */
-    private Map<String, String> callLLMForGame(String name) {
-        Map<String, String> result = new LinkedHashMap<>();
+    /** 调 DeepSeek 返回结构化 JSON 游戏信息 */
+    private Map<String, Object> callGameInfoLLM(String name) throws Exception {
         String systemPrompt = """
-                你是 Steam 游戏资料整理助手。用户会给你一个游戏名称，请输出该游戏的真实资料。
-                只输出一个 JSON 对象，不要任何解释、不要 markdown 代码块，格式如下：
-                {"developer":"开发商名称","description":"80 字以内的中文游戏简介","release_date":"YYYY-MM-DD"}
-                要求：
-                1. 必须是真实存在的 Steam 游戏；不确定的字段直接留空字符串
-                2. description 用简体中文，客观描述玩法，不要带营销夸张词
-                3. release_date 只写日期，格式必须是 YYYY-MM-DD；不确定具体日期就留空字符串
+                你是 SteamPY 平台的游戏资料补全助手。
+                用户会给你一个游戏名称，你要返回 JSON 格式的游戏信息。
+                必须包含以下字段（资料确实不确定时用空字符串，但字段本身不能省略）：
+                - developer：开发商
+                - description：50 字以内的中文简介
+                - release_date：发售日期，YYYY-MM-DD
+                - price：国区 Steam 现价（人民币元，数字）
+                - original_price：国区 Steam 原价（人民币元，数字）
+                - discount：整数百分比（比如 20 表示 -20%），没有折扣填 0
+                - is_presale：true/false（是否预售中）
+                - steam_appid：这款游戏在 Steam 平台的 AppID（纯数字，比如 282070），必须返回
+                - image：固定拼为 https://cdn.akamai.steamstatic.com/steam/apps/{steam_appid}/header.jpg
+                - name_en：游戏英文名
+                只返回 JSON，不要任何解释或 markdown 包裹。
                 """;
-        String content = callLLMText(systemPrompt, "游戏名称：" + name);
-        if (content == null) return result;
+        String userPrompt = "请补全这款 Steam 游戏的信息：「" + name + "」";
 
-        // 去掉可能出现的 ```json 代码块包裹，再截取最外层 JSON
-        String json = content.trim();
-        int start = json.indexOf('{');
-        int end = json.lastIndexOf('}');
-        if (start < 0 || end <= start) return result;
+        List<Map<String, String>> messages = new ArrayList<>();
+        Map<String, String> sys = new LinkedHashMap<>();
+        sys.put("role", "system"); sys.put("content", systemPrompt);
+        messages.add(sys);
+        Map<String, String> usr = new LinkedHashMap<>();
+        usr.put("role", "user"); usr.put("content", userPrompt);
+        messages.add(usr);
 
-        try {
-            JsonNode node = om.readTree(json.substring(start, end + 1));
-            String dev = node.path("developer").asText("").trim();
-            String desc = node.path("description").asText("").trim();
-            String rel = normalizeDate(node.path("release_date").asText(""));
-            if (!dev.isBlank()) result.put("developer", dev);
-            if (!desc.isBlank()) result.put("description", desc);
-            if (rel != null) result.put("release_date", rel);
-        } catch (Exception ignored) {
-            // 模型偶尔会输出不合法 JSON，忽略即可，交由 Steam 官方数据兜底
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("model", model);
+        payload.put("messages", messages);
+        payload.put("temperature", 0.3);
+        payload.put("max_tokens", 500);
+
+        String body = om.writeValueAsString(payload);
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(endpoint))
+                .header("Content-Type", "application/json; charset=UTF-8")
+                .header("Authorization", "Bearer " + apiKey.trim())
+                .timeout(Duration.ofSeconds(30))
+                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+                .build();
+
+        HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() != 200) return null;
+
+        JsonNode root = om.readTree(resp.body());
+        String reply = root.path("choices").path(0).path("message").path("content").asText("").trim();
+
+        // 去掉可能的 ```json ``` 包裹
+        if (reply.startsWith("```")) {
+            int nl = reply.indexOf('\n');
+            reply = nl >= 0 ? reply.substring(nl + 1) : reply.substring(3);
+            if (reply.endsWith("```")) reply = reply.substring(0, reply.length() - 3);
+        }
+        reply = reply.trim();
+
+        // 从第一个 { 截取到最后一个 }
+        int lb = reply.indexOf('{');
+        int rb = reply.lastIndexOf('}');
+        if (lb < 0 || rb < 0) return null;
+        reply = reply.substring(lb, rb + 1);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        JsonNode data = om.readTree(reply);
+        String[] fields = {"developer", "image", "description", "release_date",
+                "price", "original_price", "discount", "is_presale", "steam_appid"};
+        for (String f : fields) {
+            JsonNode v = data.get(f);
+            if (v == null || v.isNull()) continue;
+            if (v.isTextual() && v.asText().isBlank()) continue;
+            result.put(f, v.isNumber() ? v.numberValue() : v.isBoolean() ? v.asBoolean() : v.asText());
+        }
+        // 后处理：有 steam_appid 但没 image → 自己拼 Steam CDN URL
+        Object appid = result.get("steam_appid");
+        Object img = result.get("image");
+        if (img == null || String.valueOf(img).isBlank()) {
+            if (appid != null) {
+                String id = String.valueOf(appid).trim();
+                if (!id.isBlank()) result.put("image",
+                        "https://cdn.akamai.steamstatic.com/steam/apps/" + id + "/header.jpg");
+            }
         }
         return result;
     }
 
-    /**
-     * 单轮调用 LLM，返回文本内容。
-     *
-     * @param systemPrompt 系统提示词
-     * @param userPrompt   用户消息
-     * @return 模型回复文本；未配置 key、非 200 或异常时返回 null
-     */
-    private String callLLMText(String systemPrompt, String userPrompt) {
-        try {
-            List<Map<String, String>> messages = new ArrayList<>();
-            Map<String, String> sys = new LinkedHashMap<>();
-            sys.put("role", "system");
-            sys.put("content", systemPrompt);
-            messages.add(sys);
-            Map<String, String> usr = new LinkedHashMap<>();
-            usr.put("role", "user");
-            usr.put("content", userPrompt);
-            messages.add(usr);
-
-            Map<String, Object> payload = new LinkedHashMap<>();
-            payload.put("model", model);
-            payload.put("messages", messages);
-            payload.put("temperature", 0.2);
-            payload.put("max_tokens", 500);
-
-            HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create(endpoint))
-                    .header("Content-Type", "application/json; charset=UTF-8")
-                    .header("Authorization", "Bearer " + apiKey.trim())
-                    .timeout(Duration.ofSeconds(30))
-                    .POST(HttpRequest.BodyPublishers.ofString(om.writeValueAsString(payload), StandardCharsets.UTF_8))
-                    .build();
-
-            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-            if (resp.statusCode() != 200) return null;
-            return om.readTree(resp.body()).path("choices").path(0).path("message").path("content").asText("");
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    /**
-     * 把各种日期写法归一化成 yyyy-MM-dd，供 input[type=date] 直接使用。
-     *
-     * 支持：2023-03-24、2023/3/24、2023 年 3 月 24 日、Mar 24, 2023。
-     * 无法识别（如「即将推出」）时返回 null。
-     *
-     * @param raw 原始日期文本
-     * @return 归一化后的日期，识别失败返回 null
-     */
-    private String normalizeDate(String raw) {
-        if (raw == null) return null;
-        String s = raw.trim();
-        if (s.isEmpty()) return null;
-
-        if (s.matches("\\d{4}-\\d{2}-\\d{2}")) return s;
-
-        java.util.regex.Matcher cn = java.util.regex.Pattern
-                .compile("(\\d{4})\\s*[年/.-]\\s*(\\d{1,2})\\s*[月/.-]\\s*(\\d{1,2})")
-                .matcher(s);
-        if (cn.find()) {
-            return String.format("%s-%02d-%02d", cn.group(1),
-                    Integer.parseInt(cn.group(2)), Integer.parseInt(cn.group(3)));
-        }
-
-        try {
-            java.time.format.DateTimeFormatter f = java.time.format.DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH);
-            return java.time.LocalDate.parse(s, f).toString();
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
-    /**
-     * 调用 LLM（兼容 DeepSeek / OpenAI Chat Completions 协议）。
-     *
-     * 处理步骤：① 调 {@link #buildKnowledgeContext} 构造 RAG 知识片段；② 拼接 system prompt + 最近 6 轮历史（避免 token 溢出）；③ HTTP POST 到 {@code ai.endpoint}（默认 deepseek-chat）；④ 200 时解析 choices[0].message.content；⑤ 从回复文本反向提取 Game 卡片。
-     * 任何异常或非 200 响应都会返回 null，让上层降级到规则引擎。
-     *
-     * @param userQuery 用户最后一条消息（已从 messages 中取出）
-     * @param history   完整多轮历史 [{ role, content }]
-     * @return 含 reply / games 的 Map；LLM 不可用或抛异常时返回 null
-     */
     private Map<String, Object> callLLM(String userQuery, List<Map<String, String>> history) {
         try {
             // 先查知识库（FAQ + 游戏）作为 RAG 上下文
@@ -387,14 +289,7 @@ public class AIController {
         }
     }
 
-    /**
-     * 为 LLM 构造 RAG 知识上下文。
-     *
-     * 内部会调用 {@link #fuzzySearchGames} 根据 query 模糊匹配最多 5 款在售游戏，把中文名、英文名、价格、原价、折扣、开发商、库存拼成可读片段。
-     *
-     * @param query 用户原始问题文本
-     * @return 游戏知识片段字符串；无匹配时返回空串
-     */
+    /** 构建 RAG 上下文：FAQ 片段 + 匹配的游戏信息 */
     private String buildKnowledgeContext(String query) {
         StringBuilder sb = new StringBuilder();
 
@@ -414,14 +309,7 @@ public class AIController {
         return sb.toString();
     }
 
-    /**
-     * 本地规则引擎兜底回复（LLM 不可用时使用）。
-     *
-     * 按优先级匹配三种意图：① 游戏搜索 → 调 {@link #fuzzySearchGames} 拿到匹配，单款返回详细卡片、多款返回列表；② FAQ 关键词 → 调 {@link #matchFAQ} 命中硬编码知识库；③ 平台数据类（多少游戏/热门/你是谁）→ 调 {@link #matchDataIntent}；以上均未命中则返回引导话术。
-     *
-     * @param query 用户最后一条消息（已 trim + toLowerCase）
-     * @return 含 reply 和 games 的 Map（games 可能为空数组）
-     */
+    /** 规则引擎兜底 —— 纯关键词 + 模糊匹配，但比原来丰富得多 */
     private Map<String, Object> ruleEngineReply(String query) {
         Map<String, Object> result = new LinkedHashMap<>();
         String q = query.toLowerCase().trim();
@@ -495,16 +383,7 @@ public class AIController {
 
     // ==================== 工具方法 ====================
 
-    /**
-     * 模糊搜索在售游戏。
-     *
-     * 归一化处理：去掉空格和标点后转小写，然后同时匹配 name / nameCn / developer 三个字段的互相包含（双向 contains）。
-     * 匹配到 limit 条后立即截断。
-     *
-     * @param query 用户搜索词
-     * @param limit 最多返回条数
-     * @return 匹配的 Game 列表（可能为空）
-     */
+    /** 模糊搜游戏：名称包含 / 中文名包含（忽略标点）/ 开发商包含 */
     private List<Game> fuzzySearchGames(String query, int limit) {
         if (query == null || query.isBlank()) return List.of();
         // 归一化：去标点空格，统一小写
@@ -528,16 +407,7 @@ public class AIController {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * 从 LLM 回复文本中反向提取 Game 实体。
-     *
-     * 遍历所有游戏，同时匹配英文名 / 中文名是否出现在 reply 中；同时再跑一遍用户原始 query 的直接匹配结果做并集，确保 LLM 没提到但用户直接说的游戏也能召回。
-     * 去重后最多返回 5 款。
-     *
-     * @param reply     LLM 生成的回复文本
-     * @param queryHint 用户原始问题（用于直接匹配）
-     * @return 命中的 Game 列表（去重 + 限制上限）
-     */
+    /** 从 LLM 回复文本里反向查游戏实体（同时匹配英文名和中文名） */
     private List<Game> extractGamesFromReply(String reply, String queryHint) {
         Set<String> matchedIds = new LinkedHashSet<>();
         List<Game> all = gameMapper.selectList(null);
@@ -558,15 +428,6 @@ public class AIController {
         return all.stream().filter(g -> matchedIds.contains(g.getId())).limit(5).collect(Collectors.toList());
     }
 
-    /**
-     * 硬编码 FAQ 关键词匹配。
-     *
-     * 规则按 LinkedHashMap 顺序依次命中（先注册登录，再 cdk，再礼物代购…），返回首个命中的 value。
-     * key 是用 | 分隔的多关键词正则片段，最终拼成 {@code .*（key1|key2|...）.*} 做 matches。
-     *
-     * @param q 已 toLowerCase + trim 的用户 query
-     * @return 命中的 FAQ 回答文本；未命中返回 null
-     */
     private String matchFAQ(String q) {
         // 用 DB 里 announcements 也行，但硬编码够用
         Map<String, String> rules = new LinkedHashMap<>();
@@ -592,14 +453,6 @@ public class AIController {
         return null;
     }
 
-    /**
-     * 平台数据意图匹配（统计类问题）。
-     *
-     * 支持三类：① 游戏总数（多少游戏 / 有多少 / 数量）；② 热门游戏（畅销 / 销量最高 / 最火 / 推荐）—— 查已完成订单聚合销量再给硬编码榜单；③ 自我介绍（你是谁 / 你好 / hi / hello）。
-     *
-     * @param q 已 toLowerCase + trim 的用户 query
-     * @return 命中的回答文本；未命中返回 null
-     */
     private String matchDataIntent(String q) {
         if (q.matches(".*(多少|数量|几个|总数).*(游戏|商品).*") || q.matches(".*(多少|数量).*(有|在售|上架).*")) {
             long total = gameMapper.selectCount(null);

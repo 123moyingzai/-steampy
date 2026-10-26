@@ -131,6 +131,8 @@ public class ListingController {
         if (listing.getStatus() == null) listing.setStatus("available");
         if (listing.getVersion() == null) listing.setVersion("标准版");
         if (listing.getRegion() == null) listing.setRegion("国区");
+        // listings.type 是非空列（cdkey / py），卖家中心上架 CDKey 时不传该字段，缺省会直接 500
+        if (listing.getType() == null || listing.getType().isBlank()) listing.setType("cdkey");
         listing.setCreatedAt(LocalDateTime.now());
         listing.setUpdatedAt(LocalDateTime.now());
         listingMapper.insert(listing);
@@ -159,6 +161,8 @@ public class ListingController {
             if (l.getStatus() == null) l.setStatus("available");
             if (l.getVersion() == null) l.setVersion("标准版");
             if (l.getRegion() == null) l.setRegion("国区");
+            // 同 createListing：type 为非空列，批量上架 CDKey 时前端不传
+            if (l.getType() == null || l.getType().isBlank()) l.setType("cdkey");
             l.setCreatedAt(LocalDateTime.now());
             l.setUpdatedAt(LocalDateTime.now());
             listingMapper.insert(l);
