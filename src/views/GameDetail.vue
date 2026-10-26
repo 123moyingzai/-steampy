@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <Layout>
     <div class="cjx-detail-page">
       <!-- 返回按钮 -->
@@ -361,6 +361,20 @@
           </div>
         </div>
 
+        <!-- 评测入口：放在列表上方，方便用户修改自己的评测 -->
+        <div class="cjx-review-entry">
+          <div
+            class="cjx-review-entry-avatar"
+            :style="currentUserAvatar ? `background-image:url(${currentUserAvatar});background-size:cover;background-position:center;` : ''"
+            @click="goReviewPublish"
+          >
+            <span v-if="!currentUserAvatar">{{ currentUserInitial }}</span>
+          </div>
+          <div class="cjx-review-input" @click="goReviewPublish">
+            <span class="cjx-review-input-ph">我也要评测</span>
+          </div>
+        </div>
+
         <!-- 评论列表 -->
         <div class="cjx-review-list" v-if="reviews.length">
           <div class="cjx-review-item" v-for="r in reviews" :key="r.id" :data-review-id="r.id">
@@ -491,12 +505,7 @@
           </div>
         </div>
         <div class="cjx-review-empty" v-else>
-          <p>还没有任何评测，来做第一个评价的人吧 👇</p>
-        </div>
-
-        <!-- 底部输入框 → 点击跳发布页 -->
-        <div class="cjx-review-input" @click="goReviewPublish">
-          <span class="cjx-review-input-ph">我也要评测</span>
+          <p>还没有任何评测，来做第一个评价的人吧 👆</p>
         </div>
       </div>
     </div>
@@ -1157,6 +1166,11 @@ const handleBack = () => {
 // ===== 评测 =====
 const reviews = ref<any[]>([])
 const recommendCount = computed(() => reviews.value.filter(r => r.recommend === 1).length)
+
+// 评测入口展示当前登录用户头像（与 Layout 一致：优先 avatarUrl / avatar_url，无头像时用昵称首字）
+const currentUserInfo = authAPI.getCurrentUser()
+const currentUserAvatar = currentUserInfo?.avatarUrl || currentUserInfo?.avatar_url || ''
+const currentUserInitial = (currentUserInfo?.nickname || currentUserInfo?.username || '游').slice(0, 1)
 
 const loadReviews = async () => {
   if (!game.value?.id) return
@@ -3057,21 +3071,45 @@ function scrollAndFlash(selector: string) {
   font-size: 13px;
 }
 
+.cjx-review-entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0 24px;
+}
+.cjx-review-entry-avatar {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4a6cf7, #3a5ce5);
+  background-size: cover;
+  background-position: center;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: pointer;
+}
 .cjx-review-input {
-  margin-top: 8px;
-  padding: 14px 18px;
-  background: #f5f6f8;
-  border: 1px solid #e5e6e8;
+  flex: 1;
+  margin: 0;
+  padding: 22px 18px;
+  background: #e4e8ee;
+  border: 1px solid #c5ccd6;
   border-radius: 10px;
   cursor: text;
   transition: all 0.15s;
 }
 .cjx-review-input:hover {
-  background: #eef0f4;
+  background: #dbe0e8;
   border-color: #4a6cf7;
 }
 .cjx-review-input-ph {
-  color: #bbb;
+  color: #6f7784;
   font-size: 14px;
 }
 </style>
