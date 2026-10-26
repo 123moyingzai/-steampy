@@ -53,7 +53,7 @@
             <tbody>
               <tr v-for="order in stats.recentOrders" :key="order.id">
                 <td class="mono">{{ order.order_no || ('ORD' + order.id.slice(0, 8)) }}</td>
-                <td>{{ order.game_name || '-' }}</td>
+                <td>{{ displayGameName(order.game_name) }}</td>
                 <td class="price">¥{{ Number(order.total_price || order.price || 0).toFixed(2) }}</td>
                 <td>
                   <span class="type-tag">{{ order.order_type === 'py' ? 'PY代购' : 'CDKey' }}</span>
@@ -94,7 +94,7 @@
         <div class="card-body top-games">
           <div v-for="(g, idx) in stats.topGames" :key="g.gameName" class="top-game-row">
             <span class="rank" :class="'rank-' + (idx + 1)">{{ idx + 1 }}</span>
-            <span class="top-game-name">{{ g.gameName }}</span>
+            <span class="top-game-name">{{ displayGameName(g.gameName) }}</span>
             <span class="top-game-count">{{ g.orderCount }} 单</span>
           </div>
           <div v-if="!stats.topGames?.length" class="empty-state"><p>暂无销售数据</p></div>
@@ -138,8 +138,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
+import { fetchAllGames } from '../../config/supabase-local.ts'
 
 const stats = ref<any>({
   userCount: 0, gameCount: 0, orderCount: 0,
@@ -195,7 +196,33 @@ const loadStats = async () => {
   } catch (e) { console.error('加载统计失败', e) }
 }
 
-onMounted(loadStats)
+// 游戏英文名 → 官方中文名映射，订单与热销榜统一展示中文名
+const gameNameMap = ref<Record<string, string>>({})
+const displayGameName = (name?: string) => {
+  if (!name) return '-'
+  return gameNameMap.value[name] || name
+}
+const loadGameNameMap = async () => {
+  try {
+    const games = await fetchAllGames() as any[]
+    const map: Record<string, string> = {}
+    for (const g of games) {
+      const cn = g.name_cn || g.nameCn
+      if (g.name && cn) map[g.name] = cn
+    }
+    gameNameMap.value = map
+  } catch (e) { console.error('加载游戏名称映射失败', e) }
+}
+
+// 定时刷新统计数据，保证订单/热销等实时更新
+let statsTimer: number | undefined
+onMounted(async () => {
+  await Promise.all([loadStats(), loadGameNameMap()])
+  statsTimer = window.setInterval(loadStats, 30000)
+})
+onUnmounted(() => {
+  if (statsTimer) clearInterval(statsTimer)
+})
 </script>
 
 <style scoped>

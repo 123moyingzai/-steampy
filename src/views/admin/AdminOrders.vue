@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="admin-orders">
     <!-- 工具栏 -->
     <div class="toolbar">
@@ -97,7 +97,7 @@
             <td class="mono">{{ String(order.buyer_id).slice(0, 8) }}</td>
             <td>
               <div class="game-cell">
-                <img v-if="order.game_image" :src="resolveImage(order.game_image)" class="game-img">
+                <img v-if="order.game_image" :src="getImageUrl(order.game_image)" @error="onImgError" class="game-img">
                 <span>{{ order.game_name }}</span>
               </div>
             </td>
@@ -163,17 +163,7 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import axios from 'axios'
 import { adminExportAPI } from '../../config/admin-api'
-
-/** 图片路径解析：DB 存 ../picture/xxx → 浏览器 /picture/xxx；Steam CDN 直接用 */
-const resolveImage = (path) => {
-  if (!path) return ''
-  if (path.startsWith('http://') || path.startsWith('https://')) return path
-  if (path.includes('picture/')) {
-    const tail = path.split('picture/')[1]
-    if (tail) return `/picture/${tail}`
-  }
-  return path.startsWith('/') ? path : `/${path}`
-}
+import { getImageUrl, onImgError } from '@/composables/useGameImage'
 
 const orders = ref<any[]>([])
 const filteredOrders = ref<any[]>([])
