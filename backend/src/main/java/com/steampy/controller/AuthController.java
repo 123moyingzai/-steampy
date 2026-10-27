@@ -120,6 +120,9 @@ public class AuthController {
         if (req.getPassword().length() < 4) {
             return Result.error("密码不少于 4 位");
         }
+        if (req.getNickname() != null && req.getNickname().trim().length() > 10) {
+            return Result.error("昵称不能超过 10 个字");
+        }
 
         QueryWrapper<User> qw = new QueryWrapper<>();
         qw.eq("username", req.getUsername());
@@ -132,7 +135,11 @@ public class AuthController {
         u.setUsername(req.getUsername());
         u.setPasswordHash(encoder.encode(req.getPassword()));  // BCrypt 单向哈希
         u.setPhone(req.getPhone());
-        u.setNickname(req.getNickname() != null ? req.getNickname() : req.getUsername());
+        // 昵称限长 10 个字；未填昵称时默认取用户名，同样截断到 10 个字
+        String nick = (req.getNickname() != null && !req.getNickname().isBlank())
+                ? req.getNickname().trim() : req.getUsername();
+        if (nick != null && nick.length() > 10) nick = nick.substring(0, 10);
+        u.setNickname(nick);
         u.setUserType("普通用户");
         u.setCreatedAt(LocalDateTime.now());
         u.setUpdatedAt(LocalDateTime.now());
@@ -281,7 +288,10 @@ public class AuthController {
         Object phone = body.get("phone");
         Object email = body.get("email");
 
-        if (nick != null) u.setNickname(nick.toString());
+        if (nick != null) {
+            if (nick.toString().trim().length() > 10) return Result.error("昵称不能超过 10 个字");
+            u.setNickname(nick.toString());
+        }
         if (avatar != null) u.setAvatarUrl(avatar.toString());
         if (phone != null) u.setPhone(phone.toString());
         if (email != null) u.setEmail(email.toString());

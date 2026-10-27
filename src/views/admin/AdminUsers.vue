@@ -112,7 +112,7 @@
           </div>
           <div class="form-group">
             <label>昵称</label>
-            <input type="text" v-model="formData.nickname">
+            <input type="text" v-model="formData.nickname" maxlength="10" placeholder="最多10个字">
           </div>
           <div class="form-group">
             <label>手机号</label>
@@ -243,6 +243,7 @@ const closeModal = () => { showModal.value = false; resetForm() }
 
 const handleSave = async () => {
   if (!formData.username.trim()) { alert('请输入用户名'); return }
+  if ((formData.nickname || '').trim().length > 10) { alert('昵称不能超过 10 个字'); return }
   saving.value = true
   try {
     if (editingUser.value) {

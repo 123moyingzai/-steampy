@@ -114,7 +114,7 @@
                 <div class="form-row">
                   <label>昵称</label>
                   <div class="form-control">
-                    <input v-model="form.nickname" class="form-input" placeholder="默认昵称" maxlength="30" />
+                    <input v-model="form.nickname" class="form-input" placeholder="默认昵称（最多10个字）" maxlength="10" />
                   </div>
                 </div>
 
@@ -330,6 +330,10 @@ const handleAvatarFile = async (e: Event) => {
 
 const saveBasic = async () => {
   if (!admin.value?.id) return
+  if ((form.nickname || '').trim().length > 10) {
+    alert('昵称不能超过 10 个字')
+    return
+  }
   saving.value = true
   const result = await authAPI.updateUser(admin.value.id, {
     nickname: form.nickname,

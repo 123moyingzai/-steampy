@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * AdminController
@@ -513,7 +514,24 @@ public class AdminController {
     public Result<List<Order>> getAllOrders() {
         QueryWrapper<Order> qw = new QueryWrapper<>();
         qw.orderByDesc("created_at");
-        return Result.success(orderMapper.selectList(qw));
+        List<Order> list = orderMapper.selectList(qw);
+        // 回填买家昵称（批量查询用户表，避免 N+1）
+        Set<String> buyerIds = list.stream()
+                .map(Order::getBuyerId).filter(Objects::nonNull).collect(Collectors.toSet());
+        if (!buyerIds.isEmpty()) {
+            QueryWrapper<User> uq = new QueryWrapper<>();
+            uq.in("id", buyerIds);
+            Map<String, String> nameMap = new HashMap<>();
+            for (User u : userMapper.selectList(uq)) {
+                String name = u.getNickname();
+                if (name == null || name.isBlank()) name = u.getUsername();
+                nameMap.put(u.getId(), name);
+            }
+            for (Order o : list) {
+                o.setBuyerName(nameMap.get(o.getBuyerId()));
+            }
+        }
+        return Result.success(list);
     }
 
     /**

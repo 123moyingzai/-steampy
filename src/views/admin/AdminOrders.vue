@@ -6,7 +6,7 @@
         <input
           type="text"
           v-model="searchKeyword"
-          placeholder="搜索订单号、游戏名、买家ID..."
+          placeholder="搜索订单号、游戏名、买家昵称..."
           @input="filterOrders"
         >
       </div>
@@ -78,7 +78,7 @@
               <input type="checkbox" :checked="allPageSelected" @change="toggleSelectAll">
             </th>
             <th>订单号</th>
-            <th>买家ID</th>
+            <th>买家</th>
             <th>游戏</th>
             <th>类型</th>
             <th>金额</th>
@@ -94,7 +94,7 @@
               <input type="checkbox" :checked="selectedIds.includes(order.id)" @change="toggleSelect(order.id)">
             </td>
             <td class="mono">{{ order.order_no || ('ORD' + order.id) }}</td>
-            <td class="mono">{{ String(order.buyer_id).slice(0, 8) }}</td>
+            <td class="mono">{{ order.buyer_name || String(order.buyer_id).slice(0, 8) }}</td>
             <td>
               <div class="game-cell">
                 <img v-if="order.game_image" :src="getImageUrl(order.game_image)" @error="onImgError" class="game-img">
@@ -226,6 +226,7 @@ const filterOrders = () => {
     result = result.filter(o =>
       (o.order_no || '').toLowerCase().includes(kw) ||
       (o.game_name || '').toLowerCase().includes(kw) ||
+      (o.buyer_name || '').toLowerCase().includes(kw) ||
       String(o.buyer_id || '').toLowerCase().includes(kw)
     )
   }

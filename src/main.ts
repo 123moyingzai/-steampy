@@ -9,7 +9,9 @@ import axios from 'axios'
 // 解决 AdminLayout.onMounted 与子组件 AdminOrders.onMounted 的竞态
 axios.interceptors.request.use((config) => {
   if (config.url && config.url.startsWith('/api/admin')) {
-    const raw = sessionStorage.getItem('steampy_user')
+    // 管理员登录状态独立存储在 steampy_admin_user，优先取它；
+    // 兼容旧流程（管理员身份存在 steampy_user 里）时再回退
+    const raw = sessionStorage.getItem('steampy_admin_user') || sessionStorage.getItem('steampy_user')
     if (raw) {
       try {
         const user = JSON.parse(raw)

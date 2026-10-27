@@ -81,7 +81,7 @@
               <td>
                 <input type="checkbox" v-model="selectedIdsArr" :value="l.id" :disabled="l.status === 'sold'" />
               </td>
-              <td>{{ l.game_name }}</td>
+              <td>{{ displayGameName(l.game_name) }}</td>
               <td>{{ l.version }}</td>
               <td>
                 <code class="cjx-cdkey-mini">
@@ -157,7 +157,7 @@
                 <div class="cjx-batch-group-header">
                   <div class="cjx-batch-group-title">
                     <img :src="getImageUrl(g.image)" class="cjx-game-thumb" />
-                    <span class="cjx-game-selected-name">{{ g.game_name }}</span>
+                    <span class="cjx-game-selected-name">{{ displayGameName(g.game_name) }}</span>
                     <span class="cjx-batch-count">× {{ g.count }} 个CDKey</span>
                   </div>
                   <div class="cjx-batch-group-meta">
@@ -182,7 +182,7 @@
         <div class="cjx-modal-mask" v-if="showQuickPriceModal" @click.self="showQuickPriceModal = false">
           <div class="cjx-modal" style="max-width:360px">
             <div class="cjx-modal-header">
-              <h3>改价 — {{ quickPriceTarget?.game_name }}</h3>
+              <h3>改价 — {{ displayGameName(quickPriceTarget?.game_name) }}</h3>
               <button class="cjx-btn-icon" @click="showQuickPriceModal = false">✕</button>
             </div>
             <div class="cjx-modal-body">
@@ -232,7 +232,7 @@
                   :class="{ active: selectedGame && selectedGame.id === g.id }"
                   @mousedown="selectGame(g)"
                 >
-                  <span class="cjx-suggest-name">{{ g.name }}</span>
+                  <span class="cjx-suggest-name">{{ g.name_cn || g.nameCn || g.name }}</span>
                   <span class="cjx-suggest-price">官方价 ¥{{ (g.current_price || g.price || 0).toFixed(2) }}</span>
                 </div>
                 <div v-if="searchResultGames.length === 0" class="cjx-autocomplete-empty">没找到相关游戏</div>
@@ -245,7 +245,7 @@
             <div class="cjx-game-selected-info">
               <img :src="getImageUrl(selectedGame.image_url || selectedGame.image)" class="cjx-game-thumb" />
               <div class="cjx-game-selected-detail">
-                <div class="cjx-game-selected-name">{{ selectedGame.name }}</div>
+                <div class="cjx-game-selected-name">{{ selectedGame.name_cn || selectedGame.nameCn || selectedGame.name }}</div>
                 <div class="cjx-game-meta">
                   <span>官方原价 <b class="cjx-original-price">¥{{ Number(selectedGame.original_price || 0).toFixed(2) }}</b></span>
                   <span class="cjx-min-price-row" v-if="currentMinPrice != null">
@@ -369,7 +369,7 @@
             <tr v-for="o in sellerOrders" :key="o.id">
               <td class="mono">{{ o.order_no }}</td>
               <td>{{ o.buyer_id?.substring(0, 8) || '未知' }}...</td>
-              <td>{{ o.game_name }}</td>
+              <td>{{ displayGameName(o.game_name) }}</td>
               <td class="price">¥{{ o.total_price?.toFixed(2) }}</td>
               <td>
                 <span :class="['cjx-badge', o.status === 'completed' ? 'badge-green' : o.status === 'cancelled' ? 'badge-red' : 'badge-gray']">
@@ -422,9 +422,29 @@ const toggleCdkey = (l: any) => { showCdkeyMap.value[l.id] = !showCdkeyMap.value
 const showCdkey = (l: any) => showCdkeyMap.value[l.id]
 const maskCdkey = (k: string) => k ? k.substring(0, 4) + '****' + k.substring(k.length - 4) : ''
 
+/** 英文游戏名 → 中文名映射（用于 CDKey 管理列表的双语搜索） */
+const gameNameCnByEn = computed(() => {
+  const m = new Map<string, string>()
+  for (const g of games.value) {
+    const cn = g.name_cn || g.nameCn
+    if (g.name && cn) m.set(String(g.name).toLowerCase(), String(cn))
+  }
+  return m
+})
+
+/** 列表展示优先用官方汉化名 */
+const displayGameName = (en: string) => gameNameCnByEn.value.get(String(en || '').toLowerCase()) || en
+
 const filteredListings = computed(() => {
   let r = sellerListings.value
-  if (listingSearch.value) r = r.filter(x => x.game_name?.includes(listingSearch.value))
+  const kw = listingSearch.value.trim().toLowerCase()
+  if (kw) {
+    r = r.filter(x => {
+      const en = String(x.game_name || '').toLowerCase()
+      const cn = (gameNameCnByEn.value.get(en) || '').toLowerCase()
+      return en.includes(kw) || cn.includes(kw)
+    })
+  }
   if (listingStatusFilter.value) r = r.filter(x => x.status === listingStatusFilter.value)
   // 排序：在售 → 待激活 → 已售出；同状态按时间新→旧
   const statusRank = (s: string) => {
@@ -658,7 +678,7 @@ const jumpToRelist = async (l: any) => {
     await selectGame(g)
   } else {
     // games 里没找到（比如数据问题），手动填
-    selectedGame.value = { id: l.game_id, name: l.game_name, image_url: l.game_image, original_price: l.original_price, price: l.price }
+    selectedGame.value = { id: l.game_id, name: displayGameName(l.game_name), image_url: l.game_image, original_price: l.original_price, price: l.price }
     newForm.value.game_id = l.game_id
     newForm.value.game_name = l.game_name
     newForm.value.game_image = l.game_image
@@ -710,7 +730,7 @@ const selfActivate = async (l: any) => {
 
 /** 待激活 → 彻底删除（不可恢复）*/
 const deletePending = async (l: any) => {
-  if (!await confirm(`⚠️ 确定永久删除该 CDKey？此操作不可恢复！\n游戏: ${l.game_name}\nCDKey: ${l.cdkey?.substring(0, 8)}...`)) return
+  if (!await confirm(`⚠️ 确定永久删除该 CDKey？此操作不可恢复！\n游戏: ${displayGameName(l.game_name)}\nCDKey: ${l.cdkey?.substring(0, 8)}...`)) return
   try {
     const r = await listingAPI.deleteListing(l.id)
     if (r.error) showToast('删除失败: ' + r.error)
@@ -793,22 +813,36 @@ const showGameDropdown = ref(false)
 const selectedGame = ref<any>(null)
 const selectedListings = ref<any[]>([]) // 选中游戏后，加载 available-grouped 拿最低价
 
-/** 搜索结果（模糊匹配 + 重合度排序，最多 10 条）*/
+/** 游戏名称的多语言候选（英文原名 + 官方汉化名），用于双语搜索 */
+const gameNameCandidates = (g: any): string[] =>
+  [g?.name, g?.name_cn || g?.nameCn].filter(Boolean).map(n => String(n).toLowerCase())
+
+/** 计算某个名称对关键词的匹配分：位置越靠前、匹配越完整分数越低 */
+const nameMatchScore = (name: string, q: string): number => {
+  const idx = name.indexOf(q)
+  if (idx < 0) return Infinity
+  let score = idx * 10 // 位置分
+  if (name === q) score -= 1000 // 完全匹配优先级最高
+  else if (name.startsWith(q)) score -= 500 // 开头匹配
+  else score -= 100
+  return score
+}
+
+/** 搜索结果（英文名或中文名任意命中即可，模糊匹配 + 重合度排序，最多 10 条）*/
 const searchResultGames = computed(() => {
   const q = gameSearchQuery.value.trim().toLowerCase()
   if (!q) return []
   const scored = games.value
-    .filter(g => g.name?.toLowerCase().includes(q))
     .map(g => {
-      const name = g.name.toLowerCase()
-      const idx = name.indexOf(q)
-      // 分数：位置越靠前 + 被包含 → 分数越高；取负数升序
-      let score = idx * 10 // 位置分
-      if (name === q) score -= 1000 // 完全匹配优先级最高
-      else if (name.startsWith(q)) score -= 500 // 开头匹配
-      else if (name.includes(q)) score -= 100
-      return { g, score, len: name.length }
+      let score = Infinity
+      let len = 0
+      for (const name of gameNameCandidates(g)) {
+        const s = nameMatchScore(name, q)
+        if (s < score) { score = s; len = name.length }
+      }
+      return { g, score, len }
     })
+    .filter(x => x.score !== Infinity)
     .sort((a, b) => a.score - b.score || a.len - b.len)
   return scored.slice(0, 10).map(x => x.g)
 })
@@ -816,7 +850,7 @@ const searchResultGames = computed(() => {
 /** 选中一个游戏 —— 填充表单 + 查最低价 */
 const selectGame = async (g: any) => {
   selectedGame.value = g
-  gameSearchQuery.value = g.name
+  gameSearchQuery.value = g.name_cn || g.nameCn || g.name
   newForm.value.game_id = g.id
   newForm.value.game_name = g.name
   newForm.value.game_image = g.image_url || g.image || ''
@@ -847,7 +881,7 @@ const refreshGames = async () => {
 watch(gameSearchQuery, (q) => {
   const kw = (q || '').trim().toLowerCase()
   if (kw.length < 2) return
-  if (!games.value.some(g => (g.name || '').toLowerCase().includes(kw))) refreshGames()
+  if (!games.value.some(g => gameNameCandidates(g).some(n => n.includes(kw)))) refreshGames()
 })
 
 /** 当前最低在售价 */

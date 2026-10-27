@@ -53,7 +53,7 @@
 
             <div class="cjx-form-row">
               <label>昵称</label>
-              <input type="text" v-model="userInfo.nickname" class="cjx-input" placeholder="设置昵称" />
+              <input type="text" v-model="userInfo.nickname" class="cjx-input" placeholder="设置昵称（最多10个字）" maxlength="10" />
             </div>
 
             <div class="cjx-form-row">
@@ -440,6 +440,11 @@ const getImageUrl = (path: string) => {
 const saveBasic = async () => {
   const currentUser = authAPI.getCurrentUser()
   if (!currentUser) return
+
+  if ((userInfo.value.nickname || '').trim().length > 10) {
+    alert('昵称不能超过 10 个字')
+    return
+  }
   
   saving.value = true
   const result = await authAPI.updateUser(currentUser.id, {
