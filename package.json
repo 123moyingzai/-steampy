@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:admin": "vite --port 5174 --open /admin/login",
     "build": "vite build",
     "test:e2e": "node e2e/smoke.mjs",
     "preview": "vite preview"

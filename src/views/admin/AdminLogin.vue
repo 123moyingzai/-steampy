@@ -51,10 +51,6 @@
         <button type="button" class="admin-btn" :disabled="loading" @click="handleLogin">
           {{ loading ? '登录中...' : '管理员登录' }}
         </button>
-
-        <div class="admin-back">
-          <router-link to="/">&larr; 返回前台</router-link>
-        </div>
       </form>
     </div>
   </div>
@@ -241,21 +237,7 @@ const handleLogin = async () => {
   box-sizing: border-box;
 }
 
-.admin-btn:hover { opacity: 0.9; }
-.admin-btn:active { transform: translateY(1px); }
+.admin-btn:hover { opacity: 0.9; }.admin-btn:active { transform: translateY(1px); }
 .admin-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
-.admin-back {
-  text-align: center;
-  margin-top: 16px;
-}
-
-.admin-back a {
-  color: #2ecc71;
-  font-size: 13px;
-  text-decoration: none;
-  transition: opacity 0.2s;
-}
-
-.admin-back a:hover { opacity: 0.8; text-decoration: underline; }
 </style>

@@ -301,7 +301,6 @@
 
     <div class="cjx-footer">
       - Steam游戏交易平台 | 沪ICP备19042195号-1
-      <router-link to="/admin/login" class="cjx-admin-entry">管理员登录入口</router-link>
     </div>
   </div>
 </template>
@@ -1014,18 +1013,6 @@ onMounted(() => {
   margin-top: 40px;
   color: #777;
   font-size: 12px;
-}
-
-.cjx-admin-entry {
-  margin-left: 12px;
-  color: #999;
-  text-decoration: none;
-  cursor: pointer;
-  font-size: 12px;
-}
-.cjx-admin-entry:hover {
-  color: #e94560;
-  text-decoration: underline;
 }
 
 .cjx-password-toggle {
