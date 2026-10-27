@@ -115,6 +115,19 @@ const sortOptions = [
   { value: 'price-desc', label: '价格降序' }
 ]
 
+// 折扣值归一化：数据库存 45.00 → 显示 -45%；已是 -45% 的保持；0/空不显示
+const formatDiscount = (d: any): string => {
+  if (d === null || d === undefined) return ''
+  const s = String(d).trim()
+  if (!s) return ''
+  const n = parseFloat(s.replace(/[^0-9.]/g, ''))
+  return isFinite(n) && n > 0 ? '-' + Math.round(n) + '%' : ''
+}
+const discountNum = (d: any): number => {
+  const n = parseFloat(String(d ?? '').replace(/[^0-9.]/g, ''))
+  return isFinite(n) ? n : 0
+}
+
 // Merged: one row per game, take min price (player < official)
 const allGames = computed(() => {
   const map = new Map<string, any>()
@@ -123,8 +136,8 @@ const allGames = computed(() => {
   for (const g of games.value) {
     const p = Number(g.current_price ?? g.price ?? 0)
     const op = Number(g.original_price ?? 0)
-    // 优先用后端已算好的 discount（更准，DB 里正确存的），前端 fallback 再算
-    let discount = g.discount || ''
+    // 优先用后端已算好的 discount（DB 存的是 45.00 这类数字，统一归一化为 -45%）
+    let discount = formatDiscount(g.discount)
     if (!discount && op > 0 && p > 0) {
       discount = '-' + Math.round((1 - p / op) * 100) + '%'
     }
@@ -217,10 +230,12 @@ const normalGames = computed(() => {
 const displayGames = computed(() => {
   let result = [...normalGames.value]
 
-  // 搜索
+  // 搜索（中英文双语：官方中文名与英文原名都可命中）
   if (searchQuery.value) {
-    const q = searchQuery.value.toLowerCase()
-    result = result.filter(g => g.name.toLowerCase().includes(q))
+    const q = searchQuery.value.trim().toLowerCase()
+    result = result.filter(g => [g.name, g.name_cn || g.nameCn]
+      .filter(Boolean)
+      .some(n => String(n).toLowerCase().includes(q)))
   }
 
   // 排序
@@ -229,11 +244,7 @@ const displayGames = computed(() => {
     case 'price-asc': result.sort((a, b) => a.price - b.price); break
     case 'price-desc': result.sort((a, b) => b.price - a.price); break
     case 'discount':
-      result.sort((a, b) => {
-        const da = parseInt((a.discount || '').replace(/[^0-9]/g, '') || '0')
-        const db = parseInt((b.discount || '').replace(/[^0-9]/g, '') || '0')
-        return db - da   // 折扣绝对值大的在前
-      })
+      result.sort((a, b) => discountNum(b.discount) - discountNum(a.discount))
       break
     case 'newest':
     default: break

@@ -84,8 +84,11 @@ const getRawPrice = (p: any) => {
 const filteredSortedGames = computed(() => {
   let result = [...games.value]
   if (searchQuery.value) {
-    const q = searchQuery.value.toLowerCase()
-    result = result.filter(g => g.name.toLowerCase().includes(q))
+    // 中英文双语搜索：中文名或英文名命中即可
+    const q = searchQuery.value.trim().toLowerCase()
+    result = result.filter(g => [g.name, g.name_cn || g.nameCn]
+      .filter(Boolean)
+      .some(n => String(n).toLowerCase().includes(q)))
   }
   result.sort((a, b) => getRawPrice(a.price) - getRawPrice(b.price))
   return result

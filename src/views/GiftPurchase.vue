@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <Layout>
     <div class="cjx-gift-page">
 
@@ -260,8 +260,11 @@ const allGames = computed(() => {
 // ====== 列表分页 ======
 const filteredAllGames = computed(() => {
   if (!searchQuery.value) return allGames.value
-  const q = searchQuery.value.toLowerCase()
-  return allGames.value.filter(g => g.name.toLowerCase().includes(q))
+  // 中英文双语搜索：中文名或英文名命中即可
+  const q = searchQuery.value.trim().toLowerCase()
+  return allGames.value.filter(g => [g.name, g.name_cn || g.nameCn]
+    .filter(Boolean)
+    .some(n => String(n).toLowerCase().includes(q)))
 })
 const totalGames = computed(() => filteredAllGames.value.length)
 const totalPages = computed(() => Math.max(1, Math.ceil(totalGames.value / pageSize)))
