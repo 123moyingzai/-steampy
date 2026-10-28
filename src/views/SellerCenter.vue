@@ -94,8 +94,8 @@
                 <span :class="['cjx-badge', listingStatusBadgeClass(l.status)]">
                   {{ listingStatusText(l.status) }}
                 </span>
-                <span v-if="l.status === 'pending_activation'" class="cjx-pending-order-hint">
-                  原订单 #{{ l.order_id?.substring(0, 8) || '-' }}
+                <span v-if="l.status === 'pending_activation' && l.order_id" class="cjx-pending-order-hint">
+                  原订单 #{{ l.order_id?.substring(0, 8) }}
                 </span>
               </td>
               <td>{{ formatDate(l.created_at) }}</td>
@@ -108,7 +108,8 @@
                 </template>
                 <!-- 待激活 → 重新上架 / 自己激活 / 删除 -->
                 <template v-else-if="l.status === 'pending_activation'">
-                  <button class="cjx-btn cjx-btn-small cjx-btn-primary" @click="jumpToRelist(l)">重新上架</button>
+                  <button v-if="isGameListable(l.game_id)" class="cjx-btn cjx-btn-small cjx-btn-primary" @click="jumpToRelist(l)">重新上架</button>
+                  <span v-else class="cjx-text-muted" title="该游戏已被管理员删除，无法上架">游戏已下架</span>
                   <button class="cjx-btn cjx-btn-small cjx-btn-generate" @click="selfActivate(l)">自己激活</button>
                   <button class="cjx-btn cjx-btn-small cjx-btn-danger-outline" @click="deletePending(l)">删除</button>
                 </template>
@@ -435,6 +436,9 @@ const gameNameCnByEn = computed(() => {
 /** 列表展示优先用官方汉化名 */
 const displayGameName = (en: string) => gameNameCnByEn.value.get(String(en || '').toLowerCase()) || en
 
+/** 游戏是否仍可上架（管理员删除的游戏不会再出现在 games 列表中） */
+const isGameListable = (gameId: any) => games.value.some(g => String(g.id) === String(gameId))
+
 const filteredListings = computed(() => {
   let r = sellerListings.value
   const kw = listingSearch.value.trim().toLowerCase()
@@ -667,6 +671,10 @@ const softDeleteListing = async (l: any) => {
 /** 待激活 → 重新上架（跳转上架 Tab + 预填表单 + 锁 CDKey + 只能操作一个）*/
 const relistTarget = ref<any>(null) // 非 null 时表示"重新上架模式"
 const jumpToRelist = async (l: any) => {
+  if (!isGameListable(l.game_id)) {
+    showToast('该游戏已被管理员下架，无法重新上架')
+    return
+  }
   if (relistTarget.value) {
     showToast('当前只能同时操作一个重新上架，请先完成上一个');
     return

@@ -93,13 +93,17 @@
         <div class="modal-body">
           <div class="form-row">
             <div class="form-group">
-              <label>游戏名称 *</label>
-              <input type="text" v-model="formData.name" placeholder="请输入游戏名称"
+              <label>游戏英文名 *</label>
+              <input type="text" v-model="formData.name" placeholder="英文原名，如 HITMAN 2"
                      @keyup.enter="autoFillByName" @blur="checkExists">
               <p v-if="nameExists" class="field-hint error">
                 游戏「{{ existingName }}」已存在，不能重复添加
                 <button type="button" class="btn-link" @click="editExistingGame">去编辑该游戏</button>
               </p>
+            </div>
+            <div class="form-group">
+              <label>中文名</label>
+              <input type="text" v-model="formData.name_cn" placeholder="官方汉化名，如 杀手2">
             </div>
             <div class="form-group">
               <label>开发商</label>
@@ -223,13 +227,13 @@ watch(filteredGames, () => { currentPage.value = 1 })
 
 const formData = reactive({
   id: '' as string,
-  name: '', developer: '', price: 0, original_price: 0, discount: 0,
+  name: '', name_cn: '', developer: '', price: 0, original_price: 0, discount: 0,
   is_presale: false, image: '',
   description: '', release_date: ''
 })
 
 const resetForm = () => {
-  Object.assign(formData, { id: '', name: '', developer: '', price: 0, original_price: 0, discount: 0,
+  Object.assign(formData, { id: '', name: '', name_cn: '', developer: '', price: 0, original_price: 0, discount: 0,
     is_presale: false, image: '', description: '', release_date: '' })
   nameExists.value = false
   existingName.value = ''
@@ -299,8 +303,9 @@ const downloadImage = async () => {
 /** AI 自动填写：按游戏名补全开发商 / 封面 / 简介 / 发售日期 */
 const aiFilling = ref(false)
 const autoFillByName = async () => {
-  const name = formData.name.trim()
-  if (!name) { alert('请先填写游戏名称'); return }
+  // 英文名优先；只填了中文名也能识别，AI 会补出英文原名
+  const name = (formData.name || formData.name_cn).trim()
+  if (!name) { alert('请先填写中文名或英文名'); return }
   if (aiFilling.value) return
   // 已存在的游戏不再重复生成内容
   await checkExists()
@@ -314,11 +319,29 @@ const autoFillByName = async () => {
     const d: any = r.data?.data || {}
     // 只补空字段，不覆盖用户已经手填的内容
     let filled = 0
-    const keys = ['developer', 'image', 'description', 'release_date',
+    // 「中文名」框里写的是英文：当作英文名挪到「英文名」，中文名框空出来交给 AI 补
+    if (formData.name_cn.trim() && !/[\u4e00-\u9fa5]/.test(formData.name_cn) && !formData.name.trim()) {
+      formData.name = formData.name_cn.trim()
+      formData.name_cn = ''
+    }
+    // AI 返回英文原名时补齐英文名：没填直接填；英文名字段里填的是中文则把中文挪到「中文名」
+    const nameEn = String(d.name_en || '').trim()
+    if (nameEn && !formData.name.trim()) {
+      formData.name = nameEn
+      filled++
+    } else if (nameEn && /[\u4e00-\u9fa5]/.test(formData.name) && !formData.name_cn) {
+      formData.name_cn = formData.name.trim()
+      formData.name = nameEn
+      filled++
+    }
+    const keys = ['name_cn', 'developer', 'image', 'description', 'release_date',
       'price', 'original_price', 'discount', 'is_presale'] as const
     for (const key of keys) {
       const val: any = d[key]
       if (val === undefined || val === null || val === '') continue
+      // 中文名必须是中文：AI 没找到官方汉化时可能回传英文名，跳过以免出现两个英文名
+      if (key === 'name_cn' && !/[\u4e00-\u9fa5]/.test(String(val))) continue
+      if (key === 'name_cn' && String(val).trim().toLowerCase() === formData.name.trim().toLowerCase()) continue
       // 折扣 0 没有填写意义，其余数字（含免费游戏的 0 元）按实填写
       if (typeof val === 'number' && val === 0 && key !== 'price' && key !== 'original_price') continue
       if (!formData[key]) {
@@ -372,7 +395,7 @@ const openEditModal = (game: any) => {
   editingGame.value = game
   Object.assign(formData, {
     id: String(game.id || ''),
-    name: game.name, developer: game.developer || '',
+    name: game.name, name_cn: game.name_cn || '', developer: game.developer || '',
     price: Number(game.price || 0), original_price: Number(game.original_price || 0),
     discount: Number(game.discount || 0),
     is_presale: !!game.is_presale, image: game.image || '',
@@ -391,13 +414,13 @@ const editExistingGame = () => {
 const closeModal = () => { showModal.value = false; resetForm() }
 
 const handleSave = async () => {
-  if (!formData.name.trim()) { alert('请输入游戏名称'); return }
+  if (!formData.name.trim() && !formData.name_cn.trim()) { alert('请至少填写中文名或英文名'); return }
   if (formData.price < 0) { alert('价格不能为负'); return }
   if (nameExists.value) { alert('游戏「' + existingName.value + '」已存在，不能重复添加'); return }
   saving.value = true
   try {
     const payload: any = {
-      name: formData.name, developer: formData.developer,
+      name: formData.name, name_cn: formData.name_cn || null, developer: formData.developer,
       price: formData.price, original_price: formData.original_price || null,
       discount: formData.discount || 0,
       is_presale: formData.is_presale, image: formData.image,

@@ -1,6 +1,7 @@
 package com.steampy.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.steampy.constant.OrderStatus;
 import com.steampy.dto.Result;
 import com.steampy.entity.*;
@@ -393,10 +394,29 @@ public class AdminController {
      */
     @PostMapping("/games")
     public Result<Game> createGame(@RequestBody Game g) {
-        if (g.getName() == null || g.getName().isBlank()) return Result.error("游戏名不能为空");
-        String name = g.getName().trim();
+        String nameCn = g.getNameCn() == null ? "" : g.getNameCn().trim();
+        String rawName = g.getName() == null ? "" : g.getName().trim();
+        if (rawName.isEmpty() && nameCn.isEmpty()) return Result.error("请至少填写中文名或英文名");
+        // 只填中文名时先用中文名占位，后续可在编辑页补充英文原名
+        String name = rawName.isEmpty() ? nameCn : rawName;
+        g.setNameCn(nameCn.isEmpty() ? null : nameCn);
         if (countByName(name, null) > 0) {
             return Result.error("游戏「" + name + "」已存在，不能重复添加");
+        }
+        // 同名（归一化后）游戏曾被逻辑删除 → 恢复原记录（id 不变），这样卖家的 CDKey 可以重新上架
+        String key = normalizeName(name);
+        Game deleted = gameMapper.selectDeletedGames().stream()
+                .filter(x -> key.equals(normalizeName(x.getName())))
+                .findFirst().orElse(null);
+        if (deleted != null) {
+            gameMapper.restoreById(deleted.getId());
+            g.setId(deleted.getId());
+            g.setName(name);
+            g.setIsDeleted(0);
+            g.setUpdatedAt(LocalDateTime.now());
+            if (g.getCreatedAt() == null) g.setCreatedAt(deleted.getCreatedAt());
+            gameMapper.updateById(g);
+            return Result.success(gameMapper.selectById(deleted.getId()));
         }
         g.setName(name);
         if (g.getId() == null || g.getId().isBlank()) {
@@ -452,11 +472,32 @@ public class AdminController {
      * @return 命中的记录数
      */
     private long countByName(String name, String excludeId) {
+        String key = normalizeName(name);
         QueryWrapper<Game> qw = new QueryWrapper<>();
-        qw.apply("LOWER(TRIM(name)) = {0}", name.toLowerCase());
+        qw.select("id", "name");
         if (excludeId != null && !excludeId.isBlank()) qw.ne("id", excludeId);
-        Long c = gameMapper.selectCount(qw);
-        return c == null ? 0 : c;
+        return gameMapper.selectList(qw).stream()
+                .filter(x -> key.equals(normalizeName(x.getName())))
+                .count();
+    }
+
+    /**
+     * 游戏名归一化，用于判断两个名称是否为同一款游戏。
+     * 规则：去除 ™/®/©/℠，全角转半角，忽略大小写、冒号、多余空格，去掉「标准版」等通用后缀；
+     * 保留 Gold / Deluxe / Ultimate 等版本差异，避免把不同版本误合并。
+     *
+     * @param name 原始游戏名
+     * @return 归一化后的名称，入参为空时返回空串
+     */
+    private static String normalizeName(String name) {
+        if (name == null) return "";
+        String s = name.replace("™", "").replace("®", "").replace("©", "").replace("℠", "");
+        s = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFKC);
+        s = s.toLowerCase(Locale.ROOT);
+        s = s.replaceAll("\\s*[:：]\\s*", " ");
+        s = s.replaceAll("[\\s\\u00A0]+", " ").trim();
+        s = s.replaceAll("[\\s\\-–—:：()（）]*(标准版|普通版|基础版|standard edition)[\\s\\-–—:：()（）]*$", "").trim();
+        return s;
     }
 
     /**
@@ -498,7 +539,16 @@ public class AdminController {
      * @return {@link Result} 通用成功响应
      */
     @DeleteMapping("/games/{id}")
+    @Transactional
     public Result<?> deleteGame(@PathVariable String id) {
+        Game g = gameMapper.selectById(id);
+        if (g == null) return Result.error("游戏不存在");
+        // 该游戏下所有在售 CDKey 自动下架（转为待激活，仍保留在卖家的 CDK 列表中）
+        UpdateWrapper<Listing> uw = new UpdateWrapper<>();
+        uw.eq("game_id", id).eq("status", "available").set("status", "pending_activation")
+                .set("updated_at", LocalDateTime.now());
+        listingMapper.update(null, uw);
+        // 逻辑删除：游戏数据保留在库中，前台商城不再展示
         gameMapper.deleteById(id);
         return Result.success();
     }
@@ -1214,7 +1264,7 @@ public class AdminController {
     @GetMapping("/export/games")
     public ResponseEntity<byte[]> exportGames() {
         String sql = "SELECT id, name, name_cn, developer, release_date, price, stock, is_presale " +
-                "FROM games ORDER BY created_at DESC";
+                "FROM games WHERE is_deleted = 0 ORDER BY created_at DESC";
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
         return csvResponse("games",
                 new String[]{"ID", "名称", "中文名", "开发商", "发行日期", "价格", "库存", "是否预售"},

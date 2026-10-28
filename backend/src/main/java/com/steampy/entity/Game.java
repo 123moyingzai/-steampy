@@ -23,6 +23,9 @@ public class Game {
     private String developer;
     private Boolean isPresale;
     private Integer stock;
+    /** 逻辑删除标记：管理员删除游戏后置 1，数据保留但前台不再展示 */
+    @TableLogic
+    private Integer isDeleted;
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
     @TableField(fill = FieldFill.INSERT_UPDATE)

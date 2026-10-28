@@ -390,7 +390,7 @@ const handleLogout = async () => {
     showMenu.value = false
     adminAuthAPI.logout()
     delete axios.defaults.headers.common['X-Admin-Id']
-    router.replace('/')
+    router.replace('/admin/login')
   }
 }
 

@@ -51,7 +51,23 @@ public class AIController {
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(8))
             .build();
+    /** Steam 接口专用：JDK 信任库缺少其证书链，单独配置信任所有证书的客户端（与 SteamController 一致，开发环境用） */
+    private final HttpClient steamClient = buildSteamClient();
     private final ObjectMapper om = new ObjectMapper();
+
+    private static HttpClient buildSteamClient() {
+        HttpClient.Builder b = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(8));
+        try {
+            javax.net.ssl.SSLContext ctx = javax.net.ssl.SSLContext.getInstance("TLS");
+            ctx.init(null, new javax.net.ssl.TrustManager[]{new javax.net.ssl.X509TrustManager() {
+                public java.security.cert.X509Certificate[] getAcceptedIssuers() { return null; }
+                public void checkClientTrusted(java.security.cert.X509Certificate[] chain, String authType) {}
+                public void checkServerTrusted(java.security.cert.X509Certificate[] chain, String authType) {}
+            }}, new java.security.SecureRandom());
+            b.sslContext(ctx);
+        } catch (Exception ignored) {}
+        return b.build();
+    }
 
     /**
      * 统一入口。body: { userId, messages: [{role, content}] }
@@ -102,6 +118,8 @@ public class AIController {
         Game exist = matched.isEmpty() ? null : matched.get(0);
         if (exist != null) {
             Map<String, Object> r = new LinkedHashMap<>();
+            r.put("name_en", exist.getName());
+            r.put("name_cn", exist.getNameCn());
             r.put("developer", exist.getDeveloper());
             r.put("image", exist.getImage());
             r.put("description", exist.getDescription());
@@ -147,7 +165,8 @@ public class AIController {
                 - is_presale：true/false（是否预售中）
                 - steam_appid：这款游戏在 Steam 平台的 AppID（纯数字，比如 282070），必须返回
                 - image：固定拼为 https://cdn.akamai.steamstatic.com/steam/apps/{steam_appid}/header.jpg
-                - name_en：游戏英文名
+                - name_en：游戏英文原名（用于平台搜索匹配，必须返回）
+                - name_cn：游戏官方中文名（有官方汉化就填，没有留空）
                 只返回 JSON，不要任何解释或 markdown 包裹。
                 """;
         String userPrompt = "请补全这款 Steam 游戏的信息：「" + name + "」";
@@ -197,7 +216,7 @@ public class AIController {
 
         Map<String, Object> result = new LinkedHashMap<>();
         JsonNode data = om.readTree(reply);
-        String[] fields = {"developer", "image", "description", "release_date",
+        String[] fields = {"name_en", "name_cn", "developer", "image", "description", "release_date",
                 "price", "original_price", "discount", "is_presale", "steam_appid"};
         for (String f : fields) {
             JsonNode v = data.get(f);
@@ -205,17 +224,115 @@ public class AIController {
             if (v.isTextual() && v.asText().isBlank()) continue;
             result.put(f, v.isNumber() ? v.numberValue() : v.isBoolean() ? v.asBoolean() : v.asText());
         }
-        // 后处理：有 steam_appid 但没 image → 自己拼 Steam CDN URL
-        Object appid = result.get("steam_appid");
-        Object img = result.get("image");
-        if (img == null || String.valueOf(img).isBlank()) {
-            if (appid != null) {
-                String id = String.valueOf(appid).trim();
-                if (!id.isBlank()) result.put("image",
-                        "https://cdn.akamai.steamstatic.com/steam/apps/" + id + "/header.jpg");
-            }
+        // 后处理：没有官方中文名时不要拿英文名冒充中文名（否则中英文两个框都是英文）
+        String cnVal = String.valueOf(result.getOrDefault("name_cn", "")).trim();
+        if (cnVal.isEmpty() || !cnVal.codePoints().anyMatch(c -> Character.UnicodeScript.of(c) == Character.UnicodeScript.HAN)
+                || simplifyName(cnVal).equals(simplifyName(String.valueOf(result.getOrDefault("name_en", ""))))) {
+            result.remove("name_cn");
+        }
+
+        // 后处理：AppID 只信 Steam 商店搜索的结果。
+        // LLM 编造 AppID 会拿到其他游戏的封面，这里统一用游戏名反查真实 AppID，查不到就不给封面
+        String nameEn = String.valueOf(result.getOrDefault("name_en", "")).trim();
+        String appId = resolveSteamAppId(nameEn.isEmpty() ? name : nameEn,
+                String.valueOf(result.getOrDefault("steam_appid", "")));
+        if (appId != null && !appId.isBlank()) {
+            result.put("steam_appid", appId);
+            result.put("image", "https://cdn.akamai.steamstatic.com/steam/apps/" + appId + "/header.jpg");
+        } else {
+            result.remove("image");
+            result.remove("steam_appid");
+            log.warn("[ai/game-info] Steam 未能确认游戏身份，不返回封面, name={}", name);
         }
         return result;
+    }
+
+    /**
+     * 确定游戏的真实 AppID，避免 LLM 编造 AppID 导致封面串成其他游戏。
+     * 顺序：先用 Steam 详情校验 LLM 给的 AppID 是否对得上游戏名；对不上则用商店搜索精确匹配；
+     * 仍没有则接受唯一的「名称前缀匹配」（如 DEATH STRANDING → DIRECTOR'S CUT）。
+     *
+     * @param name     游戏名称（优先英文原名）
+     * @param llmAppId LLM 返回的 AppID，可为空
+     * @return Steam AppID，无法确认时返回 null
+     */
+    private String resolveSteamAppId(String name, String llmAppId) {
+        if (llmAppId != null && llmAppId.matches("\\d{1,9}")) {
+            String realName = fetchAppName(llmAppId.trim());
+            if (realName != null && !realName.isBlank()
+                    && simplifyName(realName).startsWith(simplifyName(name))) {
+                return llmAppId.trim();
+            }
+        }
+        if (name == null || name.isBlank()) return null;
+        try {
+            JsonNode items = searchSteamItems(name);
+            String key = simplifyName(name);
+            for (JsonNode it : items) {
+                if (key.equals(simplifyName(it.path("name").asText("")))) {
+                    String id = it.path("id").asText("");
+                    if (!id.isBlank()) return id;
+                }
+            }
+            // 没有精确同名时，取「以该名称开头且最短」的结果，兼容 DIRECTOR'S CUT / 豪华版等后缀
+            String best = null;
+            int bestLen = Integer.MAX_VALUE;
+            for (JsonNode it : items) {
+                String n = simplifyName(it.path("name").asText(""));
+                String id = it.path("id").asText("");
+                if (!key.isEmpty() && n.startsWith(key) && n.length() < bestLen && !id.isBlank()) {
+                    best = id;
+                    bestLen = n.length();
+                }
+            }
+            return best;
+        } catch (Exception e) {
+            log.warn("[ai/game-info] Steam AppID 校验失败: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    /** 调 Steam 商店搜索接口，返回 items 节点（失败返回空数组） */
+    private JsonNode searchSteamItems(String name) throws Exception {
+        String url = "https://store.steampowered.com/api/storesearch/?term="
+                + java.net.URLEncoder.encode(name, StandardCharsets.UTF_8) + "&l=english&cc=CN";
+        HttpRequest req = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("User-Agent", "Mozilla/5.0")
+                .timeout(Duration.ofSeconds(8))
+                .GET()
+                .build();
+        HttpResponse<String> resp = steamClient.send(req, HttpResponse.BodyHandlers.ofString());
+        if (resp.statusCode() != 200) return om.createArrayNode();
+        return om.readTree(resp.body()).path("items");
+    }
+
+    /** 查 Steam 详情接口返回游戏的英文名，AppID 无效时返回 null */
+    private String fetchAppName(String appId) {
+        try {
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create("https://store.steampowered.com/api/appdetails?appids="
+                            + appId + "&l=english&cc=US"))
+                    .header("User-Agent", "Mozilla/5.0")
+                    .timeout(Duration.ofSeconds(8))
+                    .GET()
+                    .build();
+            HttpResponse<String> resp = steamClient.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200) return null;
+            JsonNode node = om.readTree(resp.body()).path(appId);
+            if (!node.path("success").asBoolean()) return null;
+            return node.path("data").path("name").asText("");
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** 名称归一化：全角转半角、忽略大小写与标点空格，用于判断搜索结果是否就是这款游戏 */
+    private static String simplifyName(String s) {
+        if (s == null) return "";
+        String t = s.replace("™", "").replace("®", "").replace("©", "").replace("℠", "");
+        t = java.text.Normalizer.normalize(t, java.text.Normalizer.Form.NFKC).toLowerCase(Locale.ROOT);
+        return t.replaceAll("[^a-z0-9\\u4e00-\\u9fa5]", "");
     }
 
     private Map<String, Object> callLLM(String userQuery, List<Map<String, String>> history) {

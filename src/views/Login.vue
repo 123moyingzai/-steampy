@@ -493,8 +493,6 @@ const handleLogin = async () => {
         return
       }
       sessionStorage.removeItem('steampy_admin')
-      const isBanned = (user as any)?.userType === '已封禁'
-      alert(isBanned ? '登录成功，但您的账号已被封禁，购买、出售等功能暂时无法使用！' : '登录成功！')
       window.dispatchEvent(new Event('user-logged-in'))
 
       const redirect = route.query.redirect as string
@@ -550,8 +548,6 @@ const handlePhoneLogin = async () => {
         alert('管理员请使用独立登录入口')
         return
       }
-      const isBanned = (user as any)?.userType === '已封禁'
-      alert(isBanned ? '登录成功，但您的账号已被封禁，购买、出售等功能暂时无法使用！' : '登录成功！')
       window.dispatchEvent(new Event('user-logged-in'))
       router.replace('/')
     } else {
@@ -639,8 +635,6 @@ const handlePhoneCodeLogin = async () => {
         errors.phoneCode = '管理员请使用独立登录入口'
         return
       }
-      const isBanned = (user as any)?.userType === '已封禁'
-      alert(isBanned ? '登录成功，但您的账号已被封禁，购买、出售等功能暂时无法使用！' : '登录成功！')
       window.dispatchEvent(new Event('user-logged-in'))
       router.replace('/')
     } else {

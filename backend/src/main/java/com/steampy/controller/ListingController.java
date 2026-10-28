@@ -180,7 +180,10 @@ public class ListingController {
      * @return true 表示 gameId 可用；false 表示游戏名查不到
      */
     private boolean fillGameId(Listing l) {
-        if (l.getGameId() != null && !l.getGameId().isBlank()) return true;
+        // 管理员已删除（逻辑删除）的游戏不允许再上架
+        if (l.getGameId() != null && !l.getGameId().isBlank()) {
+            return gameMapper.selectById(l.getGameId()) != null;
+        }
         if (l.getGameName() == null || l.getGameName().isBlank()) return false;
         QueryWrapper<Game> qw = new QueryWrapper<>();
         qw.eq("name", l.getGameName().trim()).last("LIMIT 1");
@@ -617,6 +620,9 @@ public class ListingController {
         Listing l = listingMapper.selectById(id);
         if (l == null) return Result.error("不存在");
         if (!"pending_activation".equals(l.getStatus())) return Result.error("只有待激活的可以重新上架");
+        if (gameMapper.selectById(l.getGameId()) == null) {
+            return Result.error("该游戏已被管理员下架，无法重新上架");
+        }
         // 清除 sold_at，重新变成 available
         l.setStatus("available");
         l.setSoldAt(null);
@@ -670,6 +676,8 @@ public class ListingController {
         for (String id : ids) {
             Listing l = listingMapper.selectById(id);
             if (l == null || !"pending_activation".equals(l.getStatus())) { skip++; continue; }
+            // 游戏已被管理员删除的不允许重新上架，跳过
+            if (gameMapper.selectById(l.getGameId()) == null) { skip++; continue; }
             l.setStatus("available");
             l.setSoldAt(null);
             l.setUpdatedAt(LocalDateTime.now());

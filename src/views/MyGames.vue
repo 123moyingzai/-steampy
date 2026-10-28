@@ -213,7 +213,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { authAPI, userGameAPI, orderAPI, fetchAllGames } from '../config/supabase-local.ts'
+import { authAPI, userGameAPI, orderAPI } from '../config/supabase-local.ts'
 import Layout from '../components/Layout.vue'
 
 const router = useRouter()
@@ -225,23 +225,6 @@ const statusFilter = ref('')
 const activatingGame = ref(null)
 const showGuide = ref(false)
 const toastMessage = ref('')
-// 英文原名 → 官方中文名映射，用于双语搜索
-const nameCnMap = ref<Record<string, string>>({})
-
-// 加载中英文名映射（游戏库只存英文名，搜索需要中文名）
-const loadNameCnMap = async () => {
-  try {
-    const gs = await fetchAllGames() as any[]
-    const map: Record<string, string> = {}
-    for (const g of gs) {
-      const cn = g.name_cn || g.nameCn
-      if (g.name && cn) map[g.name] = cn
-    }
-    nameCnMap.value = map
-  } catch (e) {
-    console.warn('加载游戏中文名映射失败', e)
-  }
-}
 
 // 统计
 const stats = computed(() => {
@@ -258,11 +241,7 @@ const filteredGames = computed(() => {
   let result = games.value
   
   if (searchQuery.value) {
-    // 中英文双语搜索：英文原名或对应官方中文名命中即可
-    const q = searchQuery.value.trim().toLowerCase()
-    result = result.filter(g => [g.name, nameCnMap.value[g.name]]
-      .filter(Boolean)
-      .some(n => String(n).toLowerCase().includes(q)))
+    result = result.filter(g => g.name.toLowerCase().includes(searchQuery.value.toLowerCase()))
   }
   
   if (statusFilter.value) {
@@ -431,7 +410,6 @@ onMounted(() => {
     return
   }
   loadData()
-  loadNameCnMap()
 })
 </script>
 
