@@ -1,9 +1,11 @@
 # SteamPY · 719 专属项目指南
 
 > **你的域**：Steam & 社区域
-> **业务定位**：用户身份 + Steam 生态 + 社区互动 + AI
+> **业务定位**：Steam 生态 + 游戏管理 + 社区互动 + AI
 > **分支**：`feature/steam-community`
 > **另一半**：718（交易 & 后台域），见 [718_GUIDE.md](./718_GUIDE.md)
+>
+> **任务交换约定**：管理员端游戏新增/编辑（`AdminGames.vue` + AdminController 游戏段 + `/api/ai/game-info`）归 **你（719）**；作为交换，**登录注册**（`Login.vue`、`AdminLogin.vue`、AuthController 登录注册相关接口）归 **718**，你不再涉及。
 
 ---
 
@@ -11,10 +13,10 @@
 
 | 指标 | 数量 |
 |---|---|
-| 后端 Controller | 10 |
+| 后端 Controller | 9（+ AdminController 中的游戏管理段，见第九节） |
 | 后端基础设施 | 2（SteamService + BanCheckFilter） |
 | 后端 Entity / Mapper | 各 11 |
-| 前端页面 | 14（用户端 10 + 管理员端 4） |
+| 前端页面 | 14（用户端 9 + 管理员端 5，不含登录注册页） |
 | 数据库表 | 11 张 |
 | TODO 预估工时 | ~8h |
 
@@ -86,7 +88,7 @@
 ## 四、你的业务全貌
 
 ```
-注册登录 → Steam 绑定/解绑 → 游戏库 → 收藏
+登录（由 718 提供）→ Steam 绑定/解绑 → 游戏库 → 收藏
                                     ↓
                             发布评价/子评论 → 举报
                                     ↓
@@ -95,13 +97,12 @@
 
 ---
 
-## 五、你负责的后端文件（10 个 Controller + 2 基础设施）
+## 五、你负责的后端文件（9 个 Controller + 2 基础设施）
 
 ### Controller
 
 | 文件 | 职责 |
 |---|---|
-| **AuthController.java** | 注册/登录/用户信息/修改密码/头像上传 |
 | **SteamController.java** | Steam 账号绑定/解绑/信息查询/游戏库 |
 | **UserGameController.java** | 用户游戏库列表/详情 |
 | **ReviewController.java** | 评测 CRUD + 子评论 CRUD |
@@ -110,7 +111,7 @@
 | **FavoriteController.java** | 收藏游戏 |
 | **NotificationController.java** | 站内消息 |
 | **UploadController.java** | 头像/图片上传 |
-| **AIController.java** | AI 助手（RAG + LLM + 游戏卡片匹配） |
+| **AIController.java** | AI 助手（RAG + LLM + 游戏卡片匹配）+ `/api/ai/game-info` 游戏信息抓取（管理员新增游戏用） |
 
 ### 你维护的基础设施
 
@@ -127,11 +128,12 @@ User · UserSteamBinding · SteamAccount · SteamLibrary · UserGame · Review �
 
 ## 六、你负责的前端页面（14 个）
 
-### 用户端（10 个）
+### 用户端（9 个）
+
+> 登录/注册页（Login.vue）与管理员登录页（AdminLogin.vue）已移交 718，你不再涉及登录注册页面与接口。
 
 | 页面 | 路由 | 你负责 |
 |---|---|---|
-| ✅ **Login.vue** | `/login` | 注册/登录/手机号/验证码/封禁提示 |
 | ✅ **AccountSettings.vue** | `/settings` | 基本资料 + 头像 + **Steam 绑定/解绑 Tab** |
 | ✅ **MyGames.vue** | `/mygames` | Steam 游戏库 + 平台购买游戏 |
 | ✅ **ReviewPublish.vue** | `/review/:gameId` | 发布评测 + 评分 + 子评论 |
@@ -142,10 +144,13 @@ User · UserSteamBinding · SteamAccount · SteamLibrary · UserGame · Review �
 | ✅ **GameCard.vue** | 公共组件 | 游戏卡片（AI 弹窗里用） |
 | ✅ **EmptyState.vue** | 公共组件 | 空态引导 |
 
-### 管理员端（4 个）
+### 管理员端（5 个）
+
+> `AdminGames.vue` 是本次交换所得：管理员端游戏新增/编辑/删除、中英文名、AI 补全、封面校验均由你维护。
 
 | 页面 | 路由 | 你负责 |
 |---|---|---|
+| ✅ **AdminGames.vue** | `/admin/games` | 游戏新增/编辑/删除（中英文名、AI 补全、封面校验、逻辑删除与 CDK 联动） |
 | ✅ **AdminReviews.vue** | `/admin/reviews` | 评测审核（被举报列表/处理） |
 | ✅ **AdminAnnouncements.vue** | `/admin/announcements` | 公告 CRUD + 置顶 |
 | ✅ **AdminUsers.vue** | `/admin/users` | 用户列表 + **封禁/解封** |
@@ -166,6 +171,7 @@ reviews | review_replies | reports | announcements | favorites | user_notificati
 
 | 优先级 | 任务 | 难度 | 预估 |
 |---|---|---|---|
+| ✅ 完成 | 管理员端游戏新增/编辑（AdminGames.vue）：中英文名二选一、AI 补全、封面校验、逻辑删除与 CDK 联动 | 中 | 2h |
 | 🔴 高 | AI 助手上下文记忆（多轮对话记住之前提的游戏） | 中 | 2h |
 | 🔴 高 | AdminUsers 封禁按钮 → 联动 BanCheckFilter 生效验证 | 低 | 30min |
 | 🟡 中 | ReportController 补全举报详情查询接口 | 低 | 30min |
@@ -182,8 +188,10 @@ reviews | review_replies | reports | announcements | favorites | user_notificati
 |---|---|---|
 | **Home.vue** | 你管**公告轮播**，718 管**游戏轮播** | 改游戏列表前先问 718 |
 | **GameDetail.vue 评论区** | 你管**评论**，718 管**CDKey 列表 + 购买** | 改购买按钮别碰 |
-| **name_cn 汉化字段** | 718 在 AdminGames 里维护 | 你只管用 `name_cn \|\| name` 显示 |
-| **封禁联动** | 你在 AuthController 标记 | BanCheckFilter 自动拦 718 的订单/钱包接口，718 不用改代码 |
+| **name_cn 汉化字段** | **你维护**（AdminGames.vue） | 718 只在页面用 `name_cn \|\| name` 显示，不再改这里 |
+| **游戏管理接口** | **你维护**（AdminGames.vue + AdminController 中的游戏段 + AIController 的 game-info） | 718 改 AdminController 其他段时不得动游戏段，避免冲突 |
+| **登录注册** | **718 维护**（Login.vue / AdminLogin.vue / AuthController 登录注册），与游戏新增交换 | 你不再涉及登录注册页面与接口；改登录态存储 key 前先和 718 对齐 |
+| **封禁联动** | 你维护 AdminUsers.vue + BanCheckFilter；718 维护 AuthController 里的封禁标记接口 | 共用 `users.banned` 字段，改封禁判断前先和 718 对齐 |
 | **订单超时关闭** | 718 维护 | 你改退款/通知涉及订单状态时留意别和 OrderTimeoutScheduler 打架 |
 | **支付渠道** | 718 维护 | 充值/提现手续费都走 PaymentMethodController，你不用管 |
 | **Supabase Storage key** | 公共 | .env 里 SUPABASE_URL / SUPABASE_ANON_KEY 别 commit 到 git |
@@ -194,13 +202,15 @@ reviews | review_replies | reports | announcements | favorites | user_notificati
 |---|---|
 | `GET /api/notifications` | 你（MessageCenter.vue） |
 | `POST /api/reviews` | 你（ReviewPublish.vue） |
-| `POST /api/auth/login` | 双方（登录页） |
+| `POST /api/admin/games` | 你（AdminGames.vue） |
+| `GET /api/ai/game-info` | 你（AdminGames.vue 自动补全） |
 
 ### 718 写的接口 vs 你调用
 
 | 718 写的接口 | 你调的场景 |
 |---|---|
 | `GET /api/games` | Home.vue 游戏列表 / GameDetail 详情 |
+| `POST /api/auth/login` | 你不调（登录页已归 718） |
 | `GET /api/admin/payment-methods` | 你不调，不用管 |
 
 ---

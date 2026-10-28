@@ -1,9 +1,11 @@
 # SteamPY · 718 专属项目指南
 
 > **你的域**：交易 & 后台域
-> **业务定位**：订单交易 + 钱包资金 + 卖家中心 + 管理后台
+> **业务定位**：订单交易 + 钱包资金 + 卖家中心 + 管理后台 + **登录注册**
 > **分支**：`feature/trade-admin`
 > **另一半**：719（Steam & 社区域），见 [719_GUIDE.md](./719_GUIDE.md)
+>
+> **任务交换约定**：管理员端游戏新增/编辑（AdminGames.vue + AdminController 游戏段 + `/api/ai/game-info`）归 **719**；作为交换，**登录注册**（Login.vue、AdminLogin.vue、AuthController 登录注册相关接口）归 **你（718）**。
 
 ---
 
@@ -11,11 +13,11 @@
 
 | 指标 | 数量 |
 |---|---|
-| 后端 Controller | 9 |
+| 后端 Controller | 10 |
 | 后端基础设施 | 5（CorsConfig / WebConfig / PasswordMigrationRunner / OrderTimeoutScheduler / OrderStatus） |
-| 后端 Entity / Mapper | 各 9 |
-| 前端页面 | 14（用户端 8 + 管理员端 6） |
-| 数据库表 | 9 张 |
+| 后端 Entity / Mapper | 各 9（+ 共用 User / UserMapper） |
+| 前端页面 | 17（用户端 12 + 管理员端 5，含登录/注册） |
+| 数据库表 | 10 张（含 users） |
 | TODO 预估工时 | ~9h |
 
 ---
@@ -68,7 +70,7 @@
 | **订单超时自动关闭** | OrderTimeoutScheduler | @Scheduled cron 每分钟扫 PENDING > 30min → 批量 CANCELLED + 回滚 listings 库存 |
 | **资金冻结/解冻** | user_wallets.frozen_balance | 下单 balance 减 + frozen_balance 加 → 完成时 frozen 转 balance |
 | **CDKey 乐观锁** | ListingController.activate | `WHERE id=? AND status=ON_SALE` + affected rows=1 校验，防止超卖 |
-| **AdminController 大一统** | 后台全部操作 | 一个 Controller 盖用户/游戏/订单/提现/退款/评测/公告/支付渠道 |
+| **AdminController 大一统** | 后台全部操作 | 一个 Controller 盖用户/订单/提现/退款/评测/公告/支付渠道（**游戏段归 719**） |
 | **前端行内编辑** | AdminPaymentMethods.vue | Vant Field + 原生 input，每行独立保存 |
 
 ### 你的核心功能实现链路
@@ -78,10 +80,10 @@
 | **CDKey 购买** | GameDetail.vue 选 CDKey → OrderController.create → 扣 listings.stock → 建 PENDING 订单 → 混合支付 → listings.status=SOLD → 返回 CDKey |
 | **代购游戏** | GiftPurchase.vue 填 Steam 好友 → OrderController.create(gift=true) → 不走 CDKey → DELIVERED 后手动完成 |
 | **提现** | Wallet.vue 填金额 + 选渠道 → WalletController.withdraw → ① 余额够（clamp 手续费）② 生成 withdraw_no（WD + 时间戳 + 随机）③ 冻结余额 → AdminWithdrawals.vue 审核 → approved 后扣冻结 |
-| **退款** | BuyerCenter.vue 申请 → RefundController.create → AdminRefunds.vue 审核 → approved 后 orders.status=REFUNDED + 原路退回 balance |
+| **退款** | BuyerCenter.vue 申请 → RefundController.create（管理员端退款审核入口已下线） |
 | **卖家上架** | SellerCenter.vue 批量粘贴 → ListingController.batchCreate → INSERT listings 关联 game_id |
 | **支付渠道** | AdminPaymentMethods.vue 行内编辑 → AdminController.updatePaymentMethod → 更新 payment_methods 表 |
-| **游戏管理** | AdminGames.vue CRUD → games 表（id / name / **name_cn** / price / original_price / cover / description / category / stock） |
+| **登录注册（交换所得）** | Login.vue / AdminLogin.vue → AuthController.login/register → BCrypt 校验 → 生成 token → 前后台登录状态隔离 |
 | **管理员仪表盘** | AdminDashboard.vue → AdminController.dashboardStats → 聚合 COUNT/SUM + 近 7 天订单趋势 |
 
 ---
@@ -101,12 +103,13 @@
 
 ---
 
-## 五、你负责的后端文件（9 个 Controller + 5 基础设施）
+## 五、你负责的后端文件（10 个 Controller + 5 基础设施）
 
 ### Controller
 
 | 文件 | 职责 |
 |---|---|
+| **AuthController.java** | 注册/登录/用户信息/修改密码/头像上传、封禁标记（**登录注册由你负责**） |
 | **GameController.java** | 游戏列表/详情/搜索（用户 + 管理员共用） |
 | **OrderController.java** | 下单/混合支付/状态机/超时自动关闭 |
 | **ListingController.java** | CDKey 上架/下架/激活/批量操作/卖家订单 |
@@ -115,7 +118,7 @@
 | **RefundController.java** | 退款申请 |
 | **PaymentMethodController.java** | 支付渠道配置（用户端读取） |
 | **BankCardController.java** | 绑卡/解绑 |
-| **AdminController.java** | 后台全量管理接口（除评测/公告/封禁外的全部） |
+| **AdminController.java** | 后台全量管理接口（除评测/公告/封禁外的全部；其中游戏管理段由 719 维护） |
 
 ### 你维护的基础设施
 
@@ -133,12 +136,13 @@ Game · Order · Listing · Wallet · WithdrawRecord · Transaction · Refund ·
 
 ---
 
-## 六、你负责的前端页面（14 个）
+## 六、你负责的前端页面（17 个）
 
-### 用户端（8 个）
+### 用户端（12 个）
 
 | 页面 | 路由 | 你负责 |
 |---|---|---|
+| ✅ **Login.vue** | `/login` | 登录 / 注册（与 719 交换所得，719 不再涉及） |
 | ✅ **Home.vue** | `/` | 游戏推荐轮播（⚠️ 公告轮播是 719 负责的） |
 | ✅ **GameDetail.vue** | `/game/:id` | 游戏详情 + CDKey 列表 + 购买弹窗 |
 | ✅ **CDKeyMarket.vue** | `/cdkey` | CDKey 市场搜索筛选 |
@@ -151,14 +155,15 @@ Game · Order · Listing · Wallet · WithdrawRecord · Transaction · Refund ·
 | ✅ **BalancePurchaseDetail.vue** | `/balance/:id` | 充值详情 |
 | ✅ **Recharge.vue** | `/recharge` | 充值渠道 |
 
-### 管理员端（6 个）
+### 管理员端（5 个）
+
+> 游戏管理页 `AdminGames.vue` 已分配给 719，你不再涉及。
 
 | 页面 | 路由 | 你负责 |
 |---|---|---|
-| ✅ **AdminGames.vue** | `/admin/games` | 游戏 CRUD |
+| ✅ **AdminLogin.vue** | `/admin/login` | 管理员登录（与用户端登录状态完全隔离） |
 | ✅ **AdminOrders.vue** | `/admin/orders` | 订单列表 + 详情 |
 | ✅ **AdminWithdrawals.vue** | `/admin/withdrawals` | 提现审核 |
-| ✅ **AdminRefunds.vue** | `/admin/refunds` | 退款审核 |
 | ✅ **AdminPaymentMethods.vue** | `/admin/payment-methods` | 支付渠道配置 |
 | ✅ **AdminLayout.vue** | `/admin/*` | 后台布局骨架（侧边栏菜单） |
 
@@ -177,6 +182,7 @@ transactions | refunds | payment_methods | bank_cards
 
 | 优先级 | 任务 | 难度 | 预估 |
 |---|---|---|---|
+| 🔴 高 | 登录注册维护（Login.vue / AdminLogin.vue / AuthController，交换所得）：前后台登录态隔离、封禁提示、记住密码 | 低 | 1h |
 | 🔴 高 | AdminPaymentMethods：**新增渠道**按钮 + 弹窗 + 后端 POST | 低 | 1h |
 | 🔴 高 | AdminPaymentMethods：**删除渠道** + method_code 唯一校验 + 被占用不能删 | 中 | 1.5h |
 | 🔴 高 | AdminPaymentMethods：充值渠道手续费接入 RechargeController | 中 | 1.5h |
@@ -195,8 +201,10 @@ transactions | refunds | payment_methods | bank_cards
 |---|---|---|
 | **Home.vue** | 你管**游戏轮播**，719 管**公告轮播** | 改公告区前先问 719 |
 | **GameDetail.vue** | 你管**CDKey 列表 + 购买**，719 管**评论区** | 改评论区别碰 |
-| **name_cn 汉化字段** | **你维护**（AdminGames.vue） | 两边页面都用 `name_cn \|\| name` 显示 |
-| **封禁联动** | 719 在 AuthController 标记 | BanCheckFilter 自动拦你的订单/钱包接口，你不用改代码，**被拦了不是你代码问题** |
+| **name_cn 汉化字段** | **719 维护**（AdminGames.vue） | 你只在页面用 `name_cn \|\| name` 显示，不要改这里 |
+| **游戏管理** | **719 维护**（AdminGames.vue + AdminController 游戏段 + `/api/ai/game-info`） | 你改 AdminController 其他段时不得动游戏段，也不要改 AdminGames.vue |
+| **登录注册** | **你维护**（Login.vue / AdminLogin.vue / AuthController 登录注册） | 719 不再涉及登录注册页面与接口；改登录态存储 key 前告知 719 |
+| **封禁联动** | 719 维护 AdminUsers.vue + BanCheckFilter；你维护 AuthController 的封禁标记接口 | 共用 `users.banned` 字段，改封禁逻辑前先和 719 对齐 |
 | **订单超时关闭** | 你维护 OrderTimeoutScheduler | 719 改退款/通知时会留意，你别随意改 cron 表达式 |
 | **支付渠道** | 你维护 | 充值/提现都走 PaymentMethodController，改费率公式前想清楚两边都受影响 |
 | **Supabase Storage key** | 公共 | .env 里 SUPABASE_URL / SUPABASE_ANON_KEY 别 commit 到 git |
