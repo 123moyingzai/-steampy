@@ -14,6 +14,7 @@
           <tr>
             <th>ID</th>
             <th>标题</th>
+            <th>内容</th>
             <th>发布日期</th>
             <th>置顶</th>
             <th>状态</th>
@@ -26,6 +27,9 @@
             <td class="title-cell">
               <span v-if="ann.is_top" class="top-tag">置顶</span>
               {{ ann.title }}
+            </td>
+            <td class="content-cell">
+              <div class="content-text" :title="ann.content">{{ ann.content || '（无内容）' }}</div>
             </td>
             <td class="time">{{ formatDate(ann.publish_date) }}</td>
             <td>
@@ -63,11 +67,11 @@
         <div class="modal-body">
           <div class="form-group">
             <label>公告标题 *</label>
-            <input type="text" v-model="formData.title" placeholder="请输入公告标题">
+            <input type="text" v-model="formData.title" maxlength="100" placeholder="请输入公告标题（最多 100 字）">
           </div>
           <div class="form-group">
             <label>公告内容</label>
-            <textarea v-model="formData.content" rows="5" placeholder="公告详细内容..."></textarea>
+            <textarea v-model="formData.content" rows="5" maxlength="1000" placeholder="公告详细内容（最多 1000 字）"></textarea>
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -156,6 +160,14 @@ const closeModal = () => {
 const handleSave = async () => {
   if (!formData.title.trim()) {
     alert('请输入公告标题')
+    return
+  }
+  if (formData.title.length > 100) {
+    alert('公告标题不能超过 100 个字')
+    return
+  }
+  if (formData.content.length > 1000) {
+    alert('公告内容不能超过 1000 个字')
     return
   }
 
@@ -329,6 +341,17 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   max-width: 300px;
+}
+
+.content-cell {
+  color: #666;
+}
+
+.content-text {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .top-tag {

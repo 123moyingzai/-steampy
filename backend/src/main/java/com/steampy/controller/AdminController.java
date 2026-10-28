@@ -1066,6 +1066,8 @@ public class AdminController {
      */
     @PostMapping("/announcements")
     public Result<Announcement> createAnnouncement(@RequestBody Announcement a) {
+        String err = validateAnnouncement(a);
+        if (err != null) return Result.error(err);
         a.setCreatedAt(LocalDateTime.now());
         announcementMapper.insert(a);
         return Result.success(a);
@@ -1080,9 +1082,26 @@ public class AdminController {
      */
     @PutMapping("/announcements/{id}")
     public Result<Announcement> updateAnnouncement(@PathVariable String id, @RequestBody Announcement body) {
+        String err = validateAnnouncement(body);
+        if (err != null) return Result.error(err);
         body.setId(id);
         announcementMapper.updateById(body);
         return Result.success(body);
+    }
+
+    /**
+     * 校验公告字段长度，避免超出数据库列长度导致 500。
+     *
+     * @param a 公告请求体
+     * @return 错误提示，校验通过返回 null
+     */
+    private String validateAnnouncement(Announcement a) {
+        if (a.getTitle() == null || a.getTitle().isBlank()) return "公告标题不能为空";
+        if (a.getTitle().length() > 100) return "公告标题不能超过 100 个字";
+        if (a.getContent() != null && a.getContent().length() > 1000) {
+            return "公告内容不能超过 1000 个字";
+        }
+        return null;
     }
 
     /**

@@ -142,7 +142,7 @@
               </div>
               <div class="cjx-popover-body">
                 <div v-if="annList.length === 0" class="cjx-popover-empty">暂无公告</div>
-                <div v-for="a in annList" :key="a.id" class="cjx-popover-item">
+                <div v-for="a in annList" :key="a.id" class="cjx-popover-item cjx-popover-item-clickable" @click="openAnnDetail(a)">
                   <div class="cjx-popover-title">
                     <span class="cjx-popover-actor">📢 {{ a.title }}</span>
                     <span v-if="a.is_top" class="cjx-popover-top">置顶</span>
@@ -150,6 +150,10 @@
                   <div class="cjx-popover-content">{{ a.content }}</div>
                   <div class="cjx-popover-time">{{ a.publish_date || a.publishDate }}</div>
                 </div>
+              </div>
+              <div class="cjx-popover-footer" @click="goAnnouncements">
+                <span>查看全部公告</span>
+                <span class="cjx-popover-footer-arrow">→</span>
               </div>
             </div>
           </div>
@@ -187,6 +191,21 @@
         <p>用户协议 | 隐私政策</p>
       </footer>
     </main>
+
+    <!-- 公告详情弹窗 -->
+    <div v-if="detailAnn" class="cjx-ann-modal-mask" @click.self="detailAnn = null">
+      <div class="cjx-ann-modal">
+        <div class="cjx-ann-modal-head">
+          <h3>{{ detailAnn.title }}</h3>
+          <button class="cjx-ann-modal-close" @click="detailAnn = null">✕</button>
+        </div>
+        <div class="cjx-ann-modal-meta">
+          <span v-if="detailAnn.is_top" class="cjx-popover-top">置顶</span>
+          <span>{{ detailAnn.publish_date || detailAnn.publishDate }}</span>
+        </div>
+        <div class="cjx-ann-modal-content">{{ detailAnn.content || '暂无内容' }}</div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -328,6 +347,19 @@ const openNotification = async (n: any) => {
 const goMessages = () => {
   showMsgPanel.value = false
   router.push('/messages')
+}
+
+// 查看全部公告 → 消息中心「官方公告」标签页
+const goAnnouncements = () => {
+  showAnnPanel.value = false
+  router.push({ path: '/messages', query: { tab: 'ann' } })
+}
+
+// 点击公告 → 打开详情弹窗
+const detailAnn = ref<any>(null)
+const openAnnDetail = (a: any) => {
+  detailAnn.value = a
+  showAnnPanel.value = false
 }
 
 const formatTime = (t: string) => {
@@ -1041,5 +1073,83 @@ onUnmounted(() => {
     padding: 4px 8px;
     font-size: 0.75rem;
   }
+}
+
+/* 公告详情弹窗 */
+.cjx-popover-item-clickable {
+  cursor: pointer;
+}
+
+.cjx-ann-modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+}
+
+.cjx-ann-modal {
+  background: #fff;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.cjx-ann-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.cjx-ann-modal-head h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: #2c3e50;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.cjx-ann-modal-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #999;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.cjx-ann-modal-close:hover {
+  color: #333;
+}
+
+.cjx-ann-modal-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px 0;
+  font-size: 12px;
+  color: #999;
+}
+
+.cjx-ann-modal-content {
+  padding: 12px 20px 20px;
+  font-size: 14px;
+  color: #444;
+  line-height: 1.8;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>

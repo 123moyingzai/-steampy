@@ -67,7 +67,7 @@
     <!-- 公告列表 -->
     <div v-else class="cjx-msg-list">
       <div v-if="annList.length === 0" class="cjx-empty">暂无公告</div>
-      <div v-for="a in annList" :key="a.id" class="cjx-msg-item ann-item">
+      <div v-for="a in annList" :key="a.id" class="cjx-msg-item ann-item ann-item-clickable" @click="openAnnDetail(a)">
         <div class="cjx-msg-body">
           <div class="cjx-msg-title">
             <span class="cjx-msg-actor">📢 {{ a.title }}</span>
@@ -78,15 +78,31 @@
         </div>
       </div>
     </div>
+
+    <!-- 公告详情弹窗 -->
+    <div v-if="detailAnn" class="cjx-ann-modal-mask" @click.self="detailAnn = null">
+      <div class="cjx-ann-modal">
+        <div class="cjx-ann-modal-head">
+          <h3>{{ detailAnn.title }}</h3>
+          <button class="cjx-ann-modal-close" @click="detailAnn = null">✕</button>
+        </div>
+        <div class="cjx-ann-modal-meta">
+          <span v-if="detailAnn.is_top" class="cjx-popover-top">置顶</span>
+          <span>{{ detailAnn.publish_date || detailAnn.publishDate }}</span>
+        </div>
+        <div class="cjx-ann-modal-content">{{ detailAnn.content || '暂无内容' }}</div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { authAPI, notificationAPI, announcementAPI } from '../config/supabase-local.ts'
 
 const router = useRouter()
+const route = useRoute()
 const tab = ref<'msg' | 'ann'>('msg')
 const msgList = ref<any[]>([])
 const annList = ref<any[]>([])
@@ -136,6 +152,8 @@ const loadData = async () => {
     router.push('/login')
     return
   }
+  // 从铃铛公告面板「查看全部公告」跳转过来时，直接打开「官方公告」标签页
+  if (route.query.tab === 'ann') tab.value = 'ann'
   const [mCount, r] = await Promise.all([
     notificationAPI.unreadCount(currentUser.value.id),
     announcementAPI.getAnnouncements(50)
@@ -185,6 +203,12 @@ const openNotification = async (n: any) => {
     msgUnread.value = Math.max(0, msgUnread.value - 1)
   }
   if (n.gameId) router.push({ path: '/game/' + n.gameId, query: { highlight: n.targetId, hlType: n.targetType } })
+}
+
+// 点击公告 → 查看详情
+const detailAnn = ref<any>(null)
+const openAnnDetail = (a: any) => {
+  detailAnn.value = a
 }
 
 onMounted(loadData)
@@ -457,5 +481,83 @@ onMounted(loadData)
   font-size: 10px;
   padding: 1px 6px;
   border-radius: 3px;
+}
+
+.ann-item-clickable {
+  cursor: pointer;
+}
+
+/* 公告详情弹窗 */
+.cjx-ann-modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+}
+
+.cjx-ann-modal {
+  background: #fff;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.cjx-ann-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.cjx-ann-modal-head h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: #2c3e50;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.cjx-ann-modal-close {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: #999;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.cjx-ann-modal-close:hover {
+  color: #333;
+}
+
+.cjx-ann-modal-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px 0;
+  font-size: 12px;
+  color: #999;
+}
+
+.cjx-ann-modal-content {
+  padding: 12px 20px 20px;
+  font-size: 14px;
+  color: #444;
+  line-height: 1.8;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>

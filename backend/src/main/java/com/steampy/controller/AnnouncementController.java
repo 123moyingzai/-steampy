@@ -69,6 +69,8 @@ public class AnnouncementController {
     /** 管理员：创建 */
     @PostMapping
     public Result<Announcement> create(@RequestBody Announcement a) {
+        String err = validate(a);
+        if (err != null) return Result.error(err);
         if (a.getPublishDate() == null) a.setPublishDate(LocalDateTime.now().toString());
         if (a.getIsTop() == null) a.setIsTop(false);
         if (a.getIsActive() == null) a.setIsActive(true);
@@ -79,9 +81,27 @@ public class AnnouncementController {
     /** 管理员：更新 */
     @PutMapping("/{id}")
     public Result<Announcement> update(@PathVariable String id, @RequestBody Announcement a) {
+        String err = validate(a);
+        if (err != null) return Result.error(err);
         a.setId(id);
         announcementMapper.updateById(a);
         return Result.success(a);
+    }
+
+    /**
+     * 校验公告字段长度，避免超出数据库列长度导致 500。
+     * title 限制 100 字，content 限制 1000 字。
+     *
+     * @param a 公告请求体
+     * @return 错误提示，校验通过返回 null
+     */
+    private String validate(Announcement a) {
+        if (a.getTitle() == null || a.getTitle().isBlank()) return "公告标题不能为空";
+        if (a.getTitle().length() > 100) return "公告标题不能超过 100 个字";
+        if (a.getContent() != null && a.getContent().length() > 1000) {
+            return "公告内容不能超过 1000 个字";
+        }
+        return null;
     }
 
     /** 管理员：删除 */
