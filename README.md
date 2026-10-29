@@ -2,7 +2,7 @@
 
 基于 **Vue 3 + Vite + Spring Boot 3 + MySQL** 构建的 Steam 游戏交易平台，提供 **CDK国区 / 礼物代购 / 余额购** 三大购买入口，并配套钱包资金、卖家上架、买家订单、管理后台与社区（评测 / 举报 / 公告 / 消息）。
 
-> 部署上线请直接看 [DEPLOY.md](./DEPLOY.md)；团队分工见 [TEAM_ASSIGNMENT.md](./TEAM_ASSIGNMENT.md)。
+> 接口清单见 [API.md](./API.md)；团队分工见 [TEAM_ASSIGNMENT.md](./TEAM_ASSIGNMENT.md)；各业务域指南见 [718_GUIDE.md](./718_GUIDE.md) / [719_GUIDE.md](./719_GUIDE.md)。
 
 ---
 
@@ -30,7 +30,7 @@
 
 ### 3. 卖家与买家中心
 
-- **卖家中心**：批量粘贴上架、CDKey 查重、批量改价、下架 / 重新上架、库存与订单
+- **卖家中心**：批量粘贴上架、CDKey 查重、批量改价、下架 / 重新上架、库存与订单；游戏搜索与展示支持中英文双语，已删除游戏标记为「游戏已下架」且不可上架
 - **买家中心**：订单列表、状态筛选、退款申请、我的游戏库
 
 ### 4. 管理后台（`/admin`，与用户端完全分离）
@@ -39,17 +39,17 @@
 |---|---|
 | 数据概览 | 用户 / 订单 / 游戏 / 总收入 / 今日收入 / 状态分布 / 热销 Top5 |
 | 用户管理 | 搜索 + 角色筛选、封禁 / 解封 / 设管理员、单条与批量删除、CSV 导出 |
-| 游戏管理 | CRUD、中文名（`name_cn`）维护、CSV 导出 |
+| 游戏管理 | CRUD、中英文名双语维护（只填其一亦可）、AI 信息补全与 Steam AppID / 封面校验、归一化判重、删除改为逻辑下架（保留数据并自动下架相关 CDK）、同名重建自动恢复、CSV 导出 |
 | 订单管理 | 筛选、改状态（状态机校验）、批量改状态、CSV 导出 |
 | 提现审核 | 通过 / 拒绝（拒绝退回余额 + 反向流水）、CSV 导出 |
 | 退款审核 | 通过 / 拒绝（事务内订单 + 双端资金） |
 | 评测审核 | 举报数 > 0 的评测优先，保留 / 拒绝 / 删除 |
-| 公告管理 | 公告 CRUD |
+| 公告管理 | 公告 CRUD + 列表内容预览；标题 ≤ 100 字、内容 ≤ 1000 字 |
 | 支付渠道 | 费率 / 最小 / 最大手续费 / 启停 / 排序 |
 
 ### 5. 社区与账号
 
-Steam 绑定与游戏库、评测与回复、点赞、举报、收藏、AI 助手、站内消息、公告、帮助中心。
+Steam 绑定与游戏库、评测与回复、点赞、举报、收藏、AI 助手、站内消息、公告（未读数、点击查看详情、一键跳转全部公告）、帮助中心；昵称长度 ≤ 10 字。
 
 ---
 
@@ -79,8 +79,8 @@ Steam 绑定与游戏库、评测与回复、点赞、举报、收藏、AI 助�
 
 **鉴权模型（重要，不是 JWT）**
 
-- 登录接口校验密码后**直接返回用户对象**，不签发 token；前端存入 `localStorage`，后续请求带 `user_id`
-- 管理端接口由 `AdminAuthFilter` 校验请求头 `X-Admin-Id` + 该用户 `user_type = 管理员`，否则 403
+- 登录接口校验密码后**直接返回用户对象**，不签发 token；前端存入 `sessionStorage`（键 `steampy_user`），后续请求带 `user_id`
+- 管理端使用独立登录态（`steampy_admin` / `steampy_admin_user`），接口由 `AdminAuthFilter` 校验请求头 `X-Admin-Id` + 该用户 `user_type = 管理员`，否则 403；管理员退出后回到 `/admin/login`
 - `BanCheckFilter` 对已封禁用户拦截所有写操作（GET 放行，余额可见）
 
 ---
@@ -99,11 +99,11 @@ Steam 绑定与游戏库、评测与回复、点赞、举报、收藏、AI 助�
 │   │   └── service/SteamService.java          # Steam 数据抓取
 │   ├── src/main/resources/
 │   │   ├── application.properties
-│   │   ├── init.sql                           # 建表脚本
-│   │   └── sql/                               # 游戏种子数据（seed_games_v1~v4 / name_cn_mapping）
+│   │   └── sql/                               # 游戏种子数据（seed_games / seed_games_v2~v4 / name_cn_mapping）
 │   ├── src/test/java/.../SteamServiceTest.java
 │   ├── pom.xml
-│   └── settings-custom.xml                    # 可写本地仓库的 Maven 配置
+│   ├── settings.xml                           # 可写本地仓库的 Maven 配置
+│   └── init.sql                               # 建表脚本
 │
 ├── src/                                       # Vue 前端
 │   ├── views/                                 # 18 个用户端页面 + admin/ 下 10 个后台页面
@@ -118,7 +118,7 @@ Steam 绑定与游戏库、评测与回复、点赞、举报、收藏、AI 助�
 ├── public/                                    # 静态资源与本地图片
 ├── steampy_full_backup.sql                    # 全库终态备份（结构 + 数据）
 ├── vite.config.ts                             # /api、/uploads 代理；manualChunks 分包
-├── DEPLOY.md                                  # 部署文档
+├── API.md                                     # 后端接口清单
 └── README.md
 ```
 
@@ -149,6 +149,7 @@ Steam 绑定与游戏库、评测与回复、点赞、举报、收藏、AI 助�
 - 订单 / 提现 / 退款使用状态机字段并建索引
 - 资金表记录变动前后余额，支持对账
 - 多对多关联（收藏、绑卡）使用复合唯一键防重
+- `games.is_deleted` 为逻辑删除标记：管理员删除游戏只隐藏数据并下架相关 CDK，记录仍保留在库中
 
 ---
 
@@ -168,6 +169,8 @@ Steam 绑定与游戏库、评测与回复、点赞、举报、收藏、AI 助�
 | `GET` | `/api/wallets/user/{userId}` | 钱包余额 |
 | `POST` | `/api/wallets/user/{userId}/withdraw` | 提现（校验渠道状态 + 手续费 clamp） |
 | `GET` | `/api/transactions/user/{userId}` | 交易流水 |
+| `GET` | `/api/announcements` | 已激活公告列表（用户端） |
+| `GET` | `/api/announcements/all` | 全部公告（管理端列表） |
 
 ### 管理端（均需 `X-Admin-Id`）
 
@@ -182,7 +185,7 @@ Steam 绑定与游戏库、评测与回复、点赞、举报、收藏、AI 助�
 | `PUT` | `/api/admin/refunds/{id}/review` | 退款审核 |
 | `GET` | `/api/admin/export/{users\|orders\|games\|withdrawals}` | CSV 导出（UTF-8 + BOM、中文表头、公式注入防护） |
 
-> 全部 33 个管理端端点见 `AdminController` 类注释。
+> 全部管理端端点见 `AdminController` 类注释。
 
 ---
 
@@ -205,6 +208,9 @@ mysql -u root -proot steampy < steampy_full_backup.sql
 
 ```bash
 mysql -u root -proot steampy < backend/src/main/resources/sql/seed_games.sql
+mysql -u root -proot steampy < backend/src/main/resources/sql/seed_games_v2.sql
+mysql -u root -proot steampy < backend/src/main/resources/sql/seed_games_v3.sql
+mysql -u root -proot steampy < backend/src/main/resources/sql/seed_games_v4.sql
 mysql -u root -proot steampy < backend/src/main/resources/sql/name_cn_mapping.sql
 ```
 
@@ -212,28 +218,31 @@ mysql -u root -proot steampy < backend/src/main/resources/sql/name_cn_mapping.sq
 
 ```bash
 cd backend
-mvn -s settings-custom.xml -DskipTests package
+mvn -s settings.xml -DskipTests package
 java -jar target/steampy-backend-1.0.0.jar
+# 开发模式：mvn -s settings.xml spring-boot:run
 # → http://localhost:8080
 ```
 
-> 若 Maven 全局 settings.xml 把本地仓库指向只读目录，**必须**用 `-s settings-custom.xml` 覆盖。
+> 若 Maven 全局 settings.xml 把本地仓库指向只读目录，**必须**用 `-s settings.xml` 覆盖。
 
 ### 3. 启动前端
 
 ```bash
 npm install
-npm run dev
-# → http://localhost:5173（/api、/uploads 由 Vite 代理到 8080）
+npm run dev          # 用户端 → http://localhost:5173
+npm run dev:admin    # 管理端 → http://localhost:5174/admin/login
 ```
+
+`/api`、`/uploads` 由 Vite 代理到 `http://localhost:8080`。
 
 ### 4. 测试
 
 ```bash
-npm run build          # 生产构建校验
-npm run test:e2e       # puppeteer-core 冒烟（5 条主流程）
-node e2e/regression.mjs  # 文件编码回归
-cd backend && mvn -s settings-custom.xml test   # SteamServiceTest 15 例
+npm run build             # 生产构建校验
+npm run test:e2e          # puppeteer-core 冒烟（5 条主流程）
+node e2e/regression.mjs   # 文件编码回归
+cd backend && mvn -s settings.xml test   # SteamServiceTest 15 例
 ```
 
 ---
@@ -265,8 +274,7 @@ cd backend && mvn -s settings-custom.xml test   # SteamServiceTest 15 例
 
 | 文档 | 内容 |
 |---|---|
-| [DEPLOY.md](./DEPLOY.md) | 生产部署：构建、Nginx、服务化、排错 |
+| [API.md](./API.md) | 后端接口清单 |
 | [TEAM_ASSIGNMENT.md](./TEAM_ASSIGNMENT.md) | 两人业务域划分与协作边界 |
 | [718_GUIDE.md](./718_GUIDE.md) / [719_GUIDE.md](./719_GUIDE.md) | 各业务域专属指南 |
 | [TEST_ACCOUNTS.md](./TEST_ACCOUNTS.md) | 测试账号与角色 |
-| [PROJECT_STATUS.md](./PROJECT_STATUS.md) | 项目进度与遗留事项 |
